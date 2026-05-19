@@ -29,7 +29,7 @@
 
 | Topic | Design says | Decide before step |
 |-------|-------------|-------------------|
-| Config location | `~/.config/pourover/` | **M0.2** — repo-local `pourover.lua` vs global vs both (`--config`) |
+| Config location | `~/.pourover/` (decided) | **M0.2** — optional `--config` override only |
 | Lua embedding | “Go loads Lua” | **M2.1** — `yuin/gopher-lua` vs `layeh/gopher-luar` vs external `lua` binary |
 | Lua return shape | Conceptual schema | **M2.3** — table keys and types (document in `docs/config-schema.md`) |
 | File operations | links + managed | **M5.1** — symlinks only v1, or copy too? overwrite policy? |
@@ -41,7 +41,7 @@
 
 | ID | Decision | Choice | Date |
 |----|----------|--------|------|
-| D1 | Config root strategy | _TBD_ | |
+| D1 | Config root strategy | Default `~/.pourover/`; state in `~/Library/Application Support/PourOver/state/`; `--config` override. Not `~/.config` (reserved for managed app configs). No dotfiles-repo discovery. | 2026-05-19 |
 | D2 | Lua runtime library | _TBD_ | |
 | D3 | File ops v1 scope | _TBD_ | |
 | D4 | Taps in v1 | _TBD_ | |
@@ -87,23 +87,25 @@
 
 ---
 
-### M0.2 — Decide config location (D1)
+### M0.2 — Config location (D1) ✅ decided
 **Goal:** Lock where `pourover.lua` is discovered.
 
-**Options:**
-- A) Current directory / walk up to git root (dotfile-repo style)
-- B) `~/.config/pourover/pourover.lua` only
-- C) Both: walk up for repo config, fallback to global; `--config path` override
+**Decision:**
+- **Default config root:** `~/.pourover/` (`pourover.lua` + Lua modules for `require()`)
+- **State root:** `~/Library/Application Support/PourOver/state/`
+- **Override:** `--config /path/to/pourover.lua` (module path = that file’s directory)
+- **Not used:** `~/.config/pourover/` (keeps `~/.config` for managed application configs only)
+- **Not used:** walk-up / `~/dotfiles/` repo discovery (users may symlink into `~/.pourover/` if they want)
 
-**Do:** Record choice in **Open decisions** table. Add one paragraph to design doc if needed.
+**Do:** Implement path helpers in **M8.1**; document in `docs/config-schema.md` during **M2.3**.
 
 **Verify:** N/A (decision only)
 
 **Done when:**
-- [ ] D1 filled in
-- [ ] Design doc or this file notes resolution
+- [x] D1 filled in
+- [x] Design doc updated
 
-**Review gate:** This affects every command; don’t code loaders until decided.
+**Review gate:** If you later want `pourover init --path ~/elsewhere`, treat as a new decision — v1 stays `~/.pourover/`.
 
 ---
 
@@ -125,7 +127,7 @@
 **Verify:** `go build ./...` succeeds (may be empty mains)
 
 **Done when:**
-- [ ] Layout matches design component list
+- [x] Layout matches design component list
 
 **Review gate:** Rename packages now if you prefer different boundaries.
 
@@ -144,9 +146,9 @@
 **Verify:** `go run ./cmd/pourover --help`
 
 **Done when:**
-- [ ] Help text mentions macOS declarative env manager
+- [x] Help text mentions macOS declarative env manager
 
-**Review gate:** Cobra vs stdlib — stick with one for v1.
+**Review gate:** Cobra vs stdlib — **Cobra** (v1).
 
 ---
 
@@ -158,9 +160,9 @@
 **Verify:** `go run ./cmd/pourover plan` → clear not-implemented message, exit ≠ 0
 
 **Done when:**
-- [ ] Each subcommand appears in `--help`
+- [x] Each subcommand appears in `--help`
 
-**Review gate:** Command names final? (`sync` alias for `apply` later?)
+**Review gate:** Command names final for v1 (no `sync` alias yet; can add later).
 
 ---
 
@@ -172,9 +174,9 @@
 **Verify:** `pourover plan --config /tmp/x` doesn’t panic
 
 **Done when:**
-- [ ] Flags parse on root or subcommands consistently
+- [x] Flags parse on root or subcommands consistently
 
-**Review gate:** Prefer persistent flags on root vs per-command?
+**Review gate:** **Persistent flags on root** (`--verbose` / `-v`, `--config`, `--json`); use `cli.Global()` in commands.
 
 ---
 
@@ -186,9 +188,9 @@
 **Verify:** `go test ./internal/cli/...`
 
 **Done when:**
-- [ ] Test passes
+- [x] Test passes
 
-**Review gate:** Commit milestone **M1** when satisfied.
+**Review gate:** Milestone **M1** complete — commit when ready.
 
 ---
 
@@ -346,13 +348,13 @@
 ### M3.5 — Wire `pourover plan` (brew only)
 **Goal:** End-to-end: find config → load → discover → print plan.
 
-**Do:** Implement `plan` command using D1 config discovery
+**Do:** Implement `plan` command: load `~/.pourover/pourover.lua` by default (or `--config`)
 
-**Verify:** On your Mac with a test `pourover.lua`, `pourover plan` prints expected installs
+**Verify:** On your Mac with `~/.pourover/pourover.lua`, `pourover plan` prints expected installs
 
 **Done when:**
 - [ ] Works with real brew installed
-- [ ] Missing config → clear error
+- [ ] Missing `~/.pourover/pourover.lua` → clear error (suggest `pourover init`)
 
 **Review gate:** Commit milestone **M3**. Demo to yourself before apply.
 
@@ -490,18 +492,18 @@
 ## M7 — Init scaffolding
 
 ### M7.1 — `pourover init` template files
-**Goal:** Write `pourover.lua`, `packages.lua`, `.gitignore` suggestion for state.
+**Goal:** Scaffold `~/.pourover/` with `pourover.lua`, `packages.lua`, and example managed-target entries.
 
-**Do:** Embed templates or `text/template`
+**Do:** Embed templates or `text/template`; create `~/.pourover/` if missing
 
-**Verify:** `init` in empty dir → valid config → `plan` succeeds
+**Verify:** `pourover init` → `~/.pourover/pourover.lua` exists → `plan` succeeds
 
 ---
 
 ### M7.2 — Don’t overwrite without flag
 **Goal:** `init --force` only overwrites.
 
-**Verify:** Test refuses existing `pourover.lua`
+**Verify:** Test refuses existing `~/.pourover/pourover.lua` without `--force`
 
 **Review gate:** Commit milestone **M7**.
 
@@ -510,9 +512,9 @@
 ## M8 — Plain-file state
 
 ### M8.1 — Paths helper
-**Goal:** Resolve config dir, state dir (`~/Library/Application Support/PourOver/state/`).
+**Goal:** Resolve default config dir (`~/.pourover/`), state dir (`~/Library/Application Support/PourOver/state/`), and config file from `--config`.
 
-**Do:** `internal/state/paths.go` — overridable in tests
+**Do:** `internal/paths/paths.go` (or `internal/config/paths.go`) — overridable in tests
 
 **Verify:** Tests use temp dirs
 
@@ -610,7 +612,7 @@ Use these as natural stopping points when pairing with an agent:
 | 4 | M4 | Plan includes dotfiles |
 | 5 | M5 | One real `brew install` via apply |
 | 6 | M6 | Symlinks + idempotent apply |
-| 7 | M7 | `init` bootstraps repo |
+| 7 | M7 | `init` bootstraps `~/.pourover/` |
 | 8 | M8–M9 | State files + iCloud copy |
 | 9 | M10 | doctor + CI + alpha tag |
 

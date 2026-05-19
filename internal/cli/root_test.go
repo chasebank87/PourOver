@@ -1,0 +1,29 @@
+package cli_test
+
+import (
+	"slices"
+	"testing"
+
+	"github.com/chasebank87/PourOver/internal/cli"
+	"github.com/spf13/cobra"
+)
+
+func TestRootCommand_HasCoreSubcommands(t *testing.T) {
+	names := subcommandNames(cli.NewRootCommand())
+
+	required := []string{"init", "plan", "apply", "doctor", "backup", "restore"}
+	for _, name := range required {
+		if !slices.Contains(names, name) {
+			t.Errorf("missing subcommand %q; registered: %v", name, names)
+		}
+	}
+}
+
+func subcommandNames(cmd *cobra.Command) []string {
+	children := cmd.Commands()
+	names := make([]string, 0, len(children))
+	for _, c := range children {
+		names = append(names, c.Name())
+	}
+	return names
+}
