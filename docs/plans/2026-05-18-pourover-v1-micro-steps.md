@@ -43,8 +43,8 @@
 |----|----------|--------|------|
 | D1 | Config root strategy | Default `~/.pourover/`; state in `~/Library/Application Support/PourOver/state/`; `--config` override. Not `~/.config` (reserved for managed app configs). No dotfiles-repo discovery. | 2026-05-19 |
 | D2 | Lua runtime library | `github.com/yuin/gopher-lua` (MIT, pure Go embed) | 2026-05-19 |
-| D3 | File ops v1 scope | _TBD_ | |
-| D4 | Taps in v1 | _TBD_ | |
+| D3 | File ops v1 scope | **Links only** — see `docs/v2-backlog.md` for deferred file features | 2026-05-19 |
+| D4 | Taps in v1 | Deferred — not in v1 discovery or plan | 2026-05-19 |
 | D5 | iCloud default path | _TBD_ | |
 
 ---
@@ -297,9 +297,9 @@
 **Verify:** Unit test with fake stdout for `brew list --formula`
 
 **Done when:**
-- [ ] No real brew calls in unit tests
+- [x] No real brew calls in unit tests
 
-**Review gate:** Timeout on brew commands?
+**Review gate:** **30s** default timeout per brew invocation (`DefaultBrewTimeout`); override on `ExecRunner`.
 
 ---
 
@@ -311,9 +311,9 @@
 **Verify:** Tests with fixture output files
 
 **Done when:**
-- [ ] Handles empty lists and multiple lines
+- [x] Handles empty lists and multiple lines
 
-**Review gate:** Defer taps (D4) explicitly in doc if skipping.
+**Review gate:** **Taps deferred** (D4) — v1 discovers formulae and casks only.
 
 ---
 
@@ -325,9 +325,9 @@
 **Verify:** Table-driven tests: desired ⊃ current → installs only, etc.
 
 **Done when:**
-- [ ] Deterministic sort order documented in test
+- [x] Deterministic sort order documented in test
 
-**Review gate:** Case sensitivity for package names?
+**Review gate:** Package names matched **case-sensitively** (see `TestBuildBrewPlan_CaseSensitive`).
 
 ---
 
@@ -339,9 +339,9 @@
 **Verify:** Snapshot test or golden file for one plan
 
 **Done when:**
-- [ ] `plan --json` structure stable enough to document
+- [x] `plan --json` structure stable enough to document
 
-**Review gate:** JSON field names frozen for future dashboard?
+**Review gate:** JSON fields frozen — see `docs/plan-output.md` (`actions[].type`, `actions[].name`).
 
 ---
 
@@ -353,23 +353,27 @@
 **Verify:** On your Mac with `~/.pourover/pourover.lua`, `pourover plan` prints expected installs
 
 **Done when:**
-- [ ] Works with real brew installed
-- [ ] Missing `~/.pourover/pourover.lua` → clear error (suggest `pourover init`)
+- [x] Works with real brew installed (via `go run ./cmd/pourover plan --config <fixture>`)
+- [x] Missing `~/.pourover/pourover.lua` → clear error (suggest `pourover init`)
 
-**Review gate:** Commit milestone **M3**. Demo to yourself before apply.
+**Review gate:** Milestone **M3** complete — commit when ready. Demo with real `~/.pourover/` before apply.
 
 ---
 
 ## M4 — Files in plan (still no apply)
 
-### M4.1 — Decide file ops scope (D3)
+### M4.1 — Decide file ops scope (D3) ✅ decided
 **Goal:** v1 file behavior locked.
 
-**Recommend for simplicity:** symlinks only (`files.links`), no templates in v1.
+**Decision (option A):** `files.links` symlinks only; `files.managed` reserved; no auto-unlink; fail if target is a non-symlink; source must exist at plan time; sources relative to config dir. Deferred items → `docs/v2-backlog.md`.
 
 **Do:** Update `docs/config-schema.md` and D3 row.
 
-**Review gate:** Must decide before M4.2.
+**Done when:**
+- [x] D3 filled in
+- [x] `docs/v2-backlog.md` created
+
+**Review gate:** Proceed to M4.2.
 
 ---
 
@@ -381,7 +385,7 @@
 **Verify:** Tests with temp dir symlinks
 
 **Done when:**
-- [ ] Detects missing link, wrong target, correct link
+- [x] Detects missing link, wrong target, correct link
 
 ---
 
@@ -390,9 +394,10 @@
 
 **Do:** Extend `internal/plan` and `plan` command output
 
-**Verify:** `pourover plan` shows file link when fixture config includes links
+**Done when:**
+- [x] `pourover plan` shows file link when fixture config includes links
 
-**Review gate:** Commit milestone **M4**.
+**Review gate:** Milestone **M4** complete — brew then file actions; `link_create` / `link_update` in plan output.
 
 ---
 

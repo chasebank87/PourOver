@@ -1,0 +1,91 @@
+# PourOver v2 backlog
+
+Ideas and scope **explicitly deferred from v1**. When we cut v1, anything not done should be listed here so it does not get lost.
+
+**How to use:** Add items with a short rationale and link to the v1 decision or milestone that deferred them. When starting v2 planning, triage this list into milestones.
+
+**Related:** v1 decisions live in `docs/plans/2026-05-18-pourover-v1-micro-steps.md` (Open decisions table). v1 non-goals in `docs/plans/2026-05-18-pourover-v1-design.md`.
+
+---
+
+## Files & dotfiles
+
+| Item | Deferred from | Notes |
+|------|---------------|-------|
+| `files.managed` — copy files to target | D3 (v1 = links only) | For apps that reject symlinks; needs overwrite/backup policy |
+| Template / rendered config files | D3 | e.g. hostname-specific configs; pick a template engine |
+| Directory-only links mode | M4 discussion | Restrict links to directories only; stricter validation |
+| Auto-unlink / prune undeclared symlinks | M4 discussion | Requires knowing which links PourOver created (state) |
+| `files.unlink` explicit removal list | M4 discussion | Safer alternative to auto-prune |
+| `--force` when target is a regular file | M4 discussion | v1: fail in plan if target exists and is not a symlink |
+| Backup-then-replace for blocking targets | M4 discussion | Move existing file aside before linking |
+| Allow plan/apply when source missing | M4 discussion | v1: require source to exist at plan time |
+| `policy` for file removals (mirror `uninstall_mode`) | M6 review gate | safe / strict / non_destructive for unlink |
+
+## Homebrew
+
+| Item | Deferred from | Notes |
+|------|---------------|-------|
+| Homebrew **taps** in discovery/plan/apply | D4 | Apply order in design includes taps; not implemented in v1 |
+| Brew bundle / Brewfile import | — | Optional input format |
+| `brew pin` / version pinning | — | Nix-like pinning is out of scope for v1 |
+
+## Config & UX
+
+| Item | Deferred from | Notes |
+|------|---------------|-------|
+| `pourover config validate` subcommand | M2 review gate | Validate without discover/apply |
+| Strict mode: error on unknown Lua keys | M2.5 review gate | v1 ignores unknown keys |
+| Dotfiles repo discovery (`~/dotfiles`, walk-up to git root) | D1 | v1 uses `~/.pourover/` only; users can symlink |
+| `pourover init --path` custom config root | M0.2 | v1 fixed to `~/.pourover/` |
+| `sync` alias for `apply` | M1.2 | Naming only |
+| Multi-profile / host-specific manifests | Design v2 | e.g. `policy.hosts["work-laptop"]` |
+| `pourover init` from remote template URL | — | Bootstrap from community presets |
+
+## State, backup & platform
+
+| Item | Deferred from | Notes |
+|------|---------------|-------|
+| Default iCloud path formalized + override UX | D5 | v1 will pick a default at M9; document here when chosen |
+| Remote sync beyond iCloud (S3, git remote state) | Design v2 | Plain-file state is v1 |
+| Rich history browser / drift UI | Design v2 | Needs dashboard or TUI |
+| Rollback command beyond `restore` | — | One-click undo last apply |
+
+## Dashboard & tooling
+
+| Item | Deferred from | Notes |
+|------|---------------|-------|
+| Admin dashboard (local web or native macOS) | Design v1 non-goals | Plan JSON shape frozen for future UI |
+| `doctor` fix mode (auto-repair) | — | v1 diagnose only |
+| CI / headless apply with `--yes` | M5 | Non-interactive installs/uninstalls |
+
+## Platform
+
+| Item | Deferred from | Notes |
+|------|---------------|-------|
+| Linux / non-macOS support | Design v1 non-goals | macOS-only for v1 |
+| Full Nix-like store / build graph | Design v1 non-goals | Declarative reconcile only |
+
+---
+
+## v1 locked choices (for contrast)
+
+See **D3** in micro-steps. v1 file behavior:
+
+- **`files.links` only** (symlinks)
+- Source paths relative to the directory containing `pourover.lua`
+- Targets support `~` expansion; compare canonical absolute paths
+- No automatic unlink of undeclared symlinks
+- Existing non-symlink at target → **error** in plan (no force)
+- Source must exist at plan time
+- Plan/apply order: brew actions, then file link actions
+
+---
+
+## Adding items
+
+When deferring work from a PR or micro-step, add a row above with:
+
+1. **What** — one line
+2. **Deferred from** — decision ID, milestone, or PR link
+3. **Notes** — constraints or dependencies
