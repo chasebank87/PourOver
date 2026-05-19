@@ -65,6 +65,23 @@ Version 1 is intentionally CLI-first. Admin dashboard work is deferred to v2 so 
 
 Go validates and normalizes the loaded Lua result into a strict internal manifest before planning/applying.
 
+### Paths (config vs state vs managed targets)
+
+PourOver separates three locations on purpose:
+
+| Role | Default path | Notes |
+|------|----------------|-------|
+| **PourOver config** | `~/.pourover/` | Declarative Lua (`pourover.lua`, modules). Not under `~/.config` so it stays distinct from app configs PourOver manages. |
+| **Runtime state** | `~/Library/Application Support/PourOver/state/` | Lock, history, snapshots — machine-local, not usually git-tracked. |
+| **Managed targets** | `~/.config/<app>/`, `~/.zshrc`, etc. | Declared in Lua; `apply` reconciles these on disk. |
+
+Config discovery:
+
+- **Default:** load `~/.pourover/pourover.lua` (and resolve `require()` from `~/.pourover/`).
+- **Override:** `--config /path/to/pourover.lua` (module search path = directory containing that file).
+
+Users may keep a separate dotfiles repo (e.g. `~/dotfiles/`); PourOver does not assume or require that layout. They can symlink or copy into `~/.pourover/` if they want git-backed config elsewhere.
+
 ## Architecture
 
 ### Runtime split
@@ -114,9 +131,9 @@ Go validates and normalizes the loaded Lua result into a strict internal manifes
 
 ## State & Backup Strategy (Plain Files)
 
-Default local paths (subject to final implementation details):
+Default local paths:
 
-- Config root: `~/.config/pourover/`
+- Config root: `~/.pourover/`
 - State root: `~/Library/Application Support/PourOver/state/`
 
 Artifacts:

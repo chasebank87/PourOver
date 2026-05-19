@@ -8,6 +8,8 @@
 
 **Tech Stack:** Go (CLI + engine), Lua (config DSL), Homebrew CLI integration, plain JSON state files, macOS filesystem APIs
 
+**Paths (D1):** Config default `~/.pourover/pourover.lua`; state `~/Library/Application Support/PourOver/state/`; override `--config`. Managed app configs live under `~/.config/` as targets only.
+
 ---
 
 ### Task 1: Bootstrap CLI project and command skeleton
