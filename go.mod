@@ -2,7 +2,10 @@ module github.com/chasebank87/PourOver
 
 go 1.26.3
 
-require github.com/spf13/cobra v1.10.2
+require (
+	github.com/spf13/cobra v1.10.2
+	github.com/yuin/gopher-lua v1.1.2
+)
 
 require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect

@@ -93,7 +93,7 @@ Users may keep a separate dotfiles repo (e.g. `~/dotfiles/`); PourOver does not 
   - Diff/reconciliation engine
   - Executor and safety prompts
   - Plain-file state and backup management
-- **Lua layer**
+- **Lua layer** (`github.com/yuin/gopher-lua`, MIT)
   - User-authored declaration format
   - Composition primitives via modules/imports
 
