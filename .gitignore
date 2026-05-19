@@ -1,0 +1,36 @@
+# Binaries
+/pourover
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go build & test
+*.test
+*.out
+/coverage.out
+/coverage.html
+/vendor/
+
+# IDE & editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Local env & secrets
+.env
+.env.*
+!.env.example
+
+# PourOver local state (when testing in-repo)
+.pourover-state/
+**/state/test/
