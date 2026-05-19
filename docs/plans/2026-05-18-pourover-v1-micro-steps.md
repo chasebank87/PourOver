@@ -42,7 +42,7 @@
 | ID | Decision | Choice | Date |
 |----|----------|--------|------|
 | D1 | Config root strategy | Default `~/.pourover/`; state in `~/Library/Application Support/PourOver/state/`; `--config` override. Not `~/.config` (reserved for managed app configs). No dotfiles-repo discovery. | 2026-05-19 |
-| D2 | Lua runtime library | _TBD_ | |
+| D2 | Lua runtime library | `github.com/yuin/gopher-lua` (MIT, pure Go embed) | 2026-05-19 |
 | D3 | File ops v1 scope | _TBD_ | |
 | D4 | Taps in v1 | _TBD_ | |
 | D5 | iCloud default path | _TBD_ | |
@@ -206,9 +206,9 @@
 **Verify:** Spike test passes
 
 **Done when:**
-- [ ] D2 filled in
+- [x] D2 filled in
 
-**Review gate:** gopher-lua is usual choice; confirm license and embedding story.
+**Review gate:** **gopher-lua** — MIT license; embed via `lua.NewState()` + `DoString` / future `DoFile`.
 
 ---
 
@@ -220,9 +220,9 @@
 **Verify:** Compiles; optional JSON tags for debug printing
 
 **Done when:**
-- [ ] Types cover design schema (formulae, casks, links, policy, backup)
+- [x] Types cover design schema (formulae, casks, links, policy, backup)
 
-**Review gate:** Field names match what you want in Lua (snake_case in Lua → Go mapping).
+**Review gate:** Go uses `snake_case` JSON tags to match Lua keys (`uninstall_mode`, etc.).
 
 ---
 
@@ -237,9 +237,9 @@
 **Verify:** You can hand-read example and map to Go types
 
 **Done when:**
-- [ ] Example file committed under `test/fixtures/config/valid/pourover.lua`
+- [x] Example file committed under `test/fixtures/config/valid/pourover.lua`
 
-**Review gate:** Approve schema before writing validator.
+**Review gate:** Approve schema before writing validator (see `docs/config-schema.md`).
 
 ---
 
@@ -251,9 +251,9 @@
 **Verify:** `go test ./internal/config/ -run LoadManifest_Valid`
 
 **Done when:**
-- [ ] Valid fixture loads; `policy.uninstall_mode == "safe"`
+- [x] Valid fixture loads; `policy.uninstall_mode == "safe"`
 
-**Review gate:** Error messages for bad types — good enough for v1?
+**Review gate:** Loader returns field paths on type errors (e.g. `packages.formulae[1]`); full validation in M2.5.
 
 ---
 
@@ -265,9 +265,9 @@
 **Verify:** Invalid fixtures fail with path + field in error
 
 **Done when:**
-- [ ] At least 2 invalid fixture tests
+- [x] At least 2 invalid fixture tests
 
-**Review gate:** Strict vs warn on unknown keys?
+**Review gate:** v1 ignores unknown Lua keys at load; `Validate` enforces semantics on known fields only.
 
 ---
 
@@ -281,9 +281,9 @@
 **Verify:** Test loads merged formulae from module
 
 **Done when:**
-- [ ] `require("packages")` works from config dir
+- [x] `require("packages")` works from config dir
 
-**Review gate:** Commit milestone **M2**. Consider `pourover config validate` subcommand later.
+**Review gate:** Milestone **M2** complete — commit when ready. Consider `pourover config validate` subcommand later.
 
 ---
 
