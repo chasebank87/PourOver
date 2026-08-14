@@ -7,11 +7,6 @@ func NewInitCmd() *cobra.Command {
 	return notImplemented("init", "Scaffold ~/.pourover config")
 }
 
-// NewApplyCmd returns the apply subcommand.
-func NewApplyCmd() *cobra.Command {
-	return notImplemented("apply", "Reconcile system state to match config")
-}
-
 // NewDoctorCmd returns the doctor subcommand.
 func NewDoctorCmd() *cobra.Command {
 	return notImplemented("doctor", "Check prerequisites and environment health")

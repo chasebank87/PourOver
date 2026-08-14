@@ -1,0 +1,184 @@
+package commands
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/chasebank87/PourOver/internal/plan"
+	"github.com/spf13/cobra"
+)
+
+type recordingRunner struct {
+	calls [][]string
+}
+
+func (r *recordingRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
+	r.calls = append(r.calls, append([]string(nil), args...))
+	if len(args) == 2 && args[0] == "list" && args[1] == "--formula" {
+		return []byte("git\n"), nil
+	}
+	if len(args) == 2 && args[0] == "list" && args[1] == "--cask" {
+		return []byte(""), nil
+	}
+	return nil, fmt.Errorf("unexpected brew args: %v", args)
+}
+
+func mutationBrewArgs(args []string) bool {
+	if len(args) == 0 {
+		return false
+	}
+	switch args[0] {
+	case "install", "uninstall", "remove", "reinstall", "upgrade", "tap", "untap":
+		return true
+	default:
+		return false
+	}
+}
+
+func TestApplyDryRun_NoBrewMutations(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "cfg")
+	if err := os.MkdirAll(filepath.Join(configDir, "config", "nvim"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(configDir, "pourover.lua")
+	if err := os.WriteFile(configPath, []byte(`return {
+  packages = { formulae = { "git", "fzf" } },
+  files = { links = {} },
+  policy = { uninstall_mode = "safe" },
+}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	runner := &recordingRunner{}
+	p, err := buildPlan(context.Background(), configPath, runner)
+	if err != nil {
+		t.Fatalf("buildPlan: %v", err)
+	}
+	if err := printPlan(p, false); err != nil {
+		t.Fatalf("printPlan: %v", err)
+	}
+
+	for _, args := range runner.calls {
+		if mutationBrewArgs(args) {
+			t.Fatalf("brew mutation during dry-run path: %v", args)
+		}
+	}
+	if len(runner.calls) != 2 {
+		t.Fatalf("brew calls = %d, want 2 discovery list calls", len(runner.calls))
+	}
+}
+
+func TestApplyDryRun_MatchesPlanOutput(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "cfg")
+	if err := os.MkdirAll(filepath.Join(configDir, "config", "nvim"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(root, "tgt")
+	configPath := filepath.Join(configDir, "pourover.lua")
+	if err := os.WriteFile(configPath, []byte(`return {
+  packages = { formulae = { "git", "fzf" }, casks = { "raycast" } },
+  files = {
+    links = { { source = "config/nvim", target = "`+target+`" } },
+  },
+  policy = { uninstall_mode = "safe" },
+}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	runner := &stubBrewRunner{formulae: "git\n", casks: ""}
+	planOut, err := buildPlan(context.Background(), configPath, runner)
+	if err != nil {
+		t.Fatalf("buildPlan plan path: %v", err)
+	}
+	applyOut, err := buildPlan(context.Background(), configPath, runner)
+	if err != nil {
+		t.Fatalf("buildPlan apply dry-run path: %v", err)
+	}
+
+	planText := plan.RenderText(planOut)
+	applyText := plan.RenderText(applyOut)
+	if planText != applyText {
+		t.Fatalf("plan and apply --dry-run output differ:\nplan:\n%s\napply:\n%s", planText, applyText)
+	}
+}
+
+func TestExecuteApply_FormulaInstallOnly(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "cfg")
+	if err := os.MkdirAll(filepath.Join(configDir, "config", "nvim"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(configDir, "pourover.lua")
+	if err := os.WriteFile(configPath, []byte(`return {
+  packages = { formulae = { "git", "fzf" }, casks = { "raycast" } },
+  files = { links = {} },
+  policy = { uninstall_mode = "safe" },
+}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	runner := &installRecordingRunner{
+		listFormula: []byte("git\n"),
+		listCask:    []byte(""),
+	}
+	p, err := buildPlan(context.Background(), configPath, runner)
+	if err != nil {
+		t.Fatalf("buildPlan: %v", err)
+	}
+
+	cmd := &cobra.Command{}
+	cmd.SetContext(context.Background())
+	if err := executeApply(cmd, runner, p); err != nil {
+		t.Fatalf("executeApply: %v", err)
+	}
+	if len(runner.installs) != 1 || runner.installs[0] != "fzf" {
+		t.Fatalf("installs = %v, want [fzf]", runner.installs)
+	}
+
+	// Second plan: fzf should no longer need install.
+	runner.listFormula = []byte("git\nfzf\n")
+	p2, err := buildPlan(context.Background(), configPath, runner)
+	if err != nil {
+		t.Fatalf("buildPlan after install: %v", err)
+	}
+	if names := plan.ActionNames(p2, plan.ActionFormulaInstall); len(names) != 0 {
+		t.Fatalf("formula installs after apply = %v, want none", names)
+	}
+}
+
+type installRecordingRunner struct {
+	listFormula []byte
+	listCask    []byte
+	installs    []string
+}
+
+func (r *installRecordingRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
+	if len(args) == 2 && args[0] == "list" && args[1] == "--formula" {
+		return r.listFormula, nil
+	}
+	if len(args) == 2 && args[0] == "list" && args[1] == "--cask" {
+		return r.listCask, nil
+	}
+	if len(args) == 2 && args[0] == "install" {
+		r.installs = append(r.installs, args[1])
+		return nil, nil
+	}
+	return nil, fmt.Errorf("unexpected brew args: %v", args)
+}
+
+func TestNewApplyCmd_HasDryRunFlag(t *testing.T) {
+	cmd := NewApplyCmd()
+	flag := cmd.Flags().Lookup("dry-run")
+	if flag == nil {
+		t.Fatal("missing --dry-run flag")
+	}
+	if !strings.Contains(flag.Usage, "plan") {
+		t.Errorf("--dry-run usage = %q, want mention of plan", flag.Usage)
+	}
+}
