@@ -377,6 +377,78 @@ func TestExecuteApply_IdempotentNoChanges(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(stateDir, "last-plan.json")); err != nil {
 		t.Fatalf("last-plan.json: %v", err)
 	}
+	histDir := filepath.Join(stateDir, "history")
+	entries, err := os.ReadDir(histDir)
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("history entries = %v err=%v, want 1", entries, err)
+	}
+}
+
+func TestExecuteApply_FailedApplyStillWritesHistory(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "cfg")
+	stateDir := filepath.Join(root, "state")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(configDir, "pourover.lua")
+	if err := os.WriteFile(configPath, []byte(`return {
+  packages = { formulae = { "git", "fzf" }, casks = {} },
+  files = { links = {} },
+  policy = { uninstall_mode = "safe" },
+}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	runner := &failingInstallRunner{listFormula: []byte("git\n"), listCask: []byte("")}
+	p, err := buildPlan(context.Background(), configPath, runner)
+	if err != nil {
+		t.Fatalf("buildPlan: %v", err)
+	}
+	manifest, err := config.LoadManifest(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := &cobra.Command{}
+	cmd.SetContext(context.Background())
+	opts := applyOptions{
+		mode:      config.UninstallModeSafe,
+		autoYes:   true,
+		configDir: configDir,
+		stateDir:  stateDir,
+		manifest:  manifest,
+		now:       func() time.Time { return time.Date(2026, 5, 18, 14, 0, 0, 0, time.UTC) },
+	}
+	err = executeApply(cmd, runner, p, opts)
+	if err == nil {
+		t.Fatal("expected apply error")
+	}
+	if _, statErr := os.Stat(filepath.Join(stateDir, "lock.json")); !os.IsNotExist(statErr) {
+		t.Fatalf("lock.json should not exist on failure, stat=%v", statErr)
+	}
+	entries, readErr := os.ReadDir(filepath.Join(stateDir, "history"))
+	if readErr != nil || len(entries) != 1 {
+		t.Fatalf("history = %v err=%v, want 1 failure entry", entries, readErr)
+	}
+}
+
+type failingInstallRunner struct {
+	listFormula []byte
+	listCask    []byte
+}
+
+func (r *failingInstallRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
+	if len(args) == 2 && args[0] == "list" && args[1] == "--formula" {
+		return r.listFormula, nil
+	}
+	if len(args) == 2 && args[0] == "list" && args[1] == "--cask" {
+		return r.listCask, nil
+	}
+	if len(args) >= 1 && args[0] == "install" {
+		return nil, fmt.Errorf("brew install failed")
+	}
+	return nil, fmt.Errorf("unexpected brew args: %v", args)
 }
 
 func TestExecuteApply_BrewThenFiles(t *testing.T) {

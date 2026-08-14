@@ -73,11 +73,22 @@ func runApply(cmd *cobra.Command, dryRun, autoYes bool) error {
 }
 
 func executeApply(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, opts applyOptions) error {
+	applyErr := runApplyActions(cmd, runner, p, opts)
+	if histErr := appendApplyHistory(opts, p, applyErr); histErr != nil && applyErr == nil {
+		return histErr
+	}
+	if applyErr != nil {
+		return applyErr
+	}
+	return persistApplyState(opts, p)
+}
+
+func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, opts applyOptions) error {
 	out := cmd.ErrOrStderr()
 	skipped := exec.UnsupportedApplyActions(p)
 	if len(p.Actions) == 0 {
 		fmt.Fprintln(out, "No changes.")
-		return persistApplyState(opts, p)
+		return nil
 	}
 
 	// Phase 1: Homebrew (installs then removes)
@@ -128,7 +139,27 @@ func executeApply(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, opts
 	} else if n == 0 && len(skipped) == len(p.Actions) {
 		fmt.Fprintln(out, "No actions to apply.")
 	}
-	return persistApplyState(opts, p)
+	return nil
+}
+
+func appendApplyHistory(opts applyOptions, p plan.Plan, applyErr error) error {
+	if opts.stateDir == "" {
+		return nil
+	}
+	now := time.Now
+	if opts.now != nil {
+		now = opts.now
+	}
+	at := now()
+	hash, err := state.ManifestHash(opts.manifest)
+	if err != nil {
+		return fmt.Errorf("history manifest hash: %w", err)
+	}
+	entry := state.NewHistoryEntry(p, hash, at, applyErr)
+	if _, err := state.AppendHistory(opts.stateDir, entry, at); err != nil {
+		return fmt.Errorf("persist history: %w", err)
+	}
+	return nil
 }
 
 func persistApplyState(opts applyOptions, p plan.Plan) error {
