@@ -154,6 +154,42 @@ func TestImportFile_SymlinkToDirectoryInsideTree(t *testing.T) {
 	}
 }
 
+func TestImportFile_ClearsLeftoverFileWhereDirectoryNeeded(t *testing.T) {
+	home := t.TempDir()
+	cfgDir := filepath.Join(home, ".pourover")
+	configRoot := filepath.Join(home, ".config")
+	nvim := filepath.Join(configRoot, "nvim")
+	if err := os.MkdirAll(filepath.Join(nvim, "lua"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(nvim, "lua", "init.lua"), []byte("-- ok\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Simulate v0.1.3 failure residue: empty file at the path that should be a directory.
+	leftover := filepath.Join(cfgDir, "config", "nvim", "lua")
+	if err := os.MkdirAll(filepath.Dir(leftover), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(leftover, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c := FileCandidate{
+		TargetPath: nvim,
+		TargetDecl: "~/.config/nvim",
+		RelSource:  "config/nvim",
+	}
+	if _, err := ImportFile(cfgDir, c, false); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(leftover)
+	if err != nil || !info.IsDir() {
+		t.Fatalf("lua path = %#v err=%v, want directory", info, err)
+	}
+	if _, err := os.Stat(filepath.Join(leftover, "init.lua")); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestFormatRootLua(t *testing.T) {
 	got := FormatRootLua(
 		[]config.FileLink{{Source: "config/nvim", Target: "~/.config/nvim"}},

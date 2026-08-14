@@ -83,6 +83,12 @@ func ImportFile(cfgDir string, c FileCandidate, applyLive bool) (config.FileLink
 		copyFrom = c.TargetPath
 	}
 
+	// Clear any partial tree from a previous failed import (e.g. empty file left
+	// where a directory should be after copyFile opened a symlink-to-dir).
+	if err := os.RemoveAll(srcAbs); err != nil {
+		return config.FileLink{}, fmt.Errorf("clear %s: %w", srcAbs, err)
+	}
+
 	if err := copyPath(copyFrom, srcAbs); err != nil {
 		return config.FileLink{}, err
 	}
@@ -135,7 +141,7 @@ func copyPath(src, dst string) error {
 }
 
 func copyDir(src, dst string) error {
-	if err := os.MkdirAll(dst, 0o755); err != nil {
+	if err := ensureDir(dst); err != nil {
 		return err
 	}
 	entries, err := os.ReadDir(src)
@@ -152,7 +158,29 @@ func copyDir(src, dst string) error {
 	return nil
 }
 
+func ensureDir(path string) error {
+	info, err := os.Lstat(path)
+	if err == nil {
+		if info.IsDir() {
+			return nil
+		}
+		if err := os.RemoveAll(path); err != nil {
+			return err
+		}
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	return os.MkdirAll(path, 0o755)
+}
+
 func copyFile(src, dst string) error {
+	info, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+	if info.IsDir() {
+		return fmt.Errorf("cannot copy directory %s as a file", src)
+	}
 	in, err := os.Open(src)
 	if err != nil {
 		return err
@@ -160,6 +188,13 @@ func copyFile(src, dst string) error {
 	defer in.Close()
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err
+	}
+	// Replace a leftover wrong-type destination (file where we need a file is fine
+	// with O_TRUNC; directory/symlink-to-dir must be removed first).
+	if li, err := os.Lstat(dst); err == nil && li.IsDir() {
+		if err := os.RemoveAll(dst); err != nil {
+			return err
+		}
 	}
 	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {
