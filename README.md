@@ -104,7 +104,7 @@ pourover upgrade --skip-self-update
 
 Global flags: `--config`, `--verbose` / `-v`, `--json`.
 
-`apply` / `upgrade` print each action as it runs (and stream brew output). Use `--quiet` / `-q` for summary-only.
+`apply` / `upgrade` print each action as it runs and restyle Homebrew output with `☕`. Use `--quiet` / `-q` for summary-only.
 
 ### Import flags
 

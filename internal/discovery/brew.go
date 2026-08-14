@@ -84,6 +84,12 @@ func (r *ExecRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
 	}
 
 	err := cmd.Run()
+	if f, ok := r.Stdout.(interface{ Flush() error }); ok {
+		_ = f.Flush()
+	}
+	if f, ok := r.Stderr.(interface{ Flush() error }); ok {
+		_ = f.Flush()
+	}
 	out := stdoutBuf.Bytes()
 	if err != nil {
 		stderr := strings.TrimSpace(stderrBuf.String())

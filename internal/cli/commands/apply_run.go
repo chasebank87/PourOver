@@ -169,7 +169,7 @@ func applyProgress(out io.Writer, quiet bool) exec.Progress {
 		return nil
 	}
 	return func(line string) {
-		fmt.Fprintf(out, "==> %s\n", line)
+		fmt.Fprintf(out, "☕ %s\n", line)
 	}
 }
 
@@ -178,7 +178,8 @@ func brewRunnerWithProgress(runner discovery.Runner, out io.Writer, quiet bool) 
 		return runner
 	}
 	if er, ok := runner.(*discovery.ExecRunner); ok {
-		return er.WithOutput(out, out)
+		styled := discovery.NewBrewStyleWriter(out)
+		return er.WithOutput(styled, styled)
 	}
 	return runner
 }

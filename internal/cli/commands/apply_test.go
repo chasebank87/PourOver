@@ -304,7 +304,7 @@ func TestExecuteApply_PrintsProgressByDefault(t *testing.T) {
 	if err := executeApply(cmd, runner, p, opts); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(stderr.String(), "==> install formula fzf") {
+	if !strings.Contains(stderr.String(), "☕ install formula fzf") {
 		t.Fatalf("stderr = %q, want progress line", stderr.String())
 	}
 }
@@ -337,7 +337,7 @@ func TestExecuteApply_QuietSuppressesProgress(t *testing.T) {
 	if err := executeApply(cmd, runner, p, opts); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(stderr.String(), "==>") {
+	if strings.Contains(stderr.String(), "☕") {
 		t.Fatalf("quiet stderr still has progress: %q", stderr.String())
 	}
 	if !strings.Contains(stderr.String(), "Installed 1 formula") {

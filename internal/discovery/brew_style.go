@@ -1,0 +1,114 @@
+package discovery
+
+import (
+	"bytes"
+	"io"
+	"strings"
+)
+
+// BrewStyleWriter rewrites streamed Homebrew CLI output into PourOver's style.
+// It is safe for concurrent use only from a single writer (brew stdout or stderr).
+type BrewStyleWriter struct {
+	Out io.Writer
+	buf []byte
+}
+
+// NewBrewStyleWriter returns a writer that restyles brew lines to Out.
+func NewBrewStyleWriter(out io.Writer) *BrewStyleWriter {
+	return &BrewStyleWriter{Out: out}
+}
+
+// Write buffers input and emits restyled complete lines.
+func (w *BrewStyleWriter) Write(p []byte) (int, error) {
+	if w.Out == nil {
+		return len(p), nil
+	}
+	w.buf = append(w.buf, p...)
+	for {
+		// Prefer newline; also split on bare CR (brew download progress).
+		n := bytes.IndexByte(w.buf, '\n')
+		r := bytes.IndexByte(w.buf, '\r')
+		var i int
+		switch {
+		case n < 0 && r < 0:
+			return len(p), nil
+		case n < 0:
+			i = r
+		case r < 0:
+			i = n
+		default:
+			if r < n {
+				i = r
+			} else {
+				i = n
+			}
+		}
+		line := string(w.buf[:i])
+		w.buf = w.buf[i+1:]
+		if styled := StyleBrewLine(line); styled != "" {
+			if _, err := io.WriteString(w.Out, styled+"\n"); err != nil {
+				return len(p), err
+			}
+		}
+	}
+}
+
+// Flush emits any trailing partial line.
+func (w *BrewStyleWriter) Flush() error {
+	if w.Out == nil || len(w.buf) == 0 {
+		w.buf = nil
+		return nil
+	}
+	styled := StyleBrewLine(string(w.buf))
+	w.buf = nil
+	if styled == "" {
+		return nil
+	}
+	_, err := io.WriteString(w.Out, styled+"\n")
+	return err
+}
+
+// StyleBrewLine converts one Homebrew CLI line into PourOver presentation.
+// Empty string means the line should be omitted (noise).
+func StyleBrewLine(line string) string {
+	s := strings.TrimRight(line, "\r")
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" {
+		return ""
+	}
+
+	if shouldOmitBrewLine(trimmed) {
+		return ""
+	}
+
+	out := trimmed
+	out = strings.ReplaceAll(out, "🍺", "☕")
+	switch {
+	case strings.HasPrefix(out, "==> "):
+		out = "☕ " + strings.TrimSpace(strings.TrimPrefix(out, "==> "))
+	case strings.HasPrefix(out, "==>"):
+		out = "☕ " + strings.TrimSpace(strings.TrimPrefix(out, "==>"))
+	}
+	// Collapse leftover double coffee if brew used both markers oddly.
+	out = strings.ReplaceAll(out, "☕  ☕", "☕")
+	return out
+}
+
+func shouldOmitBrewLine(line string) bool {
+	switch {
+	case strings.HasPrefix(line, "Already downloaded:"):
+		return true
+	case strings.Contains(line, "Running `brew cleanup"):
+		return true
+	case strings.HasPrefix(line, "Disable this behaviour"):
+		return true
+	case strings.HasPrefix(line, "Hide these hints"):
+		return true
+	case strings.HasPrefix(line, "To re-enable"):
+		return true
+	case line == "Removing:":
+		return true
+	default:
+		return false
+	}
+}
