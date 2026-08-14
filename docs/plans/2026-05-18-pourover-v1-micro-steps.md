@@ -46,6 +46,7 @@
 | D3 | File ops v1 scope | **Links only** — see `docs/v2-backlog.md` for deferred file features | 2026-05-19 |
 | D4 | Taps in v1 | Deferred — not in v1 discovery or plan | 2026-05-19 |
 | D5 | iCloud default path | `~/Library/Mobile Documents/com~apple~CloudDocs/PourOver/`; override via `backup.icloud.path`; skip mirror if parent missing | 2026-08-14 |
+| D6 | Exit codes | `0` success/no-op; `1` runtime failure; `2` invalid invocation | 2026-08-14 |
 
 ---
 

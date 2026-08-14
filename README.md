@@ -9,11 +9,11 @@ PourOver loads `~/.pourover/pourover.lua`, plans the diff against your machine, 
 ```bash
 git clone https://github.com/chasebank87/PourOver.git
 cd PourOver
-go build -o pourover ./cmd/pourover
-# optional: move onto PATH
+make build    # or: go build -o pourover ./cmd/pourover
+make test
 ```
 
-Requires macOS, Go (to build), and Homebrew.
+Requires macOS, Go (to build), and Homebrew. CI runs `make vet`, `make test`, and `make build` on push/PR.
 
 ## Quick start
 
@@ -67,6 +67,14 @@ backup = { icloud = { enabled = true } }  -- optional: path = "..."
 ```
 
 When enabled, successful `apply` and `backup` write a local snapshot and mirror it if iCloud Drive is available.
+
+## Exit codes
+
+| Code | Meaning |
+|------|---------|
+| `0` | Success or no-op |
+| `1` | Runtime failure (config, plan, apply, doctor, backup/restore) |
+| `2` | Invalid invocation (unknown command or bad flags) |
 
 ## Docs
 
