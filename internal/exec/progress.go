@@ -1,6 +1,7 @@
 package exec
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/chasebank87/PourOver/internal/plan"
@@ -18,4 +19,11 @@ func report(progress Progress, a plan.Action) {
 	if line != "" && line != "No changes." {
 		progress(line)
 	}
+}
+
+func reportFailure(progress Progress, err error) {
+	if progress == nil || err == nil {
+		return
+	}
+	progress(fmt.Sprintf("failed: %v", err))
 }

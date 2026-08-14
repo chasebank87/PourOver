@@ -2,6 +2,7 @@ package exec
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/chasebank87/PourOver/internal/config"
@@ -72,6 +73,7 @@ func ApplyRemoves(ctx context.Context, runner discovery.Runner, p plan.Plan, mod
 	}
 
 	n := 0
+	var errs []error
 	for _, a := range removes {
 		report(progress, a)
 		var err error
@@ -82,9 +84,11 @@ func ApplyRemoves(ctx context.Context, runner discovery.Runner, p plan.Plan, mod
 			err = RemoveCask(ctx, runner, a.Name)
 		}
 		if err != nil {
-			return n, err
+			reportFailure(progress, err)
+			errs = append(errs, err)
+			continue
 		}
 		n++
 	}
-	return n, nil
+	return n, errors.Join(errs...)
 }

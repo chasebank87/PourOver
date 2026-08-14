@@ -111,6 +111,84 @@ func TestApplyCaskInstalls_OnlyCasks(t *testing.T) {
 	}
 }
 
+func TestApplyFormulaInstalls_ContinuesAfterFailure(t *testing.T) {
+	runner := &selectiveFailInstallRunner{failNames: map[string]bool{"neofetch": true}}
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionFormulaInstall, Name: "neofetch"},
+		{Type: plan.ActionFormulaInstall, Name: "onefetch"},
+		{Type: plan.ActionCaskInstall, Name: "raycast"},
+	}}
+
+	var progress []string
+	n, err := ApplyFormulaInstalls(context.Background(), runner, p, func(line string) {
+		progress = append(progress, line)
+	})
+	if err == nil {
+		t.Fatal("expected error from neofetch")
+	}
+	if !strings.Contains(err.Error(), "neofetch") {
+		t.Fatalf("error = %v, want neofetch", err)
+	}
+	if n != 1 {
+		t.Fatalf("installed count = %d, want 1 (onefetch)", n)
+	}
+	if got := strings.Join(runner.installs, ","); got != "onefetch" {
+		t.Fatalf("installs = %q, want onefetch (neofetch failed, raycast is cask)", got)
+	}
+	foundFail := false
+	for _, line := range progress {
+		if strings.Contains(line, "failed:") && strings.Contains(line, "neofetch") {
+			foundFail = true
+		}
+	}
+	if !foundFail {
+		t.Fatalf("progress missing failure line: %v", progress)
+	}
+}
+
+func TestApplyCaskInstalls_ContinuesAfterFailure(t *testing.T) {
+	runner := &selectiveFailInstallRunner{failNames: map[string]bool{"cask:bad": true}}
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionCaskInstall, Name: "bad"},
+		{Type: plan.ActionCaskInstall, Name: "raycast"},
+	}}
+
+	n, err := ApplyCaskInstalls(context.Background(), runner, p, nil)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if n != 1 {
+		t.Fatalf("installed count = %d, want 1", n)
+	}
+	if got := strings.Join(runner.installs, ","); got != "cask:raycast" {
+		t.Fatalf("installs = %q, want cask:raycast", got)
+	}
+}
+
+type selectiveFailInstallRunner struct {
+	installs  []string
+	failNames map[string]bool
+}
+
+func (r *selectiveFailInstallRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
+	if len(args) == 2 && args[0] == "install" {
+		if r.failNames[args[1]] {
+			return nil, fmt.Errorf("no available formula")
+		}
+		r.installs = append(r.installs, args[1])
+		return nil, nil
+	}
+	if len(args) == 3 && args[0] == "install" && args[1] == "--cask" {
+		key := "cask:" + args[2]
+		if r.failNames[key] {
+			return nil, fmt.Errorf("no available cask")
+		}
+		r.installs = append(r.installs, key)
+		return nil, nil
+	}
+	return nil, fmt.Errorf("unexpected brew args: %v", args)
+}
+
 func TestUnsupportedApplyActions(t *testing.T) {
 	p := plan.Plan{Actions: []plan.Action{
 		{Type: plan.ActionFormulaInstall, Name: "fzf"},

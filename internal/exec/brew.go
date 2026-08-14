@@ -2,6 +2,7 @@ package exec
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/chasebank87/PourOver/internal/discovery"
@@ -25,37 +26,44 @@ func InstallCask(ctx context.Context, runner discovery.Runner, name string) erro
 }
 
 // ApplyFormulaInstalls runs brew install for each formula_install action in plan order.
-// Other action types are left to later milestones. Returns how many installs ran.
+// A failure for one formula is recorded and the remaining installs still run (nix-darwin-style).
+// Returns how many installs succeeded; error is errors.Join of any failures.
 func ApplyFormulaInstalls(ctx context.Context, runner discovery.Runner, p plan.Plan, progress Progress) (int, error) {
 	n := 0
+	var errs []error
 	for _, a := range p.Actions {
 		if a.Type != plan.ActionFormulaInstall {
 			continue
 		}
 		report(progress, a)
 		if err := InstallFormula(ctx, runner, a.Name); err != nil {
-			return n, err
+			reportFailure(progress, err)
+			errs = append(errs, err)
+			continue
 		}
 		n++
 	}
-	return n, nil
+	return n, errors.Join(errs...)
 }
 
 // ApplyCaskInstalls runs brew install --cask for each cask_install action in plan order.
-// Returns how many installs ran.
+// Failures are collected so later casks still install. Returns successes and joined errors.
 func ApplyCaskInstalls(ctx context.Context, runner discovery.Runner, p plan.Plan, progress Progress) (int, error) {
 	n := 0
+	var errs []error
 	for _, a := range p.Actions {
 		if a.Type != plan.ActionCaskInstall {
 			continue
 		}
 		report(progress, a)
 		if err := InstallCask(ctx, runner, a.Name); err != nil {
-			return n, err
+			reportFailure(progress, err)
+			errs = append(errs, err)
+			continue
 		}
 		n++
 	}
-	return n, nil
+	return n, errors.Join(errs...)
 }
 
 // UnsupportedApplyActions returns plan actions that apply does not run yet.

@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -104,32 +105,35 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 	progress := applyProgress(out, opts.quiet)
 	mutRunner := brewRunnerWithProgress(runner, out, opts.quiet)
 
-	// Phase 1: Homebrew (installs then removes)
+	var errs []error
+
+	// Phase 1: Homebrew (installs then removes). Per-package failures continue;
+	// phase errors are collected so later phases still run.
 	formulae, err := exec.ApplyFormulaInstalls(cmd.Context(), mutRunner, p, progress)
 	if err != nil {
-		return err
+		errs = append(errs, err)
 	}
 	casks, err := exec.ApplyCaskInstalls(cmd.Context(), mutRunner, p, progress)
 	if err != nil {
-		return err
+		errs = append(errs, err)
 	}
 
 	confirm := removeConfirmer(cmd, opts.autoYes)
 	removed, err := exec.ApplyRemoves(cmd.Context(), mutRunner, p, opts.mode, confirm, progress)
 	if err != nil {
-		return err
+		errs = append(errs, err)
 	}
 
 	// Phase 2: macOS defaults (after packages, before file links)
 	written, err := exec.ApplyDefaultsWrites(cmd.Context(), exec.NewExecDefaultsApplier(), p, progress)
 	if err != nil {
-		return err
+		errs = append(errs, err)
 	}
 
 	// Phase 3: file links
 	linked, err := exec.ApplyFileLinks(p, opts.configDir, progress)
 	if err != nil {
-		return err
+		errs = append(errs, err)
 	}
 
 	n := formulae + casks + removed + written + linked
@@ -156,12 +160,12 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 			fmt.Fprintf(out, "  %s\n", line)
 		}
 	}
-	if n == 0 && len(skipped) == 0 {
+	if n == 0 && len(skipped) == 0 && len(errs) == 0 {
 		fmt.Fprintln(out, "No changes.")
 	} else if n == 0 && len(skipped) == len(p.Actions) {
 		fmt.Fprintln(out, "No actions to apply.")
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 func applyProgress(out io.Writer, quiet bool) exec.Progress {

@@ -2,6 +2,7 @@ package exec
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/chasebank87/PourOver/internal/discovery"
@@ -25,8 +26,10 @@ func UpgradeCask(ctx context.Context, runner discovery.Runner, name string) erro
 }
 
 // ApplyUpgrades runs formula_upgrade and cask_upgrade actions in plan order.
+// Per-package failures are collected; remaining upgrades still run.
 func ApplyUpgrades(ctx context.Context, runner discovery.Runner, p plan.Plan, progress Progress) (int, error) {
 	n := 0
+	var errs []error
 	for _, a := range p.Actions {
 		var err error
 		switch a.Type {
@@ -40,9 +43,11 @@ func ApplyUpgrades(ctx context.Context, runner discovery.Runner, p plan.Plan, pr
 			continue
 		}
 		if err != nil {
-			return n, err
+			reportFailure(progress, err)
+			errs = append(errs, err)
+			continue
 		}
 		n++
 	}
-	return n, nil
+	return n, errors.Join(errs...)
 }

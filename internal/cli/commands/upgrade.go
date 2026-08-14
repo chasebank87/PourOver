@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -86,23 +87,24 @@ func runUpgrade(cmd *cobra.Command, dryRun, autoYes, skipSelf, quiet bool) error
 	out := cmd.ErrOrStderr()
 	progress := applyProgress(out, quiet)
 	mutRunner := brewRunnerWithProgress(runner, out, quiet)
+	var upgradeErr error
 	if len(upgradePlan.Actions) == 0 {
 		fmt.Fprintln(out, "No package upgrades.")
 	} else {
 		n, err := exec.ApplyUpgrades(cmd.Context(), mutRunner, upgradePlan, progress)
-		if err != nil {
-			return err
+		upgradeErr = err
+		if n > 0 {
+			fmt.Fprintf(out, "Upgraded %d package(s).\n", n)
 		}
-		fmt.Fprintf(out, "Upgraded %d package(s).\n", n)
 	}
 
 	applyPlan, err := buildPlan(cmd.Context(), configPath, runner)
 	if err != nil {
-		return err
+		return errors.Join(upgradeErr, err)
 	}
 	stateDir, err := paths.DefaultStateDir()
 	if err != nil {
-		return err
+		return errors.Join(upgradeErr, err)
 	}
 	opts := applyOptions{
 		mode:       policy.ResolveModeFromManifest(manifest),
@@ -114,7 +116,7 @@ func runUpgrade(cmd *cobra.Command, dryRun, autoYes, skipSelf, quiet bool) error
 		manifest:   manifest,
 		now:        time.Now,
 	}
-	return executeApply(cmd, runner, applyPlan, opts)
+	return errors.Join(upgradeErr, executeApply(cmd, runner, applyPlan, opts))
 }
 
 // buildUpgradePlanForTest is used by tests with a custom runner.
