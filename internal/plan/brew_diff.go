@@ -11,21 +11,28 @@ import (
 // BuildBrewPlan computes install/remove actions for formulae and casks.
 // Package names are matched case-sensitively (Homebrew convention).
 //
+// Presence is cross-type: a package declared as a formula but installed as a
+// cask (or vice versa) counts as installed and is not removed as undeclared.
+// Formula removes only consider formulae installed on request (not dependencies).
+//
 // Action order is stable: formula installs, cask installs, formula removes, cask removes;
 // each group sorted alphabetically by name.
 func BuildBrewPlan(desired config.Packages, current discovery.BrewState) Plan {
 	var actions []Action
 
-	for _, name := range sortedMissing(desired.Formulae, current.Formulae) {
+	desiredAny := sliceSet(append(append([]string{}, desired.Formulae...), desired.Casks...))
+	installedAny := sliceSet(append(append([]string{}, current.Formulae...), current.Casks...))
+
+	for _, name := range sortedMissingFromSet(desired.Formulae, installedAny) {
 		actions = append(actions, Action{Type: ActionFormulaInstall, Name: name})
 	}
-	for _, name := range sortedMissing(desired.Casks, current.Casks) {
+	for _, name := range sortedMissingFromSet(desired.Casks, installedAny) {
 		actions = append(actions, Action{Type: ActionCaskInstall, Name: name})
 	}
-	for _, name := range sortedMissing(current.Formulae, desired.Formulae) {
+	for _, name := range sortedMissingFromSet(current.RemovableFormulae(), desiredAny) {
 		actions = append(actions, Action{Type: ActionFormulaRemove, Name: name})
 	}
-	for _, name := range sortedMissing(current.Casks, desired.Casks) {
+	for _, name := range sortedMissingFromSet(current.Casks, desiredAny) {
 		actions = append(actions, Action{Type: ActionCaskRemove, Name: name})
 	}
 
@@ -34,10 +41,13 @@ func BuildBrewPlan(desired config.Packages, current discovery.BrewState) Plan {
 
 // sortedMissing returns names in want that are not in have, sorted alphabetically.
 func sortedMissing(want, have []string) []string {
-	haveSet := sliceSet(have)
+	return sortedMissingFromSet(want, sliceSet(have))
+}
+
+func sortedMissingFromSet(want []string, have map[string]struct{}) []string {
 	var missing []string
 	for _, name := range want {
-		if _, ok := haveSet[name]; !ok {
+		if _, ok := have[name]; !ok {
 			missing = append(missing, name)
 		}
 	}

@@ -32,7 +32,7 @@ func TestApplyUpgrades_FormulaAndCask(t *testing.T) {
 		{Type: plan.ActionCaskUpgrade, Name: "raycast"},
 		{Type: plan.ActionFormulaInstall, Name: "fzf"},
 	}}
-	n, err := ApplyUpgrades(context.Background(), runner, p)
+	n, err := ApplyUpgrades(context.Background(), runner, p, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

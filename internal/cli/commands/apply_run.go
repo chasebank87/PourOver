@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,15 +20,17 @@ import (
 )
 
 type applyOptions struct {
-	mode      config.UninstallMode
-	autoYes   bool
-	configDir string
-	stateDir  string
-	manifest  config.Manifest
-	now       func() time.Time
+	mode       config.UninstallMode
+	autoYes    bool
+	quiet      bool
+	configPath string
+	configDir  string
+	stateDir   string
+	manifest   config.Manifest
+	now        func() time.Time
 }
 
-func runApply(cmd *cobra.Command, dryRun, autoYes bool) error {
+func runApply(cmd *cobra.Command, dryRun, autoYes, quiet bool) error {
 	configPath, verbose, asJSON, err := planDisplayOptions(cmd)
 	if err != nil {
 		return err
@@ -41,7 +44,7 @@ func runApply(cmd *cobra.Command, dryRun, autoYes bool) error {
 	}
 
 	if verbose {
-		fmt.Fprintf(os.Stderr, "using config %s\n", configPath)
+		fmt.Fprintf(cmd.ErrOrStderr(), "using config %s\n", configPath)
 	}
 
 	runner := discovery.NewExecRunner()
@@ -63,12 +66,14 @@ func runApply(cmd *cobra.Command, dryRun, autoYes bool) error {
 		return err
 	}
 	opts := applyOptions{
-		mode:      policy.ResolveModeFromManifest(manifest),
-		autoYes:   autoYes,
-		configDir: filepath.Dir(configPath),
-		stateDir:  stateDir,
-		manifest:  manifest,
-		now:       time.Now,
+		mode:       policy.ResolveModeFromManifest(manifest),
+		autoYes:    autoYes,
+		quiet:      quiet,
+		configPath: configPath,
+		configDir:  filepath.Dir(configPath),
+		stateDir:   stateDir,
+		manifest:   manifest,
+		now:        time.Now,
 	}
 	return executeApply(cmd, runner, p, opts)
 }
@@ -81,7 +86,11 @@ func executeApply(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, opts
 	if applyErr != nil {
 		return applyErr
 	}
-	return persistApplyState(opts, p)
+	if err := persistApplyState(opts, p); err != nil {
+		return err
+	}
+	maybeAutoPushConfig(cmd, opts.configPath, opts.manifest)
+	return nil
 }
 
 func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, opts applyOptions) error {
@@ -92,29 +101,38 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 		return nil
 	}
 
+	progress := applyProgress(out, opts.quiet)
+	mutRunner := brewRunnerWithProgress(runner, out, opts.quiet)
+
 	// Phase 1: Homebrew (installs then removes)
-	formulae, err := exec.ApplyFormulaInstalls(cmd.Context(), runner, p)
+	formulae, err := exec.ApplyFormulaInstalls(cmd.Context(), mutRunner, p, progress)
 	if err != nil {
 		return err
 	}
-	casks, err := exec.ApplyCaskInstalls(cmd.Context(), runner, p)
+	casks, err := exec.ApplyCaskInstalls(cmd.Context(), mutRunner, p, progress)
 	if err != nil {
 		return err
 	}
 
 	confirm := removeConfirmer(cmd, opts.autoYes)
-	removed, err := exec.ApplyRemoves(cmd.Context(), runner, p, opts.mode, confirm)
+	removed, err := exec.ApplyRemoves(cmd.Context(), mutRunner, p, opts.mode, confirm, progress)
 	if err != nil {
 		return err
 	}
 
-	// Phase 2: file links
-	linked, err := exec.ApplyFileLinks(p, opts.configDir)
+	// Phase 2: macOS defaults (after packages, before file links)
+	written, err := exec.ApplyDefaultsWrites(cmd.Context(), exec.NewExecDefaultsApplier(), p, progress)
 	if err != nil {
 		return err
 	}
 
-	n := formulae + casks + removed + linked
+	// Phase 3: file links
+	linked, err := exec.ApplyFileLinks(p, opts.configDir, progress)
+	if err != nil {
+		return err
+	}
+
+	n := formulae + casks + removed + written + linked
 
 	if formulae > 0 {
 		fmt.Fprintf(out, "Installed %d formula(s).\n", formulae)
@@ -124,6 +142,9 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 	}
 	if removed > 0 {
 		fmt.Fprintf(out, "Removed %d package(s).\n", removed)
+	}
+	if written > 0 {
+		fmt.Fprintf(out, "Updated %d macOS default(s).\n", written)
 	}
 	if linked > 0 {
 		fmt.Fprintf(out, "Updated %d file link(s).\n", linked)
@@ -141,6 +162,25 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 		fmt.Fprintln(out, "No actions to apply.")
 	}
 	return nil
+}
+
+func applyProgress(out io.Writer, quiet bool) exec.Progress {
+	if quiet {
+		return nil
+	}
+	return func(line string) {
+		fmt.Fprintf(out, "==> %s\n", line)
+	}
+}
+
+func brewRunnerWithProgress(runner discovery.Runner, out io.Writer, quiet bool) discovery.Runner {
+	if quiet {
+		return runner
+	}
+	if er, ok := runner.(*discovery.ExecRunner); ok {
+		return er.WithOutput(out, out)
+	}
+	return runner
 }
 
 func appendApplyHistory(opts applyOptions, p plan.Plan, applyErr error) error {

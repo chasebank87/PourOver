@@ -51,7 +51,7 @@ func TestApplyFormulaInstalls_OnlyFormulae(t *testing.T) {
 		{Type: plan.ActionFormulaInstall, Name: "git"},
 	}}
 
-	n, err := ApplyFormulaInstalls(context.Background(), runner, p)
+	n, err := ApplyFormulaInstalls(context.Background(), runner, p, nil)
 	if err != nil {
 		t.Fatalf("ApplyFormulaInstalls: %v", err)
 	}
@@ -69,7 +69,7 @@ func TestApplyFormulaInstalls_NoFormulae(t *testing.T) {
 		{Type: plan.ActionCaskInstall, Name: "raycast"},
 	}}
 
-	n, err := ApplyFormulaInstalls(context.Background(), runner, p)
+	n, err := ApplyFormulaInstalls(context.Background(), runner, p, nil)
 	if err != nil {
 		t.Fatalf("ApplyFormulaInstalls: %v", err)
 	}
@@ -99,7 +99,7 @@ func TestApplyCaskInstalls_OnlyCasks(t *testing.T) {
 		{Type: plan.ActionCaskInstall, Name: "iterm2"},
 	}}
 
-	n, err := ApplyCaskInstalls(context.Background(), runner, p)
+	n, err := ApplyCaskInstalls(context.Background(), runner, p, nil)
 	if err != nil {
 		t.Fatalf("ApplyCaskInstalls: %v", err)
 	}

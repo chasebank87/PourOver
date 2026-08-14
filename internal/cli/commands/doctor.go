@@ -8,6 +8,7 @@ import (
 
 	"github.com/chasebank87/PourOver/internal/backup"
 	"github.com/chasebank87/PourOver/internal/config"
+	"github.com/chasebank87/PourOver/internal/configgit"
 	"github.com/chasebank87/PourOver/internal/paths"
 	"github.com/spf13/cobra"
 )
@@ -18,7 +19,7 @@ func NewDoctorCmd() *cobra.Command {
 		Use:   "doctor",
 		Short: "Check prerequisites and environment health",
 		Long: `Verify Homebrew is available, config is readable, the state directory
-is writable, and (when enabled) the iCloud mirror path is reachable.`,
+is writable, and (when enabled) iCloud / git sync status.`,
 		RunE: runDoctor,
 	}
 }
@@ -188,7 +189,42 @@ func runDoctorChecks(in doctorInputs) (doctorReport, error) {
 		checks = append(checks, doctorCheck{Name: "icloud", OK: true, Detail: "disabled"})
 	}
 
+	checks = append(checks, gitDoctorCheck(in.configPath, in.manifest)...)
+
 	return doctorReport{Checks: checks}, nil
+}
+
+func gitDoctorCheck(configPath string, manifest config.Manifest) []doctorCheck {
+	if !manifest.Backup.Git.Enabled {
+		return []doctorCheck{{Name: "git", OK: true, Detail: "disabled"}}
+	}
+	cfgDir := filepath.Dir(configPath)
+	if !configgit.IsRepo(cfgDir) {
+		return []doctorCheck{{
+			Name:   "git",
+			OK:     false,
+			Detail: fmt.Sprintf("enabled but %s is not a git repo", cfgDir),
+		}}
+	}
+	remote := manifest.Backup.Git.Remote
+	if remote == "" {
+		if u, err := configgit.RemoteURL(cfgDir); err == nil {
+			remote = u
+		}
+	}
+	dirty, err := configgit.StatusDirty(cfgDir)
+	if err != nil {
+		return []doctorCheck{{Name: "git", OK: false, Detail: err.Error()}}
+	}
+	state := "clean"
+	if dirty {
+		state = "dirty"
+	}
+	detail := fmt.Sprintf("%s (%s)", remote, state)
+	if remote == "" {
+		detail = "repo local only; no remote configured (" + state + ")"
+	}
+	return []doctorCheck{{Name: "git", OK: true, Detail: detail}}
 }
 
 func stringsTrim(b []byte) string {

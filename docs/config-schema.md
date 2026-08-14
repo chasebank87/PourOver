@@ -10,6 +10,7 @@ Config lives in `~/.pourover/` by default (`pourover.lua` + optional Lua modules
 | `files` | no | table | Dotfiles and other paths to reconcile |
 | `policy` | no | table | Safety and behavior options |
 | `backup` | no | table | Snapshot / iCloud settings |
+| `macos` | no | table | macOS `defaults` preferences (nix-darwin-style) |
 
 Empty or omitted sections are treated as empty lists / defaults.
 
@@ -66,7 +67,7 @@ files = {
 |-----|----------|------|---------|--------|
 | `uninstall_mode` | no | string | `"safe"` | `safe`, `strict`, `non_destructive` |
 
-- **safe** — prompt before uninstalling undeclared Homebrew packages
+- **safe** — prompt before uninstalling undeclared Homebrew packages (only formulae installed on request; dependency-only packages are ignored). A package listed under `formulae` or `casks` counts as declared for either type.
 - **strict** — uninstall undeclared packages without prompting
 - **non_destructive** — never uninstall undeclared packages
 
@@ -74,7 +75,8 @@ files = {
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `icloud` | table | iCloud Drive mirror settings |
+| `icloud` | table | iCloud Drive mirror settings for **state** snapshots |
+| `git` | table | Git remote sync for **config** (`~/.pourover` as the repo) |
 
 ### `backup.icloud`
 
@@ -82,6 +84,51 @@ files = {
 |-----|----------|------|---------|-------------|
 | `enabled` | no | boolean | `false` | Mirror snapshots to iCloud after successful apply |
 | `path` | no | string | `~/Library/Mobile Documents/com~apple~CloudDocs/PourOver/` | Override iCloud destination directory |
+
+Enable via CLI: `pourover config icloud enable` (optional `--path`).
+
+### `backup.git`
+
+| Key | Required | Type | Default | Description |
+|-----|----------|------|---------|-------------|
+| `enabled` | no | boolean | `false` | Treat config dir as a git repo and sync to `remote` |
+| `remote` | no | string | (empty) | Git remote URL (e.g. `git@github.com:USER/pourover-config.git`) |
+| `auto_push` | no | boolean | `true` when `git` table is present | After successful apply/import, commit+push when dirty (soft-fail) |
+| `branch` | no | string | `"main"` | Branch to push/pull |
+
+Setup: `pourover config git setup <url>`. Emergency restore: `pourover config git restore <url>`.
+
+## `macos`
+
+Declarative preferences via `defaults write` (nix-darwin `system.defaults`). **Unset keys are unmanaged.**
+
+Searchable key list and Lua syntax: [`docs/macos-defaults.md`](macos-defaults.md).
+Full nix-darwin option tree: [`docs/nix-darwin-options.md`](nix-darwin-options.md).
+
+### `macos.defaults`
+
+Named tables match nix-darwin sections (`dock`, `finder`, `NSGlobalDomain`, `screencapture`, `trackpad`, …). `custom` is `CustomUserPreferences` (any domain).
+
+Scalar types: **boolean**, **integer**, **float**, **string**. Hyphenated keys: `["show-recents"] = false`.
+
+Unknown section or key → config error (see the catalog). Arbitrary domains go under `custom`.
+
+Example:
+
+```lua
+macos = {
+  defaults = {
+    dock = { autohide = true, ["show-recents"] = false },
+    finder = { ShowPathbar = true },
+    screencapture = { type = "png" },
+    custom = {
+      ["com.apple.Safari"] = { ShowFullURLInSmartSearchField = true },
+    },
+  },
+}
+```
+
+`loginwindow` / `smb` / `SoftwareUpdate` write machine plists (admin). Wallpaper, Finder sidebar Favorites, and Dock `persistent-apps` are not applied.
 
 ## Minimal example
 

@@ -60,7 +60,7 @@ func TestApplyRemoves_ByMode(t *testing.T) {
 			prompted = true
 			return true
 		}
-		n, err := ApplyRemoves(context.Background(), runner, p, config.UninstallModeNonDestructive, confirm)
+		n, err := ApplyRemoves(context.Background(), runner, p, config.UninstallModeNonDestructive, confirm, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -79,7 +79,7 @@ func TestApplyRemoves_ByMode(t *testing.T) {
 			prompted = true
 			return false
 		}
-		n, err := ApplyRemoves(context.Background(), runner, p, config.UninstallModeStrict, confirm)
+		n, err := ApplyRemoves(context.Background(), runner, p, config.UninstallModeStrict, confirm, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -101,7 +101,7 @@ func TestApplyRemoves_ByMode(t *testing.T) {
 			gotNames = append([]string(nil), names...)
 			return true
 		}
-		n, err := ApplyRemoves(context.Background(), runner, p, config.UninstallModeSafe, confirm)
+		n, err := ApplyRemoves(context.Background(), runner, p, config.UninstallModeSafe, confirm, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -119,7 +119,7 @@ func TestApplyRemoves_ByMode(t *testing.T) {
 	t.Run("safe_prompt_no", func(t *testing.T) {
 		runner := &removeRecordingRunner{}
 		confirm := func(names []string) bool { return false }
-		n, err := ApplyRemoves(context.Background(), runner, p, config.UninstallModeSafe, confirm)
+		n, err := ApplyRemoves(context.Background(), runner, p, config.UninstallModeSafe, confirm, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -136,7 +136,7 @@ func TestApplyRemoves_ByMode(t *testing.T) {
 			prompted = true
 			return true
 		}
-		n, err := ApplyRemoves(context.Background(), runner, onlyInstall, config.UninstallModeSafe, confirm)
+		n, err := ApplyRemoves(context.Background(), runner, onlyInstall, config.UninstallModeSafe, confirm, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

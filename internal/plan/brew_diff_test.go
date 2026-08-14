@@ -113,6 +113,49 @@ func TestBuildBrewPlan_CaseSensitive(t *testing.T) {
 	}
 }
 
+func TestBuildBrewPlan_CaskDeclaredAsFormula_StillInstalled(t *testing.T) {
+	// brew install raycast from formulae list installs a cask; must not remove it.
+	plan := BuildBrewPlan(
+		config.Packages{Formulae: []string{"git", "raycast", "warp"}, Casks: nil},
+		discovery.BrewState{
+			Formulae:          []string{"git", "gettext", "pcre2"},
+			FormulaeRequested: []string{"git"},
+			Casks:             []string{"raycast", "warp"},
+		},
+	)
+	if len(plan.Actions) != 0 {
+		t.Fatalf("expected no actions, got %v", plan.Actions)
+	}
+}
+
+func TestBuildBrewPlan_SkipsDependencyRemoves(t *testing.T) {
+	plan := BuildBrewPlan(
+		config.Packages{Formulae: []string{"git"}},
+		discovery.BrewState{
+			Formulae:          []string{"git", "gettext", "json-c", "libunistring", "pcre2"},
+			FormulaeRequested: []string{"git"},
+			Casks:             nil,
+		},
+	)
+	if len(plan.Actions) != 0 {
+		t.Fatalf("expected no dependency removes, got %v", plan.Actions)
+	}
+}
+
+func TestBuildBrewPlan_RemovesOnlyRequestedUndeclared(t *testing.T) {
+	plan := BuildBrewPlan(
+		config.Packages{Formulae: []string{"git"}},
+		discovery.BrewState{
+			Formulae:          []string{"git", "gettext", "wget"},
+			FormulaeRequested: []string{"git", "wget"},
+			Casks:             nil,
+		},
+	)
+	if names := ActionNames(plan, ActionFormulaRemove); len(names) != 1 || names[0] != "wget" {
+		t.Fatalf("formula removes = %v, want [wget]", names)
+	}
+}
+
 func slicesEqual(a, b []string) bool {
 	if len(a) != len(b) {
 		return false

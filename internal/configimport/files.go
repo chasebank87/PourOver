@@ -186,6 +186,18 @@ func FormatRootLua(links []config.FileLink, policy config.Policy, backup config.
 	if backup.ICloud.Path != "" {
 		fmt.Fprintf(&b, "      path = %q,\n", backup.ICloud.Path)
 	}
+	b.WriteString("    },\n")
+	b.WriteString("    git = {\n")
+	fmt.Fprintf(&b, "      enabled = %v,\n", backup.Git.Enabled)
+	fmt.Fprintf(&b, "      auto_push = %v,\n", backup.Git.AutoPush)
+	if backup.Git.Remote != "" {
+		fmt.Fprintf(&b, "      remote = %q,\n", backup.Git.Remote)
+	}
+	branch := backup.Git.Branch
+	if branch == "" {
+		branch = "main"
+	}
+	fmt.Fprintf(&b, "      branch = %q,\n", branch)
 	b.WriteString("    },\n  },\n")
 	b.WriteString("}\n")
 	return b.String()

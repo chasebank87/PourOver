@@ -40,14 +40,14 @@ Ideas and scope **explicitly deferred from v1**. When we cut v1, anything not do
 | `pourover init --path` custom config root | M0.2 | v1 fixed to `~/.pourover/` |
 | `sync` alias for `apply` | M1.2 | Naming only |
 | Multi-profile / host-specific manifests | Design v2 | e.g. `policy.hosts["work-laptop"]` |
-| `pourover init` from remote template URL | — | Bootstrap from community presets |
+| `pourover init` from remote template URL | — | Bootstrap from community presets; partial overlap with `config git restore` |
 
 ## State, backup & platform
 
 | Item | Deferred from | Notes |
 |------|---------------|-------|
 | Default iCloud path formalized + override UX | D5 | v1 will pick a default at M9; document here when chosen |
-| Remote sync beyond iCloud (S3, git remote state) | Design v2 | Plain-file state is v1 |
+| Remote sync beyond iCloud (S3, git remote **state**) | Design v2 | Git **config** sync (`pourover config git`) landed; state remotes still deferred |
 | Rich history browser / drift UI | Design v2 | Needs dashboard or TUI |
 | Rollback command beyond `restore` | — | One-click undo last apply |
 
@@ -66,6 +66,18 @@ Ideas and scope **explicitly deferred from v1**. When we cut v1, anything not do
 | Linux / non-macOS support | Design v1 non-goals | macOS-only for v1 |
 | Full Nix-like store / build graph | Design v1 non-goals | Declarative reconcile only |
 
+## macOS defaults (follow-ups)
+
+| Item | Deferred from | Notes |
+|------|---------------|-------|
+| Wallpaper (desktoppr / osascript / Wallpaper framework) | nix-darwin parity cut | nix-darwin has no first-class wallpaper either |
+| Finder sidebar Favorites management | nix-darwin#1663 | Opaque sidebar plists; not simple `defaults` |
+| Dock `persistent-apps` / `persistent-others` arrays | nix-darwin dock module | Needs complex plist tile encoding |
+| ByHost control-center (full UUID path) | nix-darwin controlcenter | Catalog writes `com.apple.controlcenter`; ByHost path not used |
+| CustomSystemPreferences (sudo `/Library/Preferences` escape hatch) | nix-darwin | `loginwindow`/`smb`/`SoftwareUpdate` are named sections; arbitrary system domains still user-only via `custom` |
+| `pourover import --macos` snapshot curated keys | — | Read current defaults into Lua |
+| nix-darwin `launchd` / `services` / `programs` / PAM | MyNixOS full tree | Indexed in `docs/nix-darwin-options.md` |
+
 ---
 
 ## v1 locked choices (for contrast)
@@ -78,7 +90,7 @@ See **D3** in micro-steps. v1 file behavior:
 - No automatic unlink of undeclared symlinks
 - Existing non-symlink at target → **error** in plan (no force)
 - Source must exist at plan time
-- Plan/apply order: brew actions, then file link actions
+- Plan/apply order: brew actions, then macOS defaults, then file link actions
 
 ---
 

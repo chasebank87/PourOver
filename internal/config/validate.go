@@ -41,6 +41,8 @@ func Validate(m *Manifest) error {
 		}
 	}
 
+	errs = append(errs, validateMacOS(m.MacOS)...)
+
 	if len(errs) == 0 {
 		return nil
 	}
@@ -82,4 +84,58 @@ func validatePathField(value, field string) error {
 		return fmt.Errorf("%s: must not be empty", field)
 	}
 	return nil
+}
+
+func validateMacOS(m MacOS) []error {
+	var errs []error
+	d := m.Defaults
+	for section, keys := range d.Sections {
+		errs = append(errs, validateCuratedSettings("macos.defaults."+section, section, keys)...)
+	}
+	for domain, keys := range d.Custom {
+		if strings.TrimSpace(domain) == "" {
+			errs = append(errs, fmt.Errorf("macos.defaults.custom: domain must not be empty"))
+			continue
+		}
+		for key, val := range keys {
+			prefix := fmt.Sprintf("macos.defaults.custom[%s].%s", domain, key)
+			if strings.TrimSpace(key) == "" {
+				errs = append(errs, fmt.Errorf("%s: key must not be empty", prefix))
+			}
+			if err := validateSettingValue(val, prefix); err != nil {
+				errs = append(errs, err)
+			}
+		}
+	}
+	return errs
+}
+
+func validateCuratedSettings(prefix, section string, keys map[string]SettingValue) []error {
+	var errs []error
+	for key, val := range keys {
+		field := prefix + "." + key
+		if strings.TrimSpace(key) == "" {
+			errs = append(errs, fmt.Errorf("%s: key must not be empty", prefix))
+			continue
+		}
+		if !IsCuratedKey(section, key) {
+			errs = append(errs, fmt.Errorf("%s: unknown curated key %q (see docs/macos-defaults.md; use macos.defaults.custom for arbitrary domains)", field, key))
+			continue
+		}
+		if err := validateSettingValue(val, field); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errs
+}
+
+func validateSettingValue(v SettingValue, field string) error {
+	switch v.Kind {
+	case SettingBool, SettingInt, SettingFloat, SettingString:
+		return nil
+	case "":
+		return fmt.Errorf("%s: missing value kind", field)
+	default:
+		return fmt.Errorf("%s: unsupported value kind %q", field, v.Kind)
+	}
 }

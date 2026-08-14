@@ -21,6 +21,7 @@ func NewUpgradeCmd() *cobra.Command {
 	var dryRun bool
 	var autoYes bool
 	var skipSelf bool
+	var quiet bool
 	cmd := &cobra.Command{
 		Use:   "upgrade",
 		Short: "Update pourover, upgrade declared packages, then reapply",
@@ -28,18 +29,20 @@ func NewUpgradeCmd() *cobra.Command {
 (like brew update), then runs brew upgrade for each declared formula/cask
 that is already installed, then rebuilds the apply plan and reconciles.
 Use --dry-run to preview package upgrade and apply actions (skips self-update).
-Use --skip-self-update to only upgrade packages.`,
+Use --skip-self-update to only upgrade packages.
+By default each action is printed as it runs; use --quiet for summary-only output.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runUpgrade(cmd, dryRun, autoYes, skipSelf)
+			return runUpgrade(cmd, dryRun, autoYes, skipSelf, quiet)
 		},
 	}
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "preview upgrade and apply actions without modifying the system")
 	cmd.Flags().BoolVar(&autoYes, "yes", false, "skip confirmation prompts during the apply phase")
 	cmd.Flags().BoolVar(&skipSelf, "skip-self-update", false, "do not self-update the pourover binary")
+	cmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "suppress per-action progress output")
 	return cmd
 }
 
-func runUpgrade(cmd *cobra.Command, dryRun, autoYes, skipSelf bool) error {
+func runUpgrade(cmd *cobra.Command, dryRun, autoYes, skipSelf, quiet bool) error {
 	if !dryRun && !skipSelf {
 		if err := runSelfUpdate(cmd, nil); err != nil {
 			return fmt.Errorf("self-update: %w", err)
@@ -81,10 +84,12 @@ func runUpgrade(cmd *cobra.Command, dryRun, autoYes, skipSelf bool) error {
 	}
 
 	out := cmd.ErrOrStderr()
+	progress := applyProgress(out, quiet)
+	mutRunner := brewRunnerWithProgress(runner, out, quiet)
 	if len(upgradePlan.Actions) == 0 {
 		fmt.Fprintln(out, "No package upgrades.")
 	} else {
-		n, err := exec.ApplyUpgrades(cmd.Context(), runner, upgradePlan)
+		n, err := exec.ApplyUpgrades(cmd.Context(), mutRunner, upgradePlan, progress)
 		if err != nil {
 			return err
 		}
@@ -100,12 +105,14 @@ func runUpgrade(cmd *cobra.Command, dryRun, autoYes, skipSelf bool) error {
 		return err
 	}
 	opts := applyOptions{
-		mode:      policy.ResolveModeFromManifest(manifest),
-		autoYes:   autoYes,
-		configDir: filepath.Dir(configPath),
-		stateDir:  stateDir,
-		manifest:  manifest,
-		now:       time.Now,
+		mode:       policy.ResolveModeFromManifest(manifest),
+		autoYes:    autoYes,
+		quiet:      quiet,
+		configPath: configPath,
+		configDir:  filepath.Dir(configPath),
+		stateDir:   stateDir,
+		manifest:   manifest,
+		now:        time.Now,
 	}
 	return executeApply(cmd, runner, applyPlan, opts)
 }

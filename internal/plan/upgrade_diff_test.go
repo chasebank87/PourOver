@@ -38,3 +38,18 @@ func TestBuildUpgradePlan_EmptyWhenNoneInstalled(t *testing.T) {
 		t.Fatalf("actions = %+v, want empty", p.Actions)
 	}
 }
+
+func TestBuildUpgradePlan_CaskDeclaredAsFormula(t *testing.T) {
+	desired := config.Packages{Formulae: []string{"git", "raycast"}, Casks: nil}
+	current := discovery.BrewState{
+		Formulae: []string{"git"},
+		Casks:    []string{"raycast"},
+	}
+	p := BuildUpgradePlan(desired, current)
+	if got := ActionNames(p, ActionFormulaUpgrade); len(got) != 1 || got[0] != "git" {
+		t.Fatalf("formula upgrades = %v, want [git]", got)
+	}
+	if got := ActionNames(p, ActionCaskUpgrade); len(got) != 1 || got[0] != "raycast" {
+		t.Fatalf("cask upgrades = %v, want [raycast]", got)
+	}
+}

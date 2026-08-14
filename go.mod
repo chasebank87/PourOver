@@ -5,6 +5,7 @@ go 1.26.3
 require (
 	github.com/spf13/cobra v1.10.2
 	github.com/yuin/gopher-lua v1.1.2
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (

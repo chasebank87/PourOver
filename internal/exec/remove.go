@@ -36,7 +36,7 @@ func RemoveCask(ctx context.Context, runner discovery.Runner, name string) error
 //   - safe: prompt once via confirm; if declined, skip all removes
 //
 // confirm may be nil when mode is not safe (or when there are no removes).
-func ApplyRemoves(ctx context.Context, runner discovery.Runner, p plan.Plan, mode config.UninstallMode, confirm ConfirmRemoves) (int, error) {
+func ApplyRemoves(ctx context.Context, runner discovery.Runner, p plan.Plan, mode config.UninstallMode, confirm ConfirmRemoves, progress Progress) (int, error) {
 	var removes []plan.Action
 	for _, a := range p.Actions {
 		if a.Type == plan.ActionFormulaRemove || a.Type == plan.ActionCaskRemove {
@@ -73,6 +73,7 @@ func ApplyRemoves(ctx context.Context, runner discovery.Runner, p plan.Plan, mod
 
 	n := 0
 	for _, a := range removes {
+		report(progress, a)
 		var err error
 		switch a.Type {
 		case plan.ActionFormulaRemove:

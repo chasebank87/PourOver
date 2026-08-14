@@ -1,4 +1,4 @@
-.PHONY: test build install vet fmt-check clean
+.PHONY: test build install vet fmt-check clean macos-docs
 
 PREFIX ?= $(HOME)/.local
 BINDIR ?= $(PREFIX)/bin
@@ -20,6 +20,9 @@ vet:
 
 fmt-check:
 	@test -z "$$(gofmt -l .)" || (echo "gofmt needed:" && gofmt -l . && exit 1)
+
+macos-docs:
+	go run ./cmd/genmacosdocs docs/macos-defaults.md
 
 clean:
 	rm -f pourover

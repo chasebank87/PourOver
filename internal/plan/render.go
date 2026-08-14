@@ -51,6 +51,8 @@ func formatActionLine(a Action) string {
 		return fmt.Sprintf("link create %s <- %s", a.Name, a.Source)
 	case ActionLinkUpdate:
 		return fmt.Sprintf("link update %s <- %s", a.Name, a.Source)
+	case ActionDefaultsWrite:
+		return fmt.Sprintf("defaults write %s %s = %s", a.Domain, a.Key, a.Value)
 	default:
 		return fmt.Sprintf("unknown %s %s", a.Type, a.Name)
 	}

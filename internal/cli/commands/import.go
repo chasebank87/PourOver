@@ -113,9 +113,9 @@ func runImport(cmd *cobra.Command, flags importFlags) error {
 		if err != nil {
 			return fmt.Errorf("discover brew: %w", err)
 		}
-		body := configimport.FormatPackagesLua(state.Formulae, state.Casks)
+		body := configimport.FormatPackagesLua(state.FormulaeRequested, state.Casks)
 		pkgPath := filepath.Join(cfgDir, "packages.lua")
-		fmt.Fprintf(out, "packages: %d formulae, %d casks -> %s\n", len(state.Formulae), len(state.Casks), pkgPath)
+		fmt.Fprintf(out, "packages: %d formulae, %d casks -> %s\n", len(state.FormulaeRequested), len(state.Casks), pkgPath)
 		if !flags.dryRun {
 			if err := os.WriteFile(pkgPath, []byte(body), 0o644); err != nil {
 				return err
@@ -162,6 +162,9 @@ func runImport(cmd *cobra.Command, flags importFlags) error {
 		fmt.Fprintln(out, "Dry run only; no files were modified.")
 	} else {
 		fmt.Fprintln(out, "Import complete. Run `pourover plan` to review.")
+		if m, err := config.LoadManifest(configPath); err == nil {
+			maybeAutoPushConfig(cmd, configPath, m)
+		}
 	}
 	return nil
 }

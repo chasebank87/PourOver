@@ -31,13 +31,189 @@ func decodeManifest(L *lua.LState, lv lua.LValue) (Manifest, error) {
 	if err != nil {
 		return Manifest{}, err
 	}
+	macos, err := decodeMacOS(L, root, "macos")
+	if err != nil {
+		return Manifest{}, err
+	}
 
 	return Manifest{
 		Packages: packages,
 		Files:    files,
 		Policy:   policy,
 		Backup:   backup,
+		MacOS:    macos,
 	}, nil
+}
+
+func decodeMacOS(L *lua.LState, root *lua.LTable, key string) (MacOS, error) {
+	tbl, ok, err := fieldTable(L, root, key)
+	if err != nil {
+		return MacOS{}, err
+	}
+	if !ok {
+		return MacOS{}, nil
+	}
+	defaultsTbl, ok, err := fieldTable(L, tbl, "defaults")
+	if err != nil {
+		return MacOS{}, fmt.Errorf("macos.%w", err)
+	}
+	if !ok {
+		return MacOS{}, nil
+	}
+
+	custom, err := fieldCustomSettings(L, defaultsTbl, "custom")
+	if err != nil {
+		return MacOS{}, fmt.Errorf("macos.defaults.%w", err)
+	}
+
+	sections := make(map[string]map[string]SettingValue)
+	var walkErr error
+	defaultsTbl.ForEach(func(k, v lua.LValue) {
+		if walkErr != nil {
+			return
+		}
+		if k.Type() != lua.LTString {
+			return
+		}
+		name := k.String()
+		if name == "" || name == "custom" {
+			return
+		}
+		if !IsCatalogSection(name) {
+			walkErr = fmt.Errorf("macos.defaults.%s: unknown section (see docs/macos-defaults.md; use macos.defaults.custom for arbitrary domains)", name)
+			return
+		}
+		if v.Type() != lua.LTTable {
+			walkErr = fmt.Errorf("macos.defaults.%s: expected table, got %s", name, v.Type())
+			return
+		}
+		m, err := decodeSettingMapFromTable(L, v.(*lua.LTable), name)
+		if err != nil {
+			walkErr = fmt.Errorf("macos.defaults.%w", err)
+			return
+		}
+		if len(m) > 0 {
+			sections[name] = m
+		}
+	})
+	if walkErr != nil {
+		return MacOS{}, walkErr
+	}
+
+	return MacOS{Defaults: MacOSDefaults{
+		Sections: sections,
+		Custom:   custom,
+	}}, nil
+}
+
+func decodeSettingMapFromTable(L *lua.LState, inner *lua.LTable, key string) (map[string]SettingValue, error) {
+	out := make(map[string]SettingValue)
+	var walkErr error
+	inner.ForEach(func(k, v lua.LValue) {
+		if walkErr != nil {
+			return
+		}
+		if k.Type() != lua.LTString {
+			walkErr = fmt.Errorf("%s: keys must be strings, got %s", key, k.Type())
+			return
+		}
+		name := k.String()
+		if name == "" {
+			walkErr = fmt.Errorf("%s: key must not be empty", key)
+			return
+		}
+		sv, err := decodeSettingValue(v, fmt.Sprintf("%s.%s", key, name))
+		if err != nil {
+			walkErr = err
+			return
+		}
+		out[name] = sv
+	})
+	if walkErr != nil {
+		return nil, walkErr
+	}
+	return out, nil
+}
+
+func fieldCustomSettings(L *lua.LState, tbl *lua.LTable, key string) (map[string]map[string]SettingValue, error) {
+	inner, ok, err := fieldTable(L, tbl, key)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, nil
+	}
+	out := make(map[string]map[string]SettingValue)
+	var walkErr error
+	inner.ForEach(func(k, v lua.LValue) {
+		if walkErr != nil {
+			return
+		}
+		if k.Type() != lua.LTString {
+			walkErr = fmt.Errorf("%s: domain keys must be strings, got %s", key, k.Type())
+			return
+		}
+		domain := k.String()
+		if domain == "" {
+			walkErr = fmt.Errorf("%s: domain must not be empty", key)
+			return
+		}
+		if v.Type() != lua.LTTable {
+			walkErr = fmt.Errorf("%s[%s]: expected table, got %s", key, domain, v.Type())
+			return
+		}
+		keys := make(map[string]SettingValue)
+		v.(*lua.LTable).ForEach(func(kk, vv lua.LValue) {
+			if walkErr != nil {
+				return
+			}
+			if kk.Type() != lua.LTString {
+				walkErr = fmt.Errorf("%s[%s]: keys must be strings, got %s", key, domain, kk.Type())
+				return
+			}
+			name := kk.String()
+			if name == "" {
+				walkErr = fmt.Errorf("%s[%s]: key must not be empty", key, domain)
+				return
+			}
+			sv, err := decodeSettingValue(vv, fmt.Sprintf("%s[%s].%s", key, domain, name))
+			if err != nil {
+				walkErr = err
+				return
+			}
+			keys[name] = sv
+		})
+		if walkErr != nil {
+			return
+		}
+		if len(keys) > 0 {
+			out[domain] = keys
+		}
+	})
+	if walkErr != nil {
+		return nil, walkErr
+	}
+	if len(out) == 0 {
+		return nil, nil
+	}
+	return out, nil
+}
+
+func decodeSettingValue(v lua.LValue, field string) (SettingValue, error) {
+	switch v.Type() {
+	case lua.LTBool:
+		return SettingValue{Kind: SettingBool, Bool: lua.LVAsBool(v)}, nil
+	case lua.LTNumber:
+		n := float64(v.(lua.LNumber))
+		if n == float64(int64(n)) {
+			return SettingValue{Kind: SettingInt, Int: int64(n)}, nil
+		}
+		return SettingValue{Kind: SettingFloat, Float: n}, nil
+	case lua.LTString:
+		return SettingValue{Kind: SettingString, String: v.String()}, nil
+	default:
+		return SettingValue{}, fmt.Errorf("%s: expected bool, number, or string, got %s", field, v.Type())
+	}
 }
 
 func decodePackages(L *lua.LState, root *lua.LTable, key string) (Packages, error) {
@@ -108,19 +284,31 @@ func decodeBackup(L *lua.LState, root *lua.LTable, key string) (Backup, error) {
 		return Backup{}, nil
 	}
 
-	icloudTbl, ok, err := fieldTable(L, tbl, "icloud")
+	icloud, err := decodeICloudBackup(L, tbl)
 	if err != nil {
-		return Backup{}, fmt.Errorf("backup.%w", err)
+		return Backup{}, err
+	}
+	git, err := decodeGitBackup(L, tbl)
+	if err != nil {
+		return Backup{}, err
+	}
+	return Backup{ICloud: icloud, Git: git}, nil
+}
+
+func decodeICloudBackup(L *lua.LState, backupTbl *lua.LTable) (ICloudBackup, error) {
+	icloudTbl, ok, err := fieldTable(L, backupTbl, "icloud")
+	if err != nil {
+		return ICloudBackup{}, fmt.Errorf("backup.%w", err)
 	}
 	if !ok {
-		return Backup{}, nil
+		return ICloudBackup{}, nil
 	}
 
 	enabled := false
 	enabledLV := L.GetField(icloudTbl, "enabled")
 	if enabledLV != lua.LNil {
 		if enabledLV.Type() != lua.LTBool {
-			return Backup{}, fmt.Errorf("backup.icloud.enabled: expected boolean, got %s", enabledLV.Type())
+			return ICloudBackup{}, fmt.Errorf("backup.icloud.enabled: expected boolean, got %s", enabledLV.Type())
 		}
 		enabled = lua.LVAsBool(enabledLV)
 	}
@@ -129,12 +317,57 @@ func decodeBackup(L *lua.LState, root *lua.LTable, key string) (Backup, error) {
 	pathLV := L.GetField(icloudTbl, "path")
 	if pathLV != lua.LNil {
 		if pathLV.Type() != lua.LTString {
-			return Backup{}, fmt.Errorf("backup.icloud.path: expected string, got %s", pathLV.Type())
+			return ICloudBackup{}, fmt.Errorf("backup.icloud.path: expected string, got %s", pathLV.Type())
 		}
 		path = pathLV.String()
 	}
 
-	return Backup{ICloud: ICloudBackup{Enabled: enabled, Path: path}}, nil
+	return ICloudBackup{Enabled: enabled, Path: path}, nil
+}
+
+func decodeGitBackup(L *lua.LState, backupTbl *lua.LTable) (GitBackup, error) {
+	gitTbl, ok, err := fieldTable(L, backupTbl, "git")
+	if err != nil {
+		return GitBackup{}, fmt.Errorf("backup.%w", err)
+	}
+	if !ok {
+		return GitBackup{}, nil
+	}
+
+	out := GitBackup{AutoPush: true} // default when table present but auto_push omitted
+	enabledLV := L.GetField(gitTbl, "enabled")
+	if enabledLV != lua.LNil {
+		if enabledLV.Type() != lua.LTBool {
+			return GitBackup{}, fmt.Errorf("backup.git.enabled: expected boolean, got %s", enabledLV.Type())
+		}
+		out.Enabled = lua.LVAsBool(enabledLV)
+	}
+
+	remoteLV := L.GetField(gitTbl, "remote")
+	if remoteLV != lua.LNil {
+		if remoteLV.Type() != lua.LTString {
+			return GitBackup{}, fmt.Errorf("backup.git.remote: expected string, got %s", remoteLV.Type())
+		}
+		out.Remote = remoteLV.String()
+	}
+
+	autoLV := L.GetField(gitTbl, "auto_push")
+	if autoLV != lua.LNil {
+		if autoLV.Type() != lua.LTBool {
+			return GitBackup{}, fmt.Errorf("backup.git.auto_push: expected boolean, got %s", autoLV.Type())
+		}
+		out.AutoPush = lua.LVAsBool(autoLV)
+	}
+
+	branchLV := L.GetField(gitTbl, "branch")
+	if branchLV != lua.LNil {
+		if branchLV.Type() != lua.LTString {
+			return GitBackup{}, fmt.Errorf("backup.git.branch: expected string, got %s", branchLV.Type())
+		}
+		out.Branch = branchLV.String()
+	}
+
+	return out, nil
 }
 
 func fieldFileLinks(L *lua.LState, tbl *lua.LTable, key string) ([]FileLink, error) {

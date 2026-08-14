@@ -25,14 +25,16 @@ func UpgradeCask(ctx context.Context, runner discovery.Runner, name string) erro
 }
 
 // ApplyUpgrades runs formula_upgrade and cask_upgrade actions in plan order.
-func ApplyUpgrades(ctx context.Context, runner discovery.Runner, p plan.Plan) (int, error) {
+func ApplyUpgrades(ctx context.Context, runner discovery.Runner, p plan.Plan, progress Progress) (int, error) {
 	n := 0
 	for _, a := range p.Actions {
 		var err error
 		switch a.Type {
 		case plan.ActionFormulaUpgrade:
+			report(progress, a)
 			err = UpgradeFormula(ctx, runner, a.Name)
 		case plan.ActionCaskUpgrade:
+			report(progress, a)
 			err = UpgradeCask(ctx, runner, a.Name)
 		default:
 			continue

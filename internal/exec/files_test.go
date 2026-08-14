@@ -83,7 +83,7 @@ func TestApplyFileLinks_CreateAndUpdate(t *testing.T) {
 		{Type: plan.ActionLinkUpdate, Name: updateTgt, Source: "b"},
 	}}
 
-	n, err := ApplyFileLinks(p, configDir)
+	n, err := ApplyFileLinks(p, configDir, nil)
 	if err != nil {
 		t.Fatalf("ApplyFileLinks: %v", err)
 	}
@@ -113,7 +113,7 @@ func TestApplyFileLinks_FailsIfTargetIsRegularFile(t *testing.T) {
 	p := plan.Plan{Actions: []plan.Action{
 		{Type: plan.ActionLinkCreate, Name: tgt, Source: "a"},
 	}}
-	if _, err := ApplyFileLinks(p, configDir); err == nil {
+	if _, err := ApplyFileLinks(p, configDir, nil); err == nil {
 		t.Fatal("expected error for regular file target")
 	}
 }

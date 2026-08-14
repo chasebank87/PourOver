@@ -19,6 +19,9 @@ func (s *stubBrewRunner) Run(ctx context.Context, args ...string) ([]byte, error
 	if len(args) == 2 && args[0] == "list" && args[1] == "--formula" {
 		return []byte(s.formulae), nil
 	}
+	if len(args) == 3 && args[0] == "list" && args[1] == "--formula" && args[2] == "--installed-on-request" {
+		return []byte(s.formulae), nil
+	}
 	if len(args) == 2 && args[0] == "list" && args[1] == "--cask" {
 		return []byte(s.casks), nil
 	}

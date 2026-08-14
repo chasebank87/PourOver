@@ -1,0 +1,703 @@
+# PourOver macOS defaults catalog — nix-darwin system.defaults scalars.
+# Source: https://mynixos.com/nix-darwin/options/system.defaults
+# Do not edit by hand without also regenerating docs/macos-defaults.md (make macos-docs).
+sections:
+  - name: "dock"
+    domain: "com.apple.dock"
+    scope: user
+    killall: "Dock"
+    mynixos: "https://mynixos.com/nix-darwin/options/system.defaults.dock"
+    keys:
+      - key: "appswitcher-all-displays"
+        kind: bool
+        description: "Whether to display the appswitcher on all displays or only the main one. The default is false."
+      - key: "autohide"
+        kind: bool
+        description: "Whether to automatically hide and show the dock. The default is false."
+      - key: "autohide-delay"
+        kind: float
+        description: "Sets the speed of the autohide delay. The default is given in the example."
+      - key: "autohide-time-modifier"
+        kind: float
+        description: "Sets the speed of the animation when hiding/showing the Dock. The default is given in the example."
+      - key: "dashboard-in-overlay"
+        kind: bool
+        description: "Whether to hide Dashboard as a Space. The default is false."
+      - key: "enable-spring-load-actions-on-all-items"
+        kind: bool
+        description: "Enable spring loading for all Dock items. The default is false."
+      - key: "expose-animation-duration"
+        kind: float
+        description: "Sets the speed of the Mission Control animations. The default is given in the example."
+      - key: "expose-group-apps"
+        kind: bool
+        description: "Whether to group windows by application in Mission Control's Expos\u00e9. The default is false."
+      - key: "largesize"
+        kind: int
+        description: "Magnified icon size on hover. The default is 16."
+      - key: "launchanim"
+        kind: bool
+        description: "Animate opening applications from the Dock. The default is true."
+      - key: "magnification"
+        kind: bool
+        description: "Magnify icon on hover. The default is false."
+      - key: "mineffect"
+        kind: string
+        description: "Set the minimize/maximize window effect. The default is genie."
+      - key: "minimize-to-application"
+        kind: bool
+        description: "Whether to minimize windows into their application icon. The default is false."
+      - key: "mouse-over-hilite-stack"
+        kind: bool
+        description: "Enable highlight hover effect for the grid view of a stack in the Dock."
+      - key: "mru-spaces"
+        kind: bool
+        description: "Whether to automatically rearrange spaces based on most recent use. The default is true."
+      - key: "orientation"
+        kind: string
+        description: "Position of the dock on screen. The default is \"bottom\"."
+      - key: "scroll-to-open"
+        kind: bool
+        description: "Scroll up on a Dock icon to show all Space's opened windows for an app, or open stack. The default is false."
+      - key: "show-process-indicators"
+        kind: bool
+        description: "Show indicator lights for open applications in the Dock. The default is true."
+      - key: "show-recents"
+        kind: bool
+        description: "Show recent applications in the dock. The default is true."
+      - key: "showAppExposeGestureEnabled"
+        kind: bool
+        description: "Whether to enable trackpad gestures (three- or four-finger vertical swipe) to show App Expos\u00e9. The default is false. This feature interacts with `system.defaults.trackpad.TrackpadF"
+      - key: "showDesktopGestureEnabled"
+        kind: bool
+        description: "Whether to enable four-finger spread gesture to show the Desktop. The default is false."
+      - key: "showLaunchpadGestureEnabled"
+        kind: bool
+        description: "Whether to enable four-finger pinch gesture to show the Launchpad. The default is false."
+      - key: "showMissionControlGestureEnabled"
+        kind: bool
+        description: "Whether to enable trackpad gestures (three- or four-finger vertical swipe) to show Mission Control. The default is false. This feature interacts with `system.defaults.trackpad.Trac"
+      - key: "showhidden"
+        kind: bool
+        description: "Whether to make icons of hidden applications tranclucent. The default is false."
+      - key: "slow-motion-allowed"
+        kind: bool
+        description: "Allow for slow-motion minimize effect while holding Shift key. The default is false."
+      - key: "static-only"
+        kind: bool
+        description: "Show only open applications in the Dock. The default is false."
+      - key: "tilesize"
+        kind: int
+        description: "Size of the icons in the dock. The default is 64."
+      - key: "wvous-bl-corner"
+        kind: int
+        description: "Hot corner action for bottom left corner. Valid values include: * `1`: Disabled * `2`: Mission Control * `3`: Application Windows * `4`: Desktop * `5`: Start Screen Saver * `6`: Di"
+      - key: "wvous-br-corner"
+        kind: int
+        description: "Hot corner action for bottom right corner. Valid values include: * `1`: Disabled * `2`: Mission Control * `3`: Application Windows * `4`: Desktop * `5`: Start Screen Saver * `6`: D"
+      - key: "wvous-tl-corner"
+        kind: int
+        description: "Hot corner action for top left corner. Valid values include: * `1`: Disabled * `2`: Mission Control * `3`: Application Windows * `4`: Desktop * `5`: Start Screen Saver * `6`: Disab"
+      - key: "wvous-tr-corner"
+        kind: int
+        description: "Hot corner action for top right corner. Valid values include: * `1`: Disabled * `2`: Mission Control * `3`: Application Windows * `4`: Desktop * `5`: Start Screen Saver * `6`: Disa"
+  - name: "finder"
+    domain: "com.apple.finder"
+    scope: user
+    killall: "Finder"
+    mynixos: "https://mynixos.com/nix-darwin/options/system.defaults.finder"
+    keys:
+      - key: "AppleShowAllExtensions"
+        kind: bool
+        description: "Whether to always show file extensions. The default is false."
+      - key: "AppleShowAllFiles"
+        kind: bool
+        description: "Whether to always show hidden files. The default is false."
+      - key: "CreateDesktop"
+        kind: bool
+        description: "Whether to show icons on the desktop or not. The default is true."
+      - key: "FXDefaultSearchScope"
+        kind: string
+        description: "Change the default search scope. Use \"SCcf\" to default to current folder. The default is unset (\"This Mac\")."
+      - key: "FXEnableExtensionChangeWarning"
+        kind: bool
+        description: "Whether to show warnings when change the file extension of files. The default is true."
+      - key: "FXPreferredViewStyle"
+        kind: string
+        description: "Change the default finder view. \"icnv\" = Icon view, \"Nlsv\" = List view, \"clmv\" = Column View, \"Flwv\" = Gallery View The default is icnv."
+      - key: "FXRemoveOldTrashItems"
+        kind: bool
+        description: "Remove items in the trash after 30 days. The default is false."
+      - key: "NewWindowTarget"
+        kind: string
+        description: "Change the default folder shown in Finder windows. \"Other\" corresponds to the value of NewWindowTargetPath. The default is unset (\"Recents\")."
+      - key: "NewWindowTargetPath"
+        kind: string
+        description: "Sets the URI to open when NewWindowTarget is \"Other\". Spaces and similar characters must be escaped. If the value is invalid, Finder will open your home directory. Example: \"file:/"
+      - key: "QuitMenuItem"
+        kind: bool
+        description: "Whether to allow quitting of the Finder. The default is false."
+      - key: "ShowExternalHardDrivesOnDesktop"
+        kind: bool
+        description: "Whether to show external disks on desktop. The default is true."
+      - key: "ShowHardDrivesOnDesktop"
+        kind: bool
+        description: "Whether to show hard disks on desktop. The default is false."
+      - key: "ShowMountedServersOnDesktop"
+        kind: bool
+        description: "Whether to show connected servers on desktop. The default is false."
+      - key: "ShowPathbar"
+        kind: bool
+        description: "Show path breadcrumbs in finder windows. The default is false."
+      - key: "ShowRemovableMediaOnDesktop"
+        kind: bool
+        description: "Whether to show removable media (CDs, DVDs and iPods) on desktop. The default is true."
+      - key: "ShowStatusBar"
+        kind: bool
+        description: "Show status bar at bottom of finder windows with item/disk space stats. The default is false."
+      - key: "_FXEnableColumnAutoSizing"
+        kind: bool
+        description: "Resize columns to fit filenames. The default is false."
+      - key: "_FXShowPosixPathInTitle"
+        kind: bool
+        description: "Whether to show the full POSIX filepath in the window title. The default is false."
+      - key: "_FXSortFoldersFirst"
+        kind: bool
+        description: "Keep folders on top when sorting by name. The default is false."
+      - key: "_FXSortFoldersFirstOnDesktop"
+        kind: bool
+        description: "Keep folders on top when sorting by name on the desktop. The default is false."
+  - name: "NSGlobalDomain"
+    domain: "-g"
+    scope: user
+    killall: "SystemUIServer"
+    mynixos: "https://mynixos.com/nix-darwin/options/system.defaults.NSGlobalDomain"
+    keys:
+      - key: "AppleEnableMouseSwipeNavigateWithScrolls"
+        kind: bool
+        description: "Enables swiping left or right with two fingers to navigate backward or forward. The default is true."
+      - key: "AppleEnableSwipeNavigateWithScrolls"
+        kind: bool
+        description: "Enables swiping left or right with two fingers to navigate backward or forward. The default is true."
+      - key: "AppleFontSmoothing"
+        kind: int
+        description: "Sets the level of font smoothing (sub-pixel font rendering)."
+      - key: "AppleICUForce24HourTime"
+        kind: bool
+        description: "Whether to use 24-hour or 12-hour time. The default is based on region settings."
+      - key: "AppleIconAppearanceTheme"
+        kind: string
+        description: "Set icon and widget style To set to default mode, set this to `null` and you'll need to manually run {command}`defaults delete -g AppleIconAppearanceTheme`. This option requires lo"
+      - key: "AppleInterfaceStyle"
+        kind: string
+        description: "Set to 'Dark' to enable dark mode. To set to light mode, set this to `null` and you'll need to manually run {command}`defaults delete -g AppleInterfaceStyle`. This option requires"
+      - key: "AppleInterfaceStyleSwitchesAutomatically"
+        kind: bool
+        description: "Whether to automatically switch between light and dark mode. The default is false."
+      - key: "AppleKeyboardUIMode"
+        kind: int
+        description: "Configures the keyboard control behavior. The default is 0. 0 = Disabled 2 = Enabled on Sonoma or later 3 = Enabled on older macOS versions"
+      - key: "AppleMeasurementUnits"
+        kind: string
+        description: "Whether to use centimeters (metric) or inches (US, UK) as the measurement unit. The default is based on region settings."
+      - key: "AppleMetricUnits"
+        kind: int
+        description: "Whether to use the metric system. The default is based on region settings."
+      - key: "ApplePressAndHoldEnabled"
+        kind: bool
+        description: "Whether to enable the press-and-hold feature. The default is true."
+      - key: "AppleScrollerPagingBehavior"
+        kind: bool
+        description: "Jump to the spot that's clicked on the scroll bar. The default is false."
+      - key: "AppleShowAllExtensions"
+        kind: bool
+        description: "Whether to show all file extensions in Finder. The default is false."
+      - key: "AppleShowAllFiles"
+        kind: bool
+        description: "Whether to always show hidden files. The default is false."
+      - key: "AppleShowScrollBars"
+        kind: string
+        description: "When to show the scrollbars. Options are 'WhenScrolling', 'Automatic' and 'Always'."
+      - key: "AppleSpacesSwitchOnActivate"
+        kind: bool
+        description: "Whether or not to switch to a workspace that has a window of the application open, that is switched to. The default is true."
+      - key: "AppleTemperatureUnit"
+        kind: string
+        description: "Whether to use Celsius or Fahrenheit. The default is based on region settings."
+      - key: "AppleWindowTabbingMode"
+        kind: string
+        description: "Sets the window tabbing when opening a new document: 'manual', 'always', or 'fullscreen'. The default is 'fullscreen'."
+      - key: "InitialKeyRepeat"
+        kind: int
+        description: "Apple menu > System Preferences > Keyboard If you press and hold certain keyboard keys when in a text area, the key\u2019s character begins to repeat. For example, the Delete key contin"
+      - key: "KeyRepeat"
+        kind: int
+        description: "Apple menu > System Preferences > Keyboard If you press and hold certain keyboard keys when in a text area, the key\u2019s character begins to repeat. For example, the Delete key contin"
+      - key: "NSAutomaticCapitalizationEnabled"
+        kind: bool
+        description: "Whether to enable automatic capitalization. The default is true."
+      - key: "NSAutomaticDashSubstitutionEnabled"
+        kind: bool
+        description: "Whether to enable smart dash substitution. The default is true."
+      - key: "NSAutomaticInlinePredictionEnabled"
+        kind: bool
+        description: "Whether to enable inline predictive text. The default is true."
+      - key: "NSAutomaticPeriodSubstitutionEnabled"
+        kind: bool
+        description: "Whether to enable smart period substitution. The default is true."
+      - key: "NSAutomaticQuoteSubstitutionEnabled"
+        kind: bool
+        description: "Whether to enable smart quote substitution. The default is true."
+      - key: "NSAutomaticSpellingCorrectionEnabled"
+        kind: bool
+        description: "Whether to enable automatic spelling correction. The default is true."
+      - key: "NSAutomaticWindowAnimationsEnabled"
+        kind: bool
+        description: "Whether to animate opening and closing of windows and popovers. The default is true."
+      - key: "NSDisableAutomaticTermination"
+        kind: bool
+        description: "Whether to disable the automatic termination of inactive apps."
+      - key: "NSDocumentSaveNewDocumentsToCloud"
+        kind: bool
+        description: "Whether to save new documents to iCloud by default. The default is true."
+      - key: "NSNavPanelExpandedStateForSaveMode"
+        kind: bool
+        description: "Whether to use expanded save panel by default. The default is false."
+      - key: "NSNavPanelExpandedStateForSaveMode2"
+        kind: bool
+        description: "Whether to use expanded save panel by default. The default is false."
+      - key: "NSScrollAnimationEnabled"
+        kind: bool
+        description: "Whether to enable smooth scrolling. The default is true."
+      - key: "NSStatusItemSelectionPadding"
+        kind: int
+        description: "Sets the padding around status icons in the menu bar."
+      - key: "NSStatusItemSpacing"
+        kind: int
+        description: "Sets the spacing between status icons in the menu bar."
+      - key: "NSTableViewDefaultSizeMode"
+        kind: int
+        description: "Sets the size of the finder sidebar icons: 1 (small), 2 (medium) or 3 (large). The default is 3."
+      - key: "NSTextShowsControlCharacters"
+        kind: bool
+        description: "Whether to display ASCII control characters using caret notation in standard text views. The default is false."
+      - key: "NSUseAnimatedFocusRing"
+        kind: bool
+        description: "Whether to enable the focus ring animation. The default is true."
+      - key: "NSWindowResizeTime"
+        kind: float
+        description: "Sets the speed speed of window resizing. The default is given in the example."
+      - key: "NSWindowShouldDragOnGesture"
+        kind: bool
+        description: "Whether to enable moving window by holding anywhere on it like on Linux. The default is false."
+      - key: "PMPrintingExpandedStateForPrint"
+        kind: bool
+        description: "Whether to use the expanded print panel by default. The default is false."
+      - key: "PMPrintingExpandedStateForPrint2"
+        kind: bool
+        description: "Whether to use the expanded print panel by default. The default is false."
+      - key: "_HIHideMenuBar"
+        kind: bool
+        description: "Whether to autohide the menu bar. The default is false."
+      - key: "com.apple.keyboard.fnState"
+        kind: bool
+        description: "Use F1, F2, etc. keys as standard function keys."
+      - key: "com.apple.mouse.tapBehavior"
+        kind: int
+        description: "Configures the trackpad tap behavior. Mode 1 enables tap to click."
+      - key: "com.apple.sound.beep.feedback"
+        kind: int
+        description: "Apple menu > System Preferences > Sound Make a feedback sound when the system volume changed. This setting accepts the integers 0 or 1. Defaults to 1."
+      - key: "com.apple.sound.beep.volume"
+        kind: float
+        description: "Apple menu > System Preferences > Sound Sets the beep/alert volume level from 0.000 (muted) to 1.000 (100% volume). 75% = 0.7788008 50% = 0.6065307 25% = 0.4723665"
+      - key: "com.apple.springing.delay"
+        kind: float
+        description: "Set the spring loading delay for directories. The default is given in the example."
+      - key: "com.apple.springing.enabled"
+        kind: bool
+        description: "Whether to enable spring loading (expose) for directories."
+      - key: "com.apple.swipescrolldirection"
+        kind: bool
+        description: "Whether to enable \"Natural\" scrolling direction. The default is true."
+      - key: "com.apple.trackpad.enableSecondaryClick"
+        kind: bool
+        description: "Whether to enable trackpad secondary click. The default is true."
+      - key: "com.apple.trackpad.forceClick"
+        kind: bool
+        description: "Whether to enable trackpad force click."
+      - key: "com.apple.trackpad.scaling"
+        kind: float
+        description: "Configures the trackpad tracking speed (0 to 3). The default is \"1\"."
+      - key: "com.apple.trackpad.trackpadCornerClickBehavior"
+        kind: int
+        description: "Configures the trackpad corner click behavior. Mode 1 enables right click."
+  - name: ".GlobalPreferences"
+    domain: ".GlobalPreferences"
+    scope: user
+    killall: "SystemUIServer"
+    mynixos: "https://mynixos.com/nix-darwin/options/system.defaults.%22.GlobalPreferences%22"
+    keys:
+      - key: "com.apple.mouse.scaling"
+        kind: float
+        description: "Sets the mouse tracking speed. Found in the \"Mouse\" section of \"System Preferences\". Set to -1.0 to disable mouse acceleration."
+      - key: "com.apple.sound.beep.sound"
+        kind: string
+        description: "Sets the system-wide alert sound. Found under \"Sound Effects\" in the \"Sound\" section of \"System Preferences\". Look in \"/System/Library/Sounds\" for possible candidates."
+  - name: "trackpad"
+    domain: "com.apple.AppleMultitouchTrackpad"
+    also_domains:
+      - "com.apple.driver.AppleBluetoothMultitouch.trackpad"
+    scope: user
+    mynixos: "https://mynixos.com/nix-darwin/options/system.defaults.trackpad"
+    keys:
+      - key: "ActuateDetents"
+        kind: bool
+        description: "Whether to enable haptic feedback. The default is true."
+      - key: "ActuationStrength"
+        kind: int
+        description: "0 to enable Silent Clicking, 1 to disable. The default is 1."
+      - key: "Clicking"
+        kind: bool
+        description: "Whether to enable tap to click. The default is false."
+      - key: "DragLock"
+        kind: bool
+        description: "Whether to enable drag lock. The default is false."
+      - key: "Dragging"
+        kind: bool
+        description: "Whether to enable tap to drag. The default is false."
+      - key: "FirstClickThreshold"
+        kind: int
+        description: "For normal click: 0 for light clicking, 1 for medium, 2 for firm. The default is 1."
+      - key: "ForceSuppressed"
+        kind: bool
+        description: "Whether to disable force click. The default is false."
+      - key: "SecondClickThreshold"
+        kind: int
+        description: "For force touch: 0 for light clicking, 1 for medium, 2 for firm. The default is 1."
+      - key: "TrackpadCornerSecondaryClick"
+        kind: int
+        description: "Whether to enable secondary click: 0 to disable, 1 to set bottom-left corner, 2 to set bottom-right corner. The default is 0."
+      - key: "TrackpadFourFingerHorizSwipeGesture"
+        kind: int
+        description: "Whether to enable four-finger horizontal swipe gesture: 0 to disable, 2 to swipe between full-screen applications. The default is 0."
+      - key: "TrackpadFourFingerPinchGesture"
+        kind: int
+        description: "Whether to enable four-finger pinch gesture (spread shows the Desktop, pinch shows the Launchpad): 0 to disable, 2 to enable. The default is 0. This setting interacts with `system."
+      - key: "TrackpadFourFingerVertSwipeGesture"
+        kind: int
+        description: "0 to disable four finger vertical swipe gestures, 2 to enable (down for Mission Control, up for App Expos\u00e9). The default is 2. When both three- and four-finger vertical swipe gestu"
+      - key: "TrackpadMomentumScroll"
+        kind: bool
+        description: "Whether to use inertia when scrolling. The default is true."
+      - key: "TrackpadPinch"
+        kind: bool
+        description: "Whether to enable two-finger pinch gesture for zooming in and out. The default is false."
+      - key: "TrackpadRightClick"
+        kind: bool
+        description: "Whether to enable trackpad right click (two-finger tap/click). The default is false."
+      - key: "TrackpadRotate"
+        kind: bool
+        description: "Whether to enable two-finger rotation gesture. The default is false."
+      - key: "TrackpadThreeFingerDrag"
+        kind: bool
+        description: "Whether to enable three-finger drag. The default is false."
+      - key: "TrackpadThreeFingerHorizSwipeGesture"
+        kind: int
+        description: "Whether to enable three-finger horizontal swipe gesture: 0 to disable, 1 to swipe between pages, 2 to swipe between full-screen applications. The default is 2."
+      - key: "TrackpadThreeFingerTapGesture"
+        kind: int
+        description: "Whether to enable three-finger tap gesture: 0 to disable, 2 to trigger Look up & data detectors. The default is 2."
+      - key: "TrackpadThreeFingerVertSwipeGesture"
+        kind: int
+        description: "Whether to enable three-finger vertical swipe gesture (down for Mission Control, up for App Expos\u00e9): 0 to disable, 2 to enable. The default is 2. This setting interacts with `syste"
+      - key: "TrackpadTwoFingerDoubleTapGesture"
+        kind: bool
+        description: "Whether to enable smart zoom when double-tapping with two fingers. The default is false."
+      - key: "TrackpadTwoFingerFromRightEdgeSwipeGesture"
+        kind: int
+        description: "Whether to enable two-finger swipe-from-right-edge gesture: 0 to disable, 3 to open Notification Center. The default is 0."
+  - name: "magicmouse"
+    domain: "com.apple.AppleMultitouchMouse"
+    also_domains:
+      - "com.apple.driver.AppleMultitouchMouse.mouse"
+    scope: user
+    mynixos: "https://mynixos.com/nix-darwin/options/system.defaults.magicmouse"
+    keys:
+      - key: "MouseButtonMode"
+        kind: string
+        description: "\"OneButton\": any tap is a left click. \"TwoButton\": allow left- and right-clicking."
+  - name: "screencapture"
+    domain: "com.apple.screencapture"
+    scope: user
+    killall: "SystemUIServer"
+    mynixos: "https://mynixos.com/nix-darwin/options/system.defaults.screencapture"
+    keys:
+      - key: "disable-shadow"
+        kind: bool
+        description: "Disable drop shadow border around screencaptures. The default is false."
+      - key: "include-date"
+        kind: bool
+        description: "Include date and time in screenshot filenames. The default is true. Screenshot 2024-01-09 at 13.27.20.png would be an example for true. Screenshot.png Screenshot 1.png would be an"
+      - key: "location"
+        kind: string
+        description: "The filesystem path to which screencaptures should be written."
+      - key: "save-selections"
+        kind: bool
+        description: "Remember the selection window of the last screencapture. The default is true."
+      - key: "show-thumbnail"
+        kind: bool
+        description: "Show thumbnail after screencapture before writing to file. The default is true."
+      - key: "target"
+        kind: string
+        description: "Target to which screencapture should save screenshot to. The default is \"file\". Valid values include: * `file`: Saves as a file in location specified by `system.defaults.screencapt"
+      - key: "type"
+        kind: string
+        description: "The image format to use, such as \"jpg\"."
+  - name: "screensaver"
+    domain: "com.apple.screensaver"
+    scope: user
+    mynixos: "https://mynixos.com/nix-darwin/options/system.defaults.screensaver"
+    keys:
+      - key: "askForPassword"
+        kind: bool
+        description: "If true, the user is prompted for a password when the screen saver is unlocked or stopped. The default is false."
+      - key: "askForPasswordDelay"
+        kind: int
+        description: "The number of seconds to delay before the password will be required to unlock or stop the screen saver (the grace period)."
+  - name: "spaces"
+    domain: "com.apple.spaces"
+    scope: user
+    killall: "Dock"
+    mynixos: "https://mynixos.com/nix-darwin/options/system.defaults.spaces"
+    keys:
+      - key: "spans-displays"
+        kind: bool
+        description: "Apple menu > System Preferences > Mission Control Displays have separate Spaces (note a logout is required before this setting will take effect). false = each physical display has"
+  - name: "menuExtraClock"
+    domain: "com.apple.menuextra.clock"
+    scope: user
+    killall: "SystemUIServer"
+    mynixos: "https://mynixos.com/nix-darwin/options/system.defaults.menuExtraClock"
+    keys:
+      - key: "FlashDateSeparators"
+        kind: bool
+        description: "When enabled, the clock indicator (which by default is the colon) will flash on and off each second. Default is null."
+      - key: "IsAnalog"
+        kind: bool
+        description: "Show an analog clock instead of a digital one. Default is null."
+      - key: "Show24Hour"
+        kind: bool
+        description: "Show a 24-hour clock, instead of a 12-hour clock. Default is null."
+      - key: "ShowAMPM"
+        kind: bool
+        description: "Show the AM/PM label. Useful if Show24Hour is false. Default is null."
+      - key: "ShowDate"
+        kind: int
+        description: "Show the full date. Default is null. 0 = When space allows 1 = Always 2 = Never"
+      - key: "ShowDayOfMonth"
+        kind: bool
+        description: "Show the day of the month. Default is null."
+      - key: "ShowDayOfWeek"
+        kind: bool
+        description: "Show the day of the week. Default is null."
+      - key: "ShowSeconds"
+        kind: bool
+        description: "Show the clock with second precision, instead of minutes. Default is null."
+  - name: "hitoolbox"
+    domain: "com.apple.HIToolbox"
+    scope: user
+    mynixos: "https://mynixos.com/nix-darwin/options/system.defaults.hitoolbox"
+    keys:
+      - key: "AppleFnUsageType"
+        kind: int
+        description: "Fn key action (0=Do Nothing, 1=Change Input Source, 2=Show Emoji & Symbols, 3=Start Dictation). Restart required."
+  - name: "iCal"
+    domain: "com.apple.iCal"
+    scope: user
+    killall: "Calendar"
+    mynixos: "https://mynixos.com/nix-darwin/options/system.defaults.iCal"
+    keys:
+      - key: "CalendarSidebarShown"
+        kind: bool
+        description: "Show calendar list. Restart Calendar.app to apply."
+      - key: "TimeZone support enabled"
+        kind: bool
+        description: "Turn on time zone support in Calendar."
+      - key: "first day of week"
+        kind: int
+        description: "First day of week in Calendar (0=System Setting, 1=Sunday \u2026 7=Saturday)."
+  - name: "LaunchServices"
+    domain: "com.apple.LaunchServices"
+    scope: user
+    mynixos: "https://mynixos.com/nix-darwin/options/system.defaults.LaunchServices"
+    keys:
+      - key: "LSQuarantine"
+        kind: bool
+        description: "Whether to enable quarantine for downloaded applications. The default is true."
+  - name: "ActivityMonitor"
+    domain: "com.apple.ActivityMonitor"
+    scope: user
+    killall: "Activity Monitor"
+    mynixos: "https://mynixos.com/nix-darwin/options/system.defaults.ActivityMonitor"
+    keys:
+      - key: "IconType"
+        kind: int
+        description: "Change the icon in the dock when running. * 0: Application Icon * 2: Network Usage * 3: Disk Activity * 5: CPU Usage * 6: CPU History Default is null."
+      - key: "OpenMainWindow"
+        kind: bool
+        description: "Open the main window when opening Activity Monitor. Default is true."
+      - key: "ShowCategory"
+        kind: int
+        description: "Change which processes to show. * 100: All Processes * 101: All Processes, Hierarchally * 102: My Processes * 103: System Processes * 104: Other User Processes * 105: Active Proces"
+      - key: "SortColumn"
+        kind: string
+        description: "Which column to sort the main activity page (such as \"CPUUsage\"). Default is null."
+      - key: "SortDirection"
+        kind: int
+        description: "The sort direction of the sort column (0 is decending). Default is null."
+  - name: "WindowManager"
+    domain: "com.apple.WindowManager"
+    scope: user
+    mynixos: "https://mynixos.com/nix-darwin/options/system.defaults.WindowManager"
+    keys:
+      - key: "AppWindowGroupingBehavior"
+        kind: bool
+        description: "Grouping strategy when showing windows from an application. false means \"One at a time\" true means \"All at once\""
+      - key: "AutoHide"
+        kind: bool
+        description: "Auto hide stage strip showing recent apps. Default is false."
+      - key: "EnableStandardClickToShowDesktop"
+        kind: bool
+        description: "Click wallpaper to reveal desktop Clicking your wallpaper will move all windows out of the way to allow access to your desktop items and widgets. Default is true. false means \"Only"
+      - key: "EnableTiledWindowMargins"
+        kind: bool
+        description: "Enable window margins when tiling windows. The default is true."
+      - key: "EnableTilingByEdgeDrag"
+        kind: bool
+        description: "Enable dragging windows to screen edges to tile them. The default is true."
+      - key: "EnableTilingOptionAccelerator"
+        kind: bool
+        description: "Enable holding alt to tile windows. The default is true."
+      - key: "EnableTopTilingByEdgeDrag"
+        kind: bool
+        description: "Enable dragging windows to the menu bar to fill the screen. The default is true."
+      - key: "GloballyEnabled"
+        kind: bool
+        description: "Enable Stage Manager Stage Manager arranges your recent windows into a single strip for reduced clutter and quick access. Default is false."
+      - key: "HideDesktop"
+        kind: bool
+        description: "Hide items in Stage Manager."
+      - key: "StageManagerHideWidgets"
+        kind: bool
+        description: "Hide widgets in Stage Manager."
+      - key: "StandardHideDesktopIcons"
+        kind: bool
+        description: "Hide items on desktop."
+      - key: "StandardHideWidgets"
+        kind: bool
+        description: "Hide widgets on desktop."
+  - name: "universalaccess"
+    domain: "com.apple.universalaccess"
+    scope: user
+    mynixos: "https://mynixos.com/nix-darwin/options/system.defaults.universalaccess"
+    keys:
+      - key: "closeViewScrollWheelToggle"
+        kind: bool
+        description: "Use scroll gesture with the Ctrl (^) modifier key to zoom. The default is false."
+      - key: "closeViewZoomFollowsFocus"
+        kind: bool
+        description: "Follow the keyboard focus while zoomed in. Without setting `closeViewScrollWheelToggle` this has no effect. The default is false."
+      - key: "mouseDriverCursorSize"
+        kind: float
+        description: "Set the size of cursor. 1 for normal, 4 for maximum. The default is 1."
+      - key: "reduceMotion"
+        kind: bool
+        description: "Disable animation when switching screens or opening apps"
+      - key: "reduceTransparency"
+        kind: bool
+        description: "Disable transparency in the menu bar and elsewhere. The default is false."
+  - name: "controlcenter"
+    domain: "com.apple.controlcenter"
+    scope: byhost
+    killall: "SystemUIServer"
+    mynixos: "https://mynixos.com/nix-darwin/options/system.defaults.controlcenter"
+    keys:
+      - key: "AirDrop"
+        kind: int
+        description: "AirDrop icon in menu bar: 18=show, 24=hide. ByHost on nix-darwin."
+      - key: "BatteryShowPercentage"
+        kind: bool
+        description: "Show battery percentage in menu bar. nix-darwin writes ByHost com.apple.controlcenter."
+      - key: "Bluetooth"
+        kind: int
+        description: "Bluetooth icon in menu bar: 18=show, 24=hide. ByHost on nix-darwin."
+      - key: "Display"
+        kind: int
+        description: "Display/brightness icon in menu bar: 18=show, 24=hide. ByHost on nix-darwin."
+      - key: "FocusModes"
+        kind: int
+        description: "Focus icon in menu bar: 18=show, 24=hide. ByHost on nix-darwin."
+      - key: "NowPlaying"
+        kind: int
+        description: "Now Playing icon in menu bar: 18=show, 24=hide. ByHost on nix-darwin."
+      - key: "Sound"
+        kind: int
+        description: "Sound icon in menu bar: 18=show, 24=hide. ByHost on nix-darwin."
+  - name: "loginwindow"
+    domain: "/Library/Preferences/com.apple.loginwindow"
+    scope: system
+    mynixos: "https://mynixos.com/nix-darwin/options/system.defaults.loginwindow"
+    keys:
+      - key: "DisableConsoleAccess"
+        kind: bool
+        description: "Disables the ability for a user to access the console by typing \u201c>console\u201d for a username at the login window. Default is false."
+      - key: "GuestEnabled"
+        kind: bool
+        description: "Apple menu > System Preferences > Users and Groups > Login Options Allow users to login to the machine as guests using the Guest account. Default is true."
+      - key: "LoginwindowText"
+        kind: string
+        description: "Text to be shown on the login window. Default is \"\\\\\\\\U03bb\"."
+      - key: "PowerOffDisabledWhileLoggedIn"
+        kind: bool
+        description: "Apple menu > System Preferences > Users and Groups > Login Options If set to true, the Power Off menu item will be disabled when the user is logged in. Default is false."
+      - key: "RestartDisabled"
+        kind: bool
+        description: "Apple menu > System Preferences > Users and Groups > Login Options Hides the Restart button on the login screen. Default is false."
+      - key: "RestartDisabledWhileLoggedIn"
+        kind: bool
+        description: "Apple menu > System Preferences > Users and Groups > Login Options Disables the \u201cRestart\u201d option when users are logged in. Default is false."
+      - key: "SHOWFULLNAME"
+        kind: bool
+        description: "Apple menu > System Preferences > Users and Groups > Login Options Displays login window as a name and password field instead of a list of users. Default is false."
+      - key: "ShutDownDisabled"
+        kind: bool
+        description: "Apple menu > System Preferences > Users and Groups > Login Options Hides the Shut Down button on the login screen. Default is false."
+      - key: "ShutDownDisabledWhileLoggedIn"
+        kind: bool
+        description: "Apple menu > System Preferences > Users and Groups > Login Options Disables the \"Shutdown\" option when users are logged in. Default is false."
+      - key: "SleepDisabled"
+        kind: bool
+        description: "Apple menu > System Preferences > Users and Groups > Login Options Hides the Sleep button on the login screen. Default is false."
+      - key: "autoLoginUser"
+        kind: string
+        description: "Apple menu > System Preferences > Users and Groups > Login Options Auto login the supplied user on boot. Default is Off."
+  - name: "smb"
+    domain: "/Library/Preferences/SystemConfiguration/com.apple.smb.server"
+    scope: system
+    mynixos: "https://mynixos.com/nix-darwin/options/system.defaults.smb"
+    keys:
+      - key: "NetBIOSName"
+        kind: string
+        description: "Hostname to use for NetBIOS."
+      - key: "ServerDescription"
+        kind: string
+        description: "Hostname to use for sharing services."
+  - name: "SoftwareUpdate"
+    domain: "/Library/Preferences/com.apple.SoftwareUpdate"
+    scope: system
+    mynixos: "https://mynixos.com/nix-darwin/options/system.defaults.SoftwareUpdate"
+    keys:
+      - key: "AutomaticallyInstallMacOSUpdates"
+        kind: bool
+        description: "Automatically install Mac OS software updates. Defaults to false."

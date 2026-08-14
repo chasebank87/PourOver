@@ -88,7 +88,7 @@ func TestFormatRootLua(t *testing.T) {
 		config.Policy{UninstallMode: config.UninstallModeSafe},
 		config.Backup{},
 	)
-	for _, frag := range []string{`require("packages")`, `source = "config/nvim"`, `uninstall_mode = "safe"`} {
+	for _, frag := range []string{`require("packages")`, `source = "config/nvim"`, `uninstall_mode = "safe"`, `git = {`, `auto_push = false`} {
 		if !strings.Contains(got, frag) {
 			t.Fatalf("missing %q in %s", frag, got)
 		}

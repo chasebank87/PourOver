@@ -35,7 +35,7 @@ func UpdateLink(targetPath, sourcePath string) error {
 
 // ApplyFileLinks runs link_create and link_update actions.
 // Source paths are resolved relative to configDir; target paths expand ~.
-func ApplyFileLinks(p plan.Plan, configDir string) (int, error) {
+func ApplyFileLinks(p plan.Plan, configDir string, progress Progress) (int, error) {
 	configDir, err := filepath.Abs(configDir)
 	if err != nil {
 		return 0, fmt.Errorf("config directory: %w", err)
@@ -48,6 +48,8 @@ func ApplyFileLinks(p plan.Plan, configDir string) (int, error) {
 		default:
 			continue
 		}
+
+		report(progress, a)
 
 		sourcePath, err := resolveLinkSource(a.Source, configDir)
 		if err != nil {

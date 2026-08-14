@@ -30,8 +30,9 @@ func TestParseBrewList_MultipleLines(t *testing.T) {
 func TestDiscoverBrew_FromFixtures(t *testing.T) {
 	runner := &fakeRunner{
 		responses: map[string][]byte{
-			"list --formula": readFixture(t, "list-formula.txt"),
-			"list --cask":    readFixture(t, "list-cask.txt"),
+			"list --formula":                        readFixture(t, "list-formula.txt"),
+			"list --cask":                           readFixture(t, "list-cask.txt"),
+			"list --formula --installed-on-request": []byte("git\nfzf\n"),
 		},
 	}
 
@@ -45,13 +46,17 @@ func TestDiscoverBrew_FromFixtures(t *testing.T) {
 	if len(state.Casks) != 2 || state.Casks[1] != "1password" {
 		t.Errorf("casks = %#v", state.Casks)
 	}
+	if len(state.FormulaeRequested) != 2 || state.FormulaeRequested[0] != "git" {
+		t.Errorf("formulae requested = %#v", state.FormulaeRequested)
+	}
 }
 
 func TestDiscoverBrew_EmptyLists(t *testing.T) {
 	runner := &fakeRunner{
 		responses: map[string][]byte{
-			"list --formula": readFixture(t, "list-formula-empty.txt"),
-			"list --cask":    readFixture(t, "list-formula-empty.txt"),
+			"list --formula":                        readFixture(t, "list-formula-empty.txt"),
+			"list --cask":                           readFixture(t, "list-formula-empty.txt"),
+			"list --formula --installed-on-request": readFixture(t, "list-formula-empty.txt"),
 		},
 	}
 
@@ -60,7 +65,13 @@ func TestDiscoverBrew_EmptyLists(t *testing.T) {
 		t.Fatalf("DiscoverBrew: %v", err)
 	}
 	if state.Formulae != nil || state.Casks != nil {
-		t.Fatalf("expected nil slices, got formulae=%#v casks=%#v", state.Formulae, state.Casks)
+		t.Fatalf("expected nil formulae/casks, got formulae=%#v casks=%#v", state.Formulae, state.Casks)
+	}
+	if state.FormulaeRequested == nil {
+		t.Fatal("FormulaeRequested should be non-nil empty after discovery")
+	}
+	if len(state.FormulaeRequested) != 0 {
+		t.Fatalf("FormulaeRequested = %#v, want empty", state.FormulaeRequested)
 	}
 }
 

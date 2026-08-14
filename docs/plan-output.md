@@ -8,9 +8,13 @@ Top-level object with an `actions` array. Each action:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `type` | string | `formula_install`, `formula_remove`, `formula_upgrade`, `cask_install`, `cask_remove`, `cask_upgrade`, `link_create`, `link_update` |
-| `name` | string | Homebrew package name or link target path (as declared in config) |
+| `type` | string | `formula_install`, `formula_remove`, `formula_upgrade`, `cask_install`, `cask_remove`, `cask_upgrade`, `link_create`, `link_update`, `defaults_write` |
+| `name` | string | Homebrew package name, link target path, or `domain key` for defaults |
 | `source` | string | Link source path (links only, as declared in config) |
+| `domain` | string | Apple defaults domain (`defaults_write` only) |
+| `key` | string | Preference key (`defaults_write` only) |
+| `value` | string | Desired value rendered as text (`defaults_write` only) |
+| `kind` | string | `bool`, `int`, `float`, or `string` (`defaults_write` only) |
 
 Example:
 
@@ -35,12 +39,13 @@ One action per line: `<verb> <kind> <name>`
 upgrade formula git
 install formula fzf
 remove cask slack
+defaults write com.apple.dock autohide = true
 link create ~/.config/nvim <- config/nvim
 ```
 
 `pourover upgrade --dry-run` merges upgrade actions ahead of the normal apply plan.
 
-Plan order: upgrade actions (upgrade command only), then all brew install/remove actions, then all file link actions.
+Plan order: upgrade actions (upgrade command only), then brew install/remove, then macOS `defaults_write`, then file link actions.
 
 When there is nothing to do:
 

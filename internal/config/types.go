@@ -15,6 +15,38 @@ type Manifest struct {
 	Files    Files    `json:"files"`
 	Policy   Policy   `json:"policy"`
 	Backup   Backup   `json:"backup"`
+	MacOS    MacOS    `json:"macos"`
+}
+
+// MacOS holds declarative macOS preferences (nix-darwin-style defaults).
+type MacOS struct {
+	Defaults MacOSDefaults `json:"defaults"`
+}
+
+// MacOSDefaults groups named nix-darwin-style domains plus a custom escape hatch.
+type MacOSDefaults struct {
+	// Sections is keyed by catalog section name (dock, finder, NSGlobalDomain, …).
+	Sections map[string]map[string]SettingValue `json:"sections,omitempty"`
+	Custom   map[string]map[string]SettingValue `json:"custom,omitempty"`
+}
+
+// SettingKind is the typed value kind for a defaults write.
+type SettingKind string
+
+const (
+	SettingBool   SettingKind = "bool"
+	SettingInt    SettingKind = "int"
+	SettingFloat  SettingKind = "float"
+	SettingString SettingKind = "string"
+)
+
+// SettingValue is a typed preference value (bool/int/float/string).
+type SettingValue struct {
+	Kind   SettingKind `json:"kind"`
+	Bool   bool        `json:"bool,omitempty"`
+	Int    int64       `json:"int,omitempty"`
+	Float  float64     `json:"float,omitempty"`
+	String string      `json:"string,omitempty"`
 }
 
 // Packages lists Homebrew formulae and casks to reconcile.
@@ -46,13 +78,22 @@ type Policy struct {
 	UninstallMode UninstallMode `json:"uninstall_mode"`
 }
 
-// Backup configures snapshot mirroring (e.g. iCloud).
+// Backup configures snapshot mirroring and config git sync.
 type Backup struct {
 	ICloud ICloudBackup `json:"icloud"`
+	Git    GitBackup    `json:"git"`
 }
 
 // ICloudBackup mirrors state snapshots to iCloud Drive when enabled.
 type ICloudBackup struct {
 	Enabled bool   `json:"enabled"`
 	Path    string `json:"path,omitempty"`
+}
+
+// GitBackup keeps ~/.pourover as a git repo synced to a remote (e.g. GitHub).
+type GitBackup struct {
+	Enabled  bool   `json:"enabled"`
+	Remote   string `json:"remote,omitempty"`
+	AutoPush bool   `json:"auto_push"`
+	Branch   string `json:"branch,omitempty"`
 }

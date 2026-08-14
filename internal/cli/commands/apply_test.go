@@ -23,6 +23,9 @@ func (r *recordingRunner) Run(ctx context.Context, args ...string) ([]byte, erro
 	if len(args) == 2 && args[0] == "list" && args[1] == "--formula" {
 		return []byte("git\n"), nil
 	}
+	if len(args) == 3 && args[0] == "list" && args[1] == "--formula" && args[2] == "--installed-on-request" {
+		return []byte("git\n"), nil
+	}
 	if len(args) == 2 && args[0] == "list" && args[1] == "--cask" {
 		return []byte(""), nil
 	}
@@ -70,8 +73,8 @@ func TestApplyDryRun_NoBrewMutations(t *testing.T) {
 			t.Fatalf("brew mutation during dry-run path: %v", args)
 		}
 	}
-	if len(runner.calls) != 2 {
-		t.Fatalf("brew calls = %d, want 2 discovery list calls", len(runner.calls))
+	if len(runner.calls) != 3 {
+		t.Fatalf("brew calls = %d, want 3 discovery list calls", len(runner.calls))
 	}
 }
 
@@ -155,15 +158,14 @@ func TestExecuteApply_FormulaInstallOnly(t *testing.T) {
 	}
 }
 
-type installRecordingRunner struct {
-	listFormula []byte
-	listCask    []byte
-	installs    []string
-	uninstalls  []string
-}
-
 func (r *installRecordingRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
 	if len(args) == 2 && args[0] == "list" && args[1] == "--formula" {
+		return r.listFormula, nil
+	}
+	if len(args) == 3 && args[0] == "list" && args[1] == "--formula" && args[2] == "--installed-on-request" {
+		if r.listFormulaRequested != nil {
+			return r.listFormulaRequested, nil
+		}
 		return r.listFormula, nil
 	}
 	if len(args) == 2 && args[0] == "list" && args[1] == "--cask" {
@@ -186,6 +188,14 @@ func (r *installRecordingRunner) Run(ctx context.Context, args ...string) ([]byt
 		return nil, nil
 	}
 	return nil, fmt.Errorf("unexpected brew args: %v", args)
+}
+
+type installRecordingRunner struct {
+	listFormula          []byte
+	listFormulaRequested []byte
+	listCask             []byte
+	installs             []string
+	uninstalls           []string
 }
 
 func TestExecuteApply_StrictRemoves(t *testing.T) {
@@ -260,6 +270,78 @@ func TestNewApplyCmd_HasYesFlag(t *testing.T) {
 	cmd := NewApplyCmd()
 	if cmd.Flags().Lookup("yes") == nil {
 		t.Fatal("missing --yes flag")
+	}
+	if cmd.Flags().Lookup("quiet") == nil {
+		t.Fatal("missing --quiet flag")
+	}
+}
+
+func TestExecuteApply_PrintsProgressByDefault(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "cfg")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(configDir, "pourover.lua")
+	if err := os.WriteFile(configPath, []byte(`return {
+  packages = { formulae = { "git", "fzf" }, casks = {} },
+  files = { links = {} },
+  policy = { uninstall_mode = "safe" },
+}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	runner := &installRecordingRunner{listFormula: []byte("git\n"), listCask: []byte("")}
+	p, err := buildPlan(context.Background(), configPath, runner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stderr strings.Builder
+	cmd := &cobra.Command{}
+	cmd.SetContext(context.Background())
+	cmd.SetErr(&stderr)
+	opts := applyOptions{mode: config.UninstallModeSafe, autoYes: true, quiet: false}
+	if err := executeApply(cmd, runner, p, opts); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stderr.String(), "==> install formula fzf") {
+		t.Fatalf("stderr = %q, want progress line", stderr.String())
+	}
+}
+
+func TestExecuteApply_QuietSuppressesProgress(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "cfg")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(configDir, "pourover.lua")
+	if err := os.WriteFile(configPath, []byte(`return {
+  packages = { formulae = { "git", "fzf" }, casks = {} },
+  files = { links = {} },
+  policy = { uninstall_mode = "safe" },
+}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	runner := &installRecordingRunner{listFormula: []byte("git\n"), listCask: []byte("")}
+	p, err := buildPlan(context.Background(), configPath, runner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stderr strings.Builder
+	cmd := &cobra.Command{}
+	cmd.SetContext(context.Background())
+	cmd.SetErr(&stderr)
+	opts := applyOptions{mode: config.UninstallModeSafe, autoYes: true, quiet: true}
+	if err := executeApply(cmd, runner, p, opts); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(stderr.String(), "==>") {
+		t.Fatalf("quiet stderr still has progress: %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "Installed 1 formula") {
+		t.Fatalf("stderr = %q, want summary", stderr.String())
 	}
 }
 

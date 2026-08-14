@@ -23,6 +23,10 @@ func NewPlanCmd() *cobra.Command {
 }
 
 func buildPlan(ctx context.Context, configPath string, runner discovery.Runner) (plan.Plan, error) {
+	return buildPlanWith(ctx, configPath, runner, discovery.NewExecDefaultsRunner())
+}
+
+func buildPlanWith(ctx context.Context, configPath string, runner discovery.Runner, defaultsRunner discovery.DefaultsRunner) (plan.Plan, error) {
 	manifest, err := config.LoadManifest(configPath)
 	if err != nil {
 		return plan.Plan{}, fmt.Errorf("load config: %w", err)
@@ -34,6 +38,13 @@ func buildPlan(ctx context.Context, configPath string, runner discovery.Runner) 
 	}
 	brewPlan := plan.BuildBrewPlan(manifest.Packages, brewState)
 
+	desired := config.FlattenDefaults(manifest.MacOS.Defaults)
+	statuses, err := discovery.DiscoverDefaults(ctx, defaultsRunner, desired)
+	if err != nil {
+		return plan.Plan{}, fmt.Errorf("discover macos defaults: %w", err)
+	}
+	defaultsPlan := plan.BuildDefaultsPlan(statuses)
+
 	configDir := filepath.Dir(configPath)
 	linkStatuses, err := discovery.DiscoverFileLinks(manifest.Files.Links, configDir)
 	if err != nil {
@@ -44,5 +55,6 @@ func buildPlan(ctx context.Context, configPath string, runner discovery.Runner) 
 		return plan.Plan{}, err
 	}
 
-	return plan.MergePlans(brewPlan, filePlan), nil
+	// brew → macos defaults → file links
+	return plan.MergePlans(brewPlan, defaultsPlan, filePlan), nil
 }
