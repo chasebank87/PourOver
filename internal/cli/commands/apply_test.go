@@ -310,6 +310,55 @@ func TestExecuteApply_FormulaAndCaskInstalls(t *testing.T) {
 	}
 }
 
+func TestExecuteApply_IdempotentNoChanges(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "cfg")
+	src := filepath.Join(configDir, "dot")
+	if err := os.MkdirAll(src, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	linkTgt := filepath.Join(root, "link")
+	if err := os.Symlink(src, linkTgt); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(configDir, "pourover.lua")
+	if err := os.WriteFile(configPath, []byte(`return {
+  packages = { formulae = { "git" }, casks = {} },
+  files = { links = { { source = "dot", target = "`+linkTgt+`" } } },
+  policy = { uninstall_mode = "safe" },
+}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	runner := &installRecordingRunner{
+		listFormula: []byte("git\n"),
+		listCask:    []byte(""),
+	}
+	p, err := buildPlan(context.Background(), configPath, runner)
+	if err != nil {
+		t.Fatalf("buildPlan: %v", err)
+	}
+	if len(p.Actions) != 0 {
+		t.Fatalf("expected empty plan for matching state, got %+v", p.Actions)
+	}
+
+	cmd := &cobra.Command{}
+	cmd.SetContext(context.Background())
+	var stderr strings.Builder
+	cmd.SetErr(&stderr)
+
+	opts := applyOptions{mode: config.UninstallModeSafe, autoYes: true, configDir: configDir}
+	if err := executeApply(cmd, runner, p, opts); err != nil {
+		t.Fatalf("executeApply: %v", err)
+	}
+	if len(runner.installs) != 0 || len(runner.uninstalls) != 0 {
+		t.Fatalf("unexpected brew mutations: installs=%v uninstalls=%v", runner.installs, runner.uninstalls)
+	}
+	if !strings.Contains(stderr.String(), "No changes.") {
+		t.Fatalf("stderr = %q, want No changes.", stderr.String())
+	}
+}
+
 func TestExecuteApply_BrewThenFiles(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, "cfg")

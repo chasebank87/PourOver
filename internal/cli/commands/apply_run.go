@@ -60,9 +60,10 @@ func runApply(cmd *cobra.Command, dryRun, autoYes bool) error {
 }
 
 func executeApply(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, opts applyOptions) error {
+	out := cmd.ErrOrStderr()
 	skipped := exec.UnsupportedApplyActions(p)
 	if len(p.Actions) == 0 {
-		fmt.Fprintln(os.Stderr, "No changes.")
+		fmt.Fprintln(out, "No changes.")
 		return nil
 	}
 
@@ -91,28 +92,28 @@ func executeApply(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, opts
 	n := formulae + casks + removed + linked
 
 	if formulae > 0 {
-		fmt.Fprintf(os.Stderr, "Installed %d formula(s).\n", formulae)
+		fmt.Fprintf(out, "Installed %d formula(s).\n", formulae)
 	}
 	if casks > 0 {
-		fmt.Fprintf(os.Stderr, "Installed %d cask(s).\n", casks)
+		fmt.Fprintf(out, "Installed %d cask(s).\n", casks)
 	}
 	if removed > 0 {
-		fmt.Fprintf(os.Stderr, "Removed %d package(s).\n", removed)
+		fmt.Fprintf(out, "Removed %d package(s).\n", removed)
 	}
 	if linked > 0 {
-		fmt.Fprintf(os.Stderr, "Updated %d file link(s).\n", linked)
+		fmt.Fprintf(out, "Updated %d file link(s).\n", linked)
 	}
 	if len(skipped) > 0 {
-		fmt.Fprintf(os.Stderr, "Skipped %d action(s) not yet supported by apply:\n", len(skipped))
+		fmt.Fprintf(out, "Skipped %d action(s) not yet supported by apply:\n", len(skipped))
 		for _, a := range skipped {
 			line := strings.TrimSuffix(plan.RenderText(plan.Plan{Actions: []plan.Action{a}}), "\n")
-			fmt.Fprintf(os.Stderr, "  %s\n", line)
+			fmt.Fprintf(out, "  %s\n", line)
 		}
 	}
 	if n == 0 && len(skipped) == 0 {
-		fmt.Fprintln(os.Stderr, "No changes.")
+		fmt.Fprintln(out, "No changes.")
 	} else if n == 0 && len(skipped) == len(p.Actions) {
-		fmt.Fprintln(os.Stderr, "No actions to apply.")
+		fmt.Fprintln(out, "No actions to apply.")
 	}
 	return nil
 }
