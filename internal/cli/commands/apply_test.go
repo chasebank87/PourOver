@@ -382,6 +382,10 @@ func TestExecuteApply_IdempotentNoChanges(t *testing.T) {
 	if err != nil || len(entries) != 1 {
 		t.Fatalf("history entries = %v err=%v, want 1", entries, err)
 	}
+	snaps, err := os.ReadDir(filepath.Join(stateDir, "snapshots"))
+	if err != nil || len(snaps) != 1 {
+		t.Fatalf("snapshots = %v err=%v, want 1", snaps, err)
+	}
 }
 
 func TestExecuteApply_FailedApplyStillWritesHistory(t *testing.T) {

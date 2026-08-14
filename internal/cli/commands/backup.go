@@ -1,0 +1,110 @@
+package commands
+
+import (
+	"fmt"
+	"os"
+	"time"
+
+	"github.com/chasebank87/PourOver/internal/backup"
+	"github.com/chasebank87/PourOver/internal/config"
+	"github.com/chasebank87/PourOver/internal/paths"
+	"github.com/spf13/cobra"
+)
+
+// NewBackupCmd returns the backup subcommand.
+func NewBackupCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "backup",
+		Short: "Snapshot state and sync to iCloud",
+		Long: `Write a local state snapshot under Application Support and, when
+backup.icloud.enabled is true and iCloud Drive is available, mirror it.`,
+		RunE: runBackup,
+	}
+}
+
+func runBackup(cmd *cobra.Command, args []string) error {
+	configPath, verbose, _, err := planDisplayOptions(cmd)
+	if err != nil {
+		return err
+	}
+	if _, err := os.Stat(configPath); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("config not found at %s (run `pourover init` to scaffold)", configPath)
+		}
+		return fmt.Errorf("config file: %w", err)
+	}
+	manifest, err := config.LoadManifest(configPath)
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+	stateDir, err := paths.DefaultStateDir()
+	if err != nil {
+		return err
+	}
+	if verbose {
+		fmt.Fprintf(cmd.ErrOrStderr(), "state dir %s\n", stateDir)
+	}
+
+	result, err := backup.SnapshotAndMirror(stateDir, manifest, time.Now())
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "Snapshot written to %s\n", result.LocalSnapshot)
+	if result.MirroredTo != "" {
+		fmt.Fprintf(cmd.OutOrStdout(), "Mirrored to %s\n", result.MirroredTo)
+	} else if manifest.Backup.ICloud.Enabled {
+		fmt.Fprintln(cmd.OutOrStdout(), "iCloud mirror skipped (path unavailable)")
+	}
+	return nil
+}
+
+// NewRestoreCmd returns the restore subcommand.
+func NewRestoreCmd() *cobra.Command {
+	var snapshot string
+	var fromICloud bool
+	cmd := &cobra.Command{
+		Use:   "restore",
+		Short: "Restore state from a snapshot",
+		Long: `Restore lock.json and last-plan.json from a local snapshot (default: latest)
+or from iCloud with --icloud. Use --snapshot to pick a specific snapshot directory.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runRestore(cmd, snapshot, fromICloud)
+		},
+	}
+	cmd.Flags().StringVar(&snapshot, "snapshot", "", "path to a snapshot directory")
+	cmd.Flags().BoolVar(&fromICloud, "icloud", false, "restore the latest snapshot from the iCloud mirror")
+	return cmd
+}
+
+func runRestore(cmd *cobra.Command, snapshot string, fromICloud bool) error {
+	configPath, verbose, _, err := planDisplayOptions(cmd)
+	if err != nil {
+		return err
+	}
+	manifest := config.Manifest{}
+	if _, err := os.Stat(configPath); err == nil {
+		manifest, err = config.LoadManifest(configPath)
+		if err != nil {
+			return fmt.Errorf("load config: %w", err)
+		}
+	} else if fromICloud && snapshot == "" {
+		return fmt.Errorf("config not found at %s (needed for iCloud path); pass --snapshot", configPath)
+	}
+
+	stateDir, err := paths.DefaultStateDir()
+	if err != nil {
+		return err
+	}
+	snapPath, err := backup.ResolveSnapshotPath(stateDir, manifest, snapshot, fromICloud)
+	if err != nil {
+		return err
+	}
+	if verbose {
+		fmt.Fprintf(cmd.ErrOrStderr(), "restoring from %s\n", snapPath)
+	}
+	if err := backup.RestoreSnapshot(snapPath, stateDir); err != nil {
+		return err
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "Restored state from %s into %s\n", snapPath, stateDir)
+	return nil
+}

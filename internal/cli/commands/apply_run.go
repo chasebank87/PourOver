@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chasebank87/PourOver/internal/backup"
 	"github.com/chasebank87/PourOver/internal/config"
 	"github.com/chasebank87/PourOver/internal/discovery"
 	"github.com/chasebank87/PourOver/internal/exec"
@@ -170,9 +171,15 @@ func persistApplyState(opts applyOptions, p plan.Plan) error {
 	if opts.now != nil {
 		now = opts.now
 	}
-	if err := state.PersistApplyState(opts.stateDir, opts.manifest, p, now()); err != nil {
+	at := now()
+	if err := state.PersistApplyState(opts.stateDir, opts.manifest, p, at); err != nil {
 		return fmt.Errorf("persist state: %w", err)
 	}
+	result, err := backup.SnapshotAndMirror(opts.stateDir, opts.manifest, at)
+	if err != nil {
+		return fmt.Errorf("snapshot/mirror: %w", err)
+	}
+	_ = result
 	return nil
 }
 
