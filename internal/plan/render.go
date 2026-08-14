@@ -39,10 +39,14 @@ func formatActionLine(a Action) string {
 		return fmt.Sprintf("install formula %s", a.Name)
 	case ActionFormulaRemove:
 		return fmt.Sprintf("remove formula %s", a.Name)
+	case ActionFormulaUpgrade:
+		return fmt.Sprintf("upgrade formula %s", a.Name)
 	case ActionCaskInstall:
 		return fmt.Sprintf("install cask %s", a.Name)
 	case ActionCaskRemove:
 		return fmt.Sprintf("remove cask %s", a.Name)
+	case ActionCaskUpgrade:
+		return fmt.Sprintf("upgrade cask %s", a.Name)
 	case ActionLinkCreate:
 		return fmt.Sprintf("link create %s <- %s", a.Name, a.Source)
 	case ActionLinkUpdate:
