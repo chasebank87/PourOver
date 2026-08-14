@@ -24,17 +24,37 @@ Unknown top-level or nested keys in Lua are ignored for v1 (not an error). Seman
 
 ## `files`
 
-| Key | Type | Description |
-|-----|------|-------------|
-| `links` | array of tables | Symlinks: `source` → `target` |
-| `managed` | array of tables | Files to copy/template (v1 may implement links only first) |
+| Key | Type | v1 | Description |
+|-----|------|-----|-------------|
+| `links` | array of tables | **supported** | Symlinks: `source` → `target` |
+| `managed` | array of tables | **reserved** | Parsed but not planned/applied in v1 (see `docs/v2-backlog.md`) |
 
-Each link / managed entry:
+### `files.links` (v1)
+
+Each entry:
 
 | Key | Required | Type | Description |
 |-----|----------|------|-------------|
-| `source` | yes | string | Path relative to config dir or absolute |
-| `target` | yes | string | Path on disk (may use `~` for home) |
+| `source` | yes | string | Path relative to the directory containing `pourover.lua`, or absolute |
+| `target` | yes | string | Path on disk (`~` expanded) |
+
+**v1 behavior:**
+
+- Plan/apply only creates or updates symlinks for declared links.
+- `source` must exist when planning.
+- If `target` exists and is not a symlink → error (no overwrite).
+- No automatic removal of symlinks absent from config.
+- Typical layout: sources under `~/.pourover/config/...`, targets under `~/.config/...`.
+
+Example:
+
+```lua
+files = {
+  links = {
+    { source = "config/nvim", target = "~/.config/nvim" },
+  },
+}
+```
 
 ## `policy`
 
@@ -57,7 +77,7 @@ Each link / managed entry:
 | Key | Required | Type | Default | Description |
 |-----|----------|------|---------|-------------|
 | `enabled` | no | boolean | `false` | Mirror snapshots to iCloud after successful apply |
-| `path` | no | string | (built-in default) | Override iCloud destination directory |
+| `path` | no | string | `~/Library/Mobile Documents/com~apple~CloudDocs/PourOver/` | Override iCloud destination directory |
 
 ## Minimal example
 

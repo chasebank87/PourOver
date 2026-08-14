@@ -19,6 +19,15 @@ func TestRootCommand_HasCoreSubcommands(t *testing.T) {
 	}
 }
 
+func TestRun_ExitCodes(t *testing.T) {
+	if code := cli.Run([]string{"--help"}); code != cli.ExitOK {
+		t.Fatalf("--help exit = %d, want %d", code, cli.ExitOK)
+	}
+	if code := cli.Run([]string{"not-a-command"}); code != cli.ExitInvalidUsage {
+		t.Fatalf("unknown command exit = %d, want %d", code, cli.ExitInvalidUsage)
+	}
+}
+
 func subcommandNames(cmd *cobra.Command) []string {
 	children := cmd.Commands()
 	names := make([]string, 0, len(children))

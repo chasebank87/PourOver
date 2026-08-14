@@ -1,0 +1,4 @@
+install formula fzf
+install formula git
+install cask raycast
+remove formula wget

@@ -57,8 +57,8 @@ Version 1 is intentionally CLI-first. Admin dashboard work is deferred to v2 so 
 
 - `packages.formulae`: brew formula list
 - `packages.casks`: brew cask list
-- `files.links`: source/target link declarations
-- `files.managed`: managed file copy/template declarations
+- `files.links`: source/target symlink declarations (v1)
+- `files.managed`: reserved for v2 (copy/template); see `docs/v2-backlog.md`
 - `policy.uninstall_mode`: `safe` | `strict` | `non_destructive`
 - `backup.icloud.enabled`: boolean
 - `backup.icloud.path`: optional custom iCloud path override
