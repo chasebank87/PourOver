@@ -116,7 +116,7 @@ func TestExecuteApply_FormulaInstallOnly(t *testing.T) {
 	}
 	configPath := filepath.Join(configDir, "pourover.lua")
 	if err := os.WriteFile(configPath, []byte(`return {
-  packages = { formulae = { "git", "fzf" }, casks = { "raycast" } },
+  packages = { formulae = { "git", "fzf" }, casks = {} },
   files = { links = {} },
   policy = { uninstall_mode = "safe" },
 }`), 0o644); err != nil {
@@ -169,7 +169,58 @@ func (r *installRecordingRunner) Run(ctx context.Context, args ...string) ([]byt
 		r.installs = append(r.installs, args[1])
 		return nil, nil
 	}
+	if len(args) == 3 && args[0] == "install" && args[1] == "--cask" {
+		r.installs = append(r.installs, "cask:"+args[2])
+		return nil, nil
+	}
 	return nil, fmt.Errorf("unexpected brew args: %v", args)
+}
+
+func TestExecuteApply_FormulaAndCaskInstalls(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "cfg")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(configDir, "pourover.lua")
+	if err := os.WriteFile(configPath, []byte(`return {
+  packages = { formulae = { "git", "fzf" }, casks = { "raycast" } },
+  files = { links = {} },
+  policy = { uninstall_mode = "safe" },
+}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	runner := &installRecordingRunner{
+		listFormula: []byte("git\n"),
+		listCask:    []byte(""),
+	}
+	p, err := buildPlan(context.Background(), configPath, runner)
+	if err != nil {
+		t.Fatalf("buildPlan: %v", err)
+	}
+
+	cmd := &cobra.Command{}
+	cmd.SetContext(context.Background())
+	if err := executeApply(cmd, runner, p); err != nil {
+		t.Fatalf("executeApply: %v", err)
+	}
+	if got := strings.Join(runner.installs, ","); got != "fzf,cask:raycast" {
+		t.Fatalf("installs = %q, want fzf,cask:raycast", got)
+	}
+
+	runner.listFormula = []byte("git\nfzf\n")
+	runner.listCask = []byte("raycast\n")
+	p2, err := buildPlan(context.Background(), configPath, runner)
+	if err != nil {
+		t.Fatalf("buildPlan after install: %v", err)
+	}
+	if names := plan.ActionNames(p2, plan.ActionFormulaInstall); len(names) != 0 {
+		t.Fatalf("formula installs after apply = %v, want none", names)
+	}
+	if names := plan.ActionNames(p2, plan.ActionCaskInstall); len(names) != 0 {
+		t.Fatalf("cask installs after apply = %v, want none", names)
+	}
 }
 
 func TestNewApplyCmd_HasDryRunFlag(t *testing.T) {

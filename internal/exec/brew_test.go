@@ -26,6 +26,10 @@ func (r *installRecordingRunner) Run(ctx context.Context, args ...string) ([]byt
 		r.installs = append(r.installs, args[1])
 		return nil, nil
 	}
+	if len(args) == 3 && args[0] == "install" && args[1] == "--cask" {
+		r.installs = append(r.installs, "cask:"+args[2])
+		return nil, nil
+	}
 	return nil, fmt.Errorf("unexpected brew args: %v", args)
 }
 
@@ -77,9 +81,40 @@ func TestApplyFormulaInstalls_NoFormulae(t *testing.T) {
 	}
 }
 
+func TestInstallCask_RunsBrewInstallCask(t *testing.T) {
+	runner := &installRecordingRunner{}
+	if err := InstallCask(context.Background(), runner, "raycast"); err != nil {
+		t.Fatalf("InstallCask: %v", err)
+	}
+	if len(runner.installs) != 1 || runner.installs[0] != "cask:raycast" {
+		t.Fatalf("installs = %v, want [cask:raycast]", runner.installs)
+	}
+}
+
+func TestApplyCaskInstalls_OnlyCasks(t *testing.T) {
+	runner := &installRecordingRunner{}
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionFormulaInstall, Name: "fzf"},
+		{Type: plan.ActionCaskInstall, Name: "raycast"},
+		{Type: plan.ActionCaskInstall, Name: "iterm2"},
+	}}
+
+	n, err := ApplyCaskInstalls(context.Background(), runner, p)
+	if err != nil {
+		t.Fatalf("ApplyCaskInstalls: %v", err)
+	}
+	if n != 2 {
+		t.Fatalf("installed count = %d, want 2", n)
+	}
+	if got := strings.Join(runner.installs, ","); got != "cask:raycast,cask:iterm2" {
+		t.Fatalf("install order = %q, want cask:raycast,cask:iterm2", got)
+	}
+}
+
 func TestUnsupportedApplyActions(t *testing.T) {
 	p := plan.Plan{Actions: []plan.Action{
 		{Type: plan.ActionFormulaInstall, Name: "fzf"},
+		{Type: plan.ActionCaskInstall, Name: "raycast"},
 		{Type: plan.ActionLinkCreate, Name: "/tmp/x", Source: "config/x"},
 	}}
 	skipped := UnsupportedApplyActions(p)

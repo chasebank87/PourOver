@@ -10,7 +10,7 @@ pourover apply --dry-run
 pourover plan
 ```
 
-Apply missing Homebrew formulae (casks, removes, and file links are planned but not applied yet):
+Apply missing Homebrew formulae and casks (removes and file links are planned but not applied yet):
 
 ```bash
 pourover apply

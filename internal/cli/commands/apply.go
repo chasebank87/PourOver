@@ -10,8 +10,8 @@ func NewApplyCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "apply",
 		Short: "Reconcile system state to match config",
-		Long: `Apply reconciles the system toward config. Formula installs are supported;
-other action types are skipped until later milestones.`,
+		Long: `Apply reconciles the system toward config. Formula and cask installs are supported;
+removes and file links are skipped until later milestones.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runApply(cmd, dryRun)
 		},

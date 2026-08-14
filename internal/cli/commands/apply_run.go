@@ -48,13 +48,21 @@ func executeApply(cmd *cobra.Command, runner discovery.Runner, p plan.Plan) erro
 		return nil
 	}
 
-	n, err := exec.ApplyFormulaInstalls(cmd.Context(), runner, p)
+	formulae, err := exec.ApplyFormulaInstalls(cmd.Context(), runner, p)
 	if err != nil {
 		return err
 	}
+	casks, err := exec.ApplyCaskInstalls(cmd.Context(), runner, p)
+	if err != nil {
+		return err
+	}
+	n := formulae + casks
 
-	if n > 0 {
-		fmt.Fprintf(os.Stderr, "Installed %d formula(s).\n", n)
+	if formulae > 0 {
+		fmt.Fprintf(os.Stderr, "Installed %d formula(s).\n", formulae)
+	}
+	if casks > 0 {
+		fmt.Fprintf(os.Stderr, "Installed %d cask(s).\n", casks)
 	}
 	if len(skipped) > 0 {
 		fmt.Fprintf(os.Stderr, "Skipped %d action(s) not yet supported by apply:\n", len(skipped))
@@ -64,7 +72,7 @@ func executeApply(cmd *cobra.Command, runner discovery.Runner, p plan.Plan) erro
 		}
 	}
 	if n == 0 && len(skipped) == len(p.Actions) {
-		fmt.Fprintln(os.Stderr, "No formula installs to apply.")
+		fmt.Fprintln(os.Stderr, "No installs to apply.")
 	}
 	return nil
 }
