@@ -27,6 +27,8 @@ pourover apply --yes
 pourover plan   # should show no changes after a full apply
 ```
 
+Successful applies write `lock.json` and `last-plan.json` under `~/Library/Application Support/PourOver/state/`.
+
 ## Docs
 
 - [Config schema](docs/config-schema.md)

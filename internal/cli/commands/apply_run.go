@@ -5,12 +5,15 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/chasebank87/PourOver/internal/config"
 	"github.com/chasebank87/PourOver/internal/discovery"
 	"github.com/chasebank87/PourOver/internal/exec"
+	"github.com/chasebank87/PourOver/internal/paths"
 	"github.com/chasebank87/PourOver/internal/plan"
 	"github.com/chasebank87/PourOver/internal/policy"
+	"github.com/chasebank87/PourOver/internal/state"
 	"github.com/spf13/cobra"
 )
 
@@ -18,6 +21,9 @@ type applyOptions struct {
 	mode      config.UninstallMode
 	autoYes   bool
 	configDir string
+	stateDir  string
+	manifest  config.Manifest
+	now       func() time.Time
 }
 
 func runApply(cmd *cobra.Command, dryRun, autoYes bool) error {
@@ -51,10 +57,17 @@ func runApply(cmd *cobra.Command, dryRun, autoYes bool) error {
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
+	stateDir, err := paths.DefaultStateDir()
+	if err != nil {
+		return err
+	}
 	opts := applyOptions{
 		mode:      policy.ResolveModeFromManifest(manifest),
 		autoYes:   autoYes,
 		configDir: filepath.Dir(configPath),
+		stateDir:  stateDir,
+		manifest:  manifest,
+		now:       time.Now,
 	}
 	return executeApply(cmd, runner, p, opts)
 }
@@ -64,7 +77,7 @@ func executeApply(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, opts
 	skipped := exec.UnsupportedApplyActions(p)
 	if len(p.Actions) == 0 {
 		fmt.Fprintln(out, "No changes.")
-		return nil
+		return persistApplyState(opts, p)
 	}
 
 	// Phase 1: Homebrew (installs then removes)
@@ -114,6 +127,20 @@ func executeApply(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, opts
 		fmt.Fprintln(out, "No changes.")
 	} else if n == 0 && len(skipped) == len(p.Actions) {
 		fmt.Fprintln(out, "No actions to apply.")
+	}
+	return persistApplyState(opts, p)
+}
+
+func persistApplyState(opts applyOptions, p plan.Plan) error {
+	if opts.stateDir == "" {
+		return nil
+	}
+	now := time.Now
+	if opts.now != nil {
+		now = opts.now
+	}
+	if err := state.PersistApplyState(opts.stateDir, opts.manifest, p, now()); err != nil {
+		return fmt.Errorf("persist state: %w", err)
 	}
 	return nil
 }

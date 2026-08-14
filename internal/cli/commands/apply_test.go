@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/chasebank87/PourOver/internal/config"
 	"github.com/chasebank87/PourOver/internal/plan"
@@ -313,6 +314,7 @@ func TestExecuteApply_FormulaAndCaskInstalls(t *testing.T) {
 func TestExecuteApply_IdempotentNoChanges(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, "cfg")
+	stateDir := filepath.Join(root, "state")
 	src := filepath.Join(configDir, "dot")
 	if err := os.MkdirAll(src, 0o755); err != nil {
 		t.Fatal(err)
@@ -342,12 +344,24 @@ func TestExecuteApply_IdempotentNoChanges(t *testing.T) {
 		t.Fatalf("expected empty plan for matching state, got %+v", p.Actions)
 	}
 
+	manifest, err := config.LoadManifest(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	cmd := &cobra.Command{}
 	cmd.SetContext(context.Background())
 	var stderr strings.Builder
 	cmd.SetErr(&stderr)
 
-	opts := applyOptions{mode: config.UninstallModeSafe, autoYes: true, configDir: configDir}
+	opts := applyOptions{
+		mode:      config.UninstallModeSafe,
+		autoYes:   true,
+		configDir: configDir,
+		stateDir:  stateDir,
+		manifest:  manifest,
+		now:       func() time.Time { return time.Date(2026, 5, 18, 12, 0, 0, 0, time.UTC) },
+	}
 	if err := executeApply(cmd, runner, p, opts); err != nil {
 		t.Fatalf("executeApply: %v", err)
 	}
@@ -356,6 +370,12 @@ func TestExecuteApply_IdempotentNoChanges(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "No changes.") {
 		t.Fatalf("stderr = %q, want No changes.", stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(stateDir, "lock.json")); err != nil {
+		t.Fatalf("lock.json: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(stateDir, "last-plan.json")); err != nil {
+		t.Fatalf("last-plan.json: %v", err)
 	}
 }
 
