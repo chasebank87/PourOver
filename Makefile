@@ -1,10 +1,19 @@
-.PHONY: test build vet fmt-check clean
+.PHONY: test build install vet fmt-check clean
+
+PREFIX ?= $(HOME)/.local
+BINDIR ?= $(PREFIX)/bin
 
 test:
 	go test ./...
 
 build:
 	go build -o pourover ./cmd/pourover
+
+install: build
+	mkdir -p "$(BINDIR)"
+	cp pourover "$(BINDIR)/pourover"
+	chmod +x "$(BINDIR)/pourover"
+	@echo "Installed to $(BINDIR)/pourover"
 
 vet:
 	go vet ./...

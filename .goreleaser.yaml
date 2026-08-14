@@ -1,0 +1,42 @@
+version: 2
+
+project_name: pourover
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: pourover
+    main: ./cmd/pourover
+    binary: pourover
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_darwin_{{ .Arch }}"
+    files:
+      - none*
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+release:
+  draft: false
+  prerelease: auto

@@ -6,14 +6,23 @@ PourOver loads `~/.pourover/pourover.lua`, plans the diff against your machine, 
 
 ## Install
 
+One-liner (downloads the latest GitHub Release binary):
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/chasebank87/PourOver/main/scripts/install.sh)"
+```
+
+From source:
+
 ```bash
 git clone https://github.com/chasebank87/PourOver.git
 cd PourOver
 make build    # or: go build -o pourover ./cmd/pourover
+make install  # copies to ~/.local/bin by default (PREFIX=/usr/local make install)
 make test
 ```
 
-Requires macOS, Go (to build), and Homebrew. CI runs `make vet`, `make test`, and `make build` on push/PR.
+Requires macOS and Homebrew. Building from source also needs Go. CI runs `make vet`, `make test`, and `make build` on push/PR; tagged `v*` releases publish darwin archives via GoReleaser.
 
 ## Quick start
 
