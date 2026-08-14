@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -30,6 +31,11 @@ type ExecRunner struct {
 	Timeout time.Duration
 	// MutationTimeout for install/upgrade/uninstall (default DefaultBrewMutationTimeout).
 	MutationTimeout time.Duration
+	// HeartbeatInterval for silent streamed mutations (default DefaultBrewHeartbeatInterval).
+	// Set negative to disable heartbeats in tests.
+	HeartbeatInterval time.Duration
+	// Stdin, when set, is attached to the brew process (default os.Stdin for mutations).
+	Stdin io.Reader
 	// Stdout/Stderr, when set, receive streamed brew output (in addition to capture).
 	Stdout io.Writer
 	Stderr io.Writer
@@ -38,9 +44,10 @@ type ExecRunner struct {
 // NewExecRunner returns an ExecRunner with defaults.
 func NewExecRunner() *ExecRunner {
 	return &ExecRunner{
-		Path:            "brew",
-		Timeout:         DefaultBrewTimeout,
-		MutationTimeout: DefaultBrewMutationTimeout,
+		Path:              "brew",
+		Timeout:           DefaultBrewTimeout,
+		MutationTimeout:   DefaultBrewMutationTimeout,
+		HeartbeatInterval: DefaultBrewHeartbeatInterval,
 	}
 }
 
@@ -62,7 +69,8 @@ func (r *ExecRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
 	if timeout == 0 {
 		timeout = DefaultBrewTimeout
 	}
-	if isBrewMutation(args) {
+	mutation := isBrewMutation(args)
+	if mutation {
 		timeout = r.MutationTimeout
 		if timeout == 0 {
 			timeout = DefaultBrewMutationTimeout
@@ -76,11 +84,54 @@ func (r *ExecRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
-	if r.Stdout != nil {
-		cmd.Stdout = io.MultiWriter(&stdoutBuf, r.Stdout)
+
+	// Mutations may prompt (sudo password, cask installer confirms). Discovery
+	// commands stay non-interactive.
+	if mutation {
+		if r.Stdin != nil {
+			cmd.Stdin = r.Stdin
+		} else {
+			cmd.Stdin = os.Stdin
+		}
 	}
-	if r.Stderr != nil {
-		cmd.Stderr = io.MultiWriter(&stderrBuf, r.Stderr)
+
+	var activity *activityWriter
+	streamOut := r.Stdout
+	streamErr := r.Stderr
+	if mutation && (r.Stdout != nil || r.Stderr != nil) {
+		// Track activity across both streams; heartbeats go to stderr stream if
+		// present, else stdout (apply wires both to the same styled writer).
+		hbOut := r.Stderr
+		if hbOut == nil {
+			hbOut = r.Stdout
+		}
+		activity = newActivityWriter(hbOut)
+		if r.Stdout != nil {
+			if r.Stdout == r.Stderr {
+				streamOut = activity
+				streamErr = activity
+			} else {
+				streamOut = io.MultiWriter(r.Stdout, activityTouch{activity})
+				streamErr = activity
+			}
+		} else {
+			streamErr = activity
+		}
+		interval := r.HeartbeatInterval
+		if interval == 0 {
+			interval = DefaultBrewHeartbeatInterval
+		}
+		if interval > 0 {
+			stop := startBrewHeartbeat(activity, activity, args, interval)
+			defer stop()
+		}
+	}
+
+	if streamOut != nil {
+		cmd.Stdout = io.MultiWriter(&stdoutBuf, streamOut)
+	}
+	if streamErr != nil {
+		cmd.Stderr = io.MultiWriter(&stderrBuf, streamErr)
 	}
 
 	err := cmd.Run()
@@ -89,6 +140,9 @@ func (r *ExecRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
 	}
 	if f, ok := r.Stderr.(interface{ Flush() error }); ok {
 		_ = f.Flush()
+	}
+	if activity != nil {
+		_ = activity.Flush()
 	}
 	out := stdoutBuf.Bytes()
 	if err != nil {
@@ -99,6 +153,16 @@ func (r *ExecRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
 		return out, fmt.Errorf("brew %s: %w", strings.Join(args, " "), err)
 	}
 	return out, nil
+}
+
+// activityTouch updates last-activity without writing bytes (for the other stream).
+type activityTouch struct {
+	a *activityWriter
+}
+
+func (t activityTouch) Write(p []byte) (int, error) {
+	t.a.touch()
+	return len(p), nil
 }
 
 func isBrewMutation(args []string) bool {
