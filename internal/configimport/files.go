@@ -110,8 +110,22 @@ func retargetAsSymlink(targetPath, sourceAbs string) error {
 }
 
 func copyPath(src, dst string) error {
+	// Follow symlinks when deciding file vs directory. DirEntry.IsDir() is false for
+	// symlinks-to-directories (common with nix / nested configs), which previously
+	// made import try to copy those paths as files and fail with "is a directory".
 	info, err := os.Stat(src)
 	if err != nil {
+		li, lerr := os.Lstat(src)
+		if lerr == nil && li.Mode()&os.ModeSymlink != 0 {
+			target, rerr := os.Readlink(src)
+			if rerr != nil {
+				return err
+			}
+			if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+				return err
+			}
+			return os.Symlink(target, dst)
+		}
 		return err
 	}
 	if info.IsDir() {
@@ -131,14 +145,8 @@ func copyDir(src, dst string) error {
 	for _, e := range entries {
 		s := filepath.Join(src, e.Name())
 		d := filepath.Join(dst, e.Name())
-		if e.IsDir() {
-			if err := copyDir(s, d); err != nil {
-				return err
-			}
-			continue
-		}
-		if err := copyFile(s, d); err != nil {
-			return err
+		if err := copyPath(s, d); err != nil {
+			return fmt.Errorf("%s: %w", e.Name(), err)
 		}
 	}
 	return nil

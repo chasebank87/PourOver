@@ -82,6 +82,78 @@ func TestImportFile_ExistingSymlink(t *testing.T) {
 	}
 }
 
+func TestImportFile_DirectoryWithNestedDir(t *testing.T) {
+	home := t.TempDir()
+	cfgDir := filepath.Join(home, ".pourover")
+	configRoot := filepath.Join(home, ".config")
+	nvim := filepath.Join(configRoot, "nvim")
+	if err := os.MkdirAll(filepath.Join(nvim, "lua", "plugins"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(nvim, "init.lua"), []byte("-- root\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(nvim, "lua", "plugins", "init.lua"), []byte("-- plug\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c := FileCandidate{
+		TargetPath: nvim,
+		TargetDecl: "~/.config/nvim",
+		RelSource:  "config/nvim",
+	}
+	if _, err := ImportFile(cfgDir, c, true); err != nil {
+		t.Fatal(err)
+	}
+	for _, rel := range []string{
+		"config/nvim/init.lua",
+		"config/nvim/lua/plugins/init.lua",
+	} {
+		if _, err := os.Stat(filepath.Join(cfgDir, filepath.FromSlash(rel))); err != nil {
+			t.Fatalf("missing %s: %v", rel, err)
+		}
+	}
+}
+
+func TestImportFile_SymlinkToDirectoryInsideTree(t *testing.T) {
+	home := t.TempDir()
+	cfgDir := filepath.Join(home, ".pourover")
+	configRoot := filepath.Join(home, ".config")
+	nvim := filepath.Join(configRoot, "nvim")
+	realLua := filepath.Join(home, "real-lua")
+	if err := os.MkdirAll(filepath.Join(realLua, "plugins"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(realLua, "plugins", "x.lua"), []byte("return {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(nvim, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(nvim, "init.lua"), []byte("-- nvim\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Symlink-to-directory: DirEntry.IsDir() is false; import must still recurse.
+	if err := os.Symlink(realLua, filepath.Join(nvim, "lua")); err != nil {
+		t.Fatal(err)
+	}
+	c := FileCandidate{
+		TargetPath: nvim,
+		TargetDecl: "~/.config/nvim",
+		RelSource:  "config/nvim",
+	}
+	if _, err := ImportFile(cfgDir, c, true); err != nil {
+		t.Fatal(err)
+	}
+	copied := filepath.Join(cfgDir, "config", "nvim", "lua", "plugins", "x.lua")
+	data, err := os.ReadFile(copied)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "return {}\n" {
+		t.Fatalf("copied = %q", data)
+	}
+}
+
 func TestFormatRootLua(t *testing.T) {
 	got := FormatRootLua(
 		[]config.FileLink{{Source: "config/nvim", Target: "~/.config/nvim"}},
