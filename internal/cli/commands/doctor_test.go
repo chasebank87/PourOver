@@ -31,11 +31,13 @@ func TestRunDoctor_AllOK(t *testing.T) {
 	}
 
 	report, err := runDoctorChecks(doctorInputs{
-		configPath: configPath,
-		stateDir:   stateDir,
-		manifest:   mustLoadDoctor(t, configPath),
-		brewOK:     true,
-		brewErr:    "",
+		configPath:  configPath,
+		stateDir:    stateDir,
+		manifest:    mustLoadDoctor(t, configPath),
+		brewOK:      true,
+		brewErr:     "",
+		pouroverOK:  true,
+		pouroverErr: "",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -52,11 +54,13 @@ func TestRunDoctor_BrewMissing(t *testing.T) {
 		t.Fatal(err)
 	}
 	report, err := runDoctorChecks(doctorInputs{
-		configPath: configPath,
-		stateDir:   filepath.Join(root, "state"),
-		manifest:   mustLoadDoctor(t, configPath),
-		brewOK:     false,
-		brewErr:    "brew not found",
+		configPath:  configPath,
+		stateDir:    filepath.Join(root, "state"),
+		manifest:    mustLoadDoctor(t, configPath),
+		brewOK:      false,
+		brewErr:     "brew not found",
+		pouroverOK:  true,
+		pouroverErr: "",
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -26,6 +26,8 @@ Requires macOS and Homebrew. Building from source also needs Go. CI runs `make v
 
 ## Quick start
 
+New machine:
+
 ```bash
 pourover init
 pourover doctor
@@ -34,22 +36,49 @@ pourover apply --dry-run
 pourover apply
 ```
 
+Existing brew packages / configs already on the Mac:
+
+```bash
+pourover init          # if needed
+pourover import        # seed packages.lua + file links (use --force to overwrite)
+pourover plan
+pourover apply
+```
+
 `init` scaffolds `~/.pourover/` (`pourover.lua`, `packages.lua`, example `config/`). Use `--force` to overwrite.
 
 `apply --dry-run` matches `plan`. Use `apply --yes` to skip uninstall confirmation prompts (CI).
+
+Keep packages up to date:
+
+```bash
+pourover upgrade           # brew upgrade declared packages, then reapply
+pourover upgrade --dry-run
+```
 
 ## Commands
 
 | Command | Purpose |
 |---------|---------|
 | `init` | Scaffold config |
+| `import` | Import installed brew packages and common files into config |
 | `plan` | Show pending actions (`--json` for machine-readable) |
 | `apply` | Reconcile system (`--dry-run`, `--yes`) |
-| `doctor` | Check brew, config, state dir, iCloud |
+| `upgrade` | Upgrade declared packages then reapply (`--dry-run`, `--yes`) |
+| `doctor` | Check PATH, brew, config, state dir, iCloud |
 | `backup` | Force local snapshot (+ iCloud mirror when enabled) |
 | `restore` | Restore `lock.json` / `last-plan.json` (`--snapshot`, `--icloud`) |
 
 Global flags: `--config`, `--verbose` / `-v`, `--json`.
+
+### Import flags
+
+| Flag | Default | Meaning |
+|------|---------|---------|
+| `--packages` | on | Write `packages.lua` from `brew list` |
+| `--files` | on | Import `~/.config/*` and common home dotfiles into `files.links` |
+| `--dry-run` | off | Preview only |
+| `--force` | off | Overwrite non-empty packages/links sections |
 
 ## Policies
 

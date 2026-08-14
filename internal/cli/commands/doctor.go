@@ -43,11 +43,13 @@ func (r doctorReport) OK() bool {
 }
 
 type doctorInputs struct {
-	configPath string
-	stateDir   string
-	manifest   config.Manifest
-	brewOK     bool
-	brewErr    string
+	configPath  string
+	stateDir    string
+	manifest    config.Manifest
+	brewOK      bool
+	brewErr     string
+	pouroverOK  bool
+	pouroverErr string
 }
 
 func runDoctor(cmd *cobra.Command, args []string) error {
@@ -80,12 +82,21 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		brewErr = fmt.Sprintf("brew --version failed: %v (%s)", err, stringsTrim(out))
 	}
 
+	pouroverOK := true
+	pouroverErr := ""
+	if _, err := exec.LookPath("pourover"); err != nil {
+		pouroverOK = false
+		pouroverErr = "pourover not found on PATH"
+	}
+
 	report, err := runDoctorChecks(doctorInputs{
-		configPath: configPath,
-		stateDir:   stateDir,
-		manifest:   manifest,
-		brewOK:     brewOK,
-		brewErr:    brewErr,
+		configPath:  configPath,
+		stateDir:    stateDir,
+		manifest:    manifest,
+		brewOK:      brewOK,
+		brewErr:     brewErr,
+		pouroverOK:  pouroverOK,
+		pouroverErr: pouroverErr,
 	})
 	if err != nil {
 		return err
@@ -111,6 +122,16 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 
 func runDoctorChecks(in doctorInputs) (doctorReport, error) {
 	var checks []doctorCheck
+
+	if in.pouroverOK {
+		checks = append(checks, doctorCheck{Name: "pourover", OK: true, Detail: "on PATH"})
+	} else {
+		detail := in.pouroverErr
+		if detail == "" {
+			detail = "pourover not on PATH"
+		}
+		checks = append(checks, doctorCheck{Name: "pourover", OK: false, Detail: detail})
+	}
 
 	if in.brewOK {
 		checks = append(checks, doctorCheck{Name: "brew", OK: true, Detail: "available"})

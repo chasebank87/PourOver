@@ -22,6 +22,8 @@ Unknown top-level or nested keys in Lua are ignored for v1 (not an error). Seman
 | `formulae` | array of strings | Homebrew formulae to install |
 | `casks` | array of strings | Homebrew casks to install |
 
+`pourover import --packages` rewrites `packages.lua` from `brew list` (use `--force` if packages are already declared).
+
 ## `files`
 
 | Key | Type | v1 | Description |
@@ -45,6 +47,8 @@ Each entry:
 - If `target` exists and is not a symlink → error (no overwrite).
 - No automatic removal of symlinks absent from config.
 - Typical layout: sources under `~/.pourover/config/...`, targets under `~/.config/...`.
+
+`pourover import --files` copies existing home/`~/.config` paths into the config tree, writes `files.links`, and retargets live paths to symlinks (use `--force` if links are already declared).
 
 Example:
 
