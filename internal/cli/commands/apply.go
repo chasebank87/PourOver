@@ -15,8 +15,9 @@ func NewApplyCmd() *cobra.Command {
 		Long: `Apply reconciles the system toward config: Homebrew packages (installs and
 policy-aware removes), macOS defaults, then file symlinks.
 
-By default each action is printed as it runs and Homebrew output is restyled
-with PourOver's ☕ progress lines. Use --quiet to suppress per-action progress.
+On an interactive terminal, apply shows a PourOver header and progress bar with
+colored status while Homebrew output scrolls underneath (restyled with ☕).
+Use --quiet for summary-only output. Respects NO_COLOR.
 In safe uninstall mode, removes require confirmation unless --yes is set.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runApply(cmd, dryRun, autoYes, quiet)

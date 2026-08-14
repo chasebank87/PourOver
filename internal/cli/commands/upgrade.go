@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/chasebank87/PourOver/internal/paths"
 	"github.com/chasebank87/PourOver/internal/plan"
 	"github.com/chasebank87/PourOver/internal/policy"
+	"github.com/chasebank87/PourOver/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -31,7 +33,8 @@ func NewUpgradeCmd() *cobra.Command {
 that is already installed, then rebuilds the apply plan and reconciles.
 Use --dry-run to preview package upgrade and apply actions (skips self-update).
 Use --skip-self-update to only upgrade packages.
-By default each action is printed as it runs; use --quiet for summary-only output.`,
+By default each action is printed as it runs on interactive terminals with a
+progress bar; use --quiet for summary-only output.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runUpgrade(cmd, dryRun, autoYes, skipSelf, quiet)
 		},
@@ -85,15 +88,29 @@ func runUpgrade(cmd *cobra.Command, dryRun, autoYes, skipSelf, quiet bool) error
 	}
 
 	out := cmd.ErrOrStderr()
-	progress := applyProgress(out, quiet)
-	mutRunner := brewRunnerWithProgress(runner, out, quiet)
+	var session *ui.Session
+	var progress exec.Progress
+	var brewOut io.Writer = out
+	fancy := ui.Enabled(out, quiet) && len(upgradePlan.Actions) > 0
+	if fancy {
+		session = ui.NewSession(out, "upgrade")
+		session.Start(len(upgradePlan.Actions))
+		session.SetPhase("packages")
+		progress = session.ProgressAdapter()
+		brewOut = session
+	} else {
+		progress = applyProgress(out, quiet)
+	}
+	mutRunner := brewRunnerWithProgress(runner, brewOut, quiet)
 	var upgradeErr error
 	if len(upgradePlan.Actions) == 0 {
 		fmt.Fprintln(out, "No package upgrades.")
 	} else {
 		n, err := exec.ApplyUpgrades(cmd.Context(), mutRunner, upgradePlan, progress)
 		upgradeErr = err
-		if n > 0 {
+		if session != nil {
+			session.Finish(ui.Summary{Upgraded: n, Failures: session.FailureCount()})
+		} else if n > 0 {
 			fmt.Fprintf(out, "Upgraded %d package(s).\n", n)
 		}
 	}

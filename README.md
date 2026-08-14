@@ -95,8 +95,8 @@ pourover upgrade --skip-self-update
 | `import` | Import installed brew packages and common files into config |
 | `config` | Manage iCloud mirror and git config sync (`config icloud`, `config git`, `push`/`pull`) |
 | `plan` | Show pending actions (`--json` for machine-readable) |
-| `apply` | Reconcile system (`--dry-run`, `--yes`) |
-| `upgrade` | Self-update pourover, upgrade declared packages, then reapply (`--dry-run`, `--yes`, `--skip-self-update`) |
+| `apply` | Reconcile system (`--dry-run`, `--yes`, `--quiet`) |
+| `upgrade` | Self-update pourover, upgrade declared packages, then reapply (`--dry-run`, `--yes`, `--skip-self-update`, `--quiet`) |
 | `self-update` | Replace the pourover binary from the latest GitHub Release |
 | `doctor` | Check PATH, brew, config, state dir, iCloud, git sync |
 | `backup` | Force local snapshot (+ iCloud mirror when enabled) |
@@ -104,7 +104,7 @@ pourover upgrade --skip-self-update
 
 Global flags: `--config`, `--verbose` / `-v`, `--json`.
 
-`apply` / `upgrade` print each action as it runs and restyle Homebrew output with `☕`. Use `--quiet` / `-q` for summary-only.
+`apply` / `upgrade` show a colored header and progress bar on interactive terminals (Homebrew logs still scroll underneath, restyled with `☕`). Use `--quiet` / `-q` for summary-only; `NO_COLOR` disables color.
 
 ### Import flags
 
