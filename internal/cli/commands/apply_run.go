@@ -3,6 +3,7 @@ package commands
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/chasebank87/PourOver/internal/config"
@@ -14,8 +15,9 @@ import (
 )
 
 type applyOptions struct {
-	mode    config.UninstallMode
-	autoYes bool
+	mode      config.UninstallMode
+	autoYes   bool
+	configDir string
 }
 
 func runApply(cmd *cobra.Command, dryRun, autoYes bool) error {
@@ -50,8 +52,9 @@ func runApply(cmd *cobra.Command, dryRun, autoYes bool) error {
 		return fmt.Errorf("load config: %w", err)
 	}
 	opts := applyOptions{
-		mode:    policy.ResolveModeFromManifest(manifest),
-		autoYes: autoYes,
+		mode:      policy.ResolveModeFromManifest(manifest),
+		autoYes:   autoYes,
+		configDir: filepath.Dir(configPath),
 	}
 	return executeApply(cmd, runner, p, opts)
 }
@@ -63,6 +66,7 @@ func executeApply(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, opts
 		return nil
 	}
 
+	// Phase 1: Homebrew (installs then removes)
 	formulae, err := exec.ApplyFormulaInstalls(cmd.Context(), runner, p)
 	if err != nil {
 		return err
@@ -78,7 +82,13 @@ func executeApply(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, opts
 		return err
 	}
 
-	n := formulae + casks + removed
+	// Phase 2: file links
+	linked, err := exec.ApplyFileLinks(p, opts.configDir)
+	if err != nil {
+		return err
+	}
+
+	n := formulae + casks + removed + linked
 
 	if formulae > 0 {
 		fmt.Fprintf(os.Stderr, "Installed %d formula(s).\n", formulae)
@@ -89,6 +99,9 @@ func executeApply(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, opts
 	if removed > 0 {
 		fmt.Fprintf(os.Stderr, "Removed %d package(s).\n", removed)
 	}
+	if linked > 0 {
+		fmt.Fprintf(os.Stderr, "Updated %d file link(s).\n", linked)
+	}
 	if len(skipped) > 0 {
 		fmt.Fprintf(os.Stderr, "Skipped %d action(s) not yet supported by apply:\n", len(skipped))
 		for _, a := range skipped {
@@ -96,8 +109,10 @@ func executeApply(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, opts
 			fmt.Fprintf(os.Stderr, "  %s\n", line)
 		}
 	}
-	if n == 0 && len(skipped) == len(p.Actions) {
-		fmt.Fprintln(os.Stderr, "No brew actions to apply.")
+	if n == 0 && len(skipped) == 0 {
+		fmt.Fprintln(os.Stderr, "No changes.")
+	} else if n == 0 && len(skipped) == len(p.Actions) {
+		fmt.Fprintln(os.Stderr, "No actions to apply.")
 	}
 	return nil
 }

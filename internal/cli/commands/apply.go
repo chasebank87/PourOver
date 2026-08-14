@@ -11,8 +11,8 @@ func NewApplyCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "apply",
 		Short: "Reconcile system state to match config",
-		Long: `Apply reconciles Homebrew packages toward config (installs and removes).
-File links are planned but not applied yet. In safe uninstall mode, removes
+		Long: `Apply reconciles the system toward config: Homebrew packages (installs and
+policy-aware removes) then file symlinks. In safe uninstall mode, removes
 require confirmation unless --yes is set.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runApply(cmd, dryRun, autoYes)

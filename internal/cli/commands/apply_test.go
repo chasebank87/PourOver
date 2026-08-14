@@ -310,6 +310,78 @@ func TestExecuteApply_FormulaAndCaskInstalls(t *testing.T) {
 	}
 }
 
+func TestExecuteApply_BrewThenFiles(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "cfg")
+	src := filepath.Join(configDir, "dot")
+	if err := os.MkdirAll(src, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	linkTgt := filepath.Join(root, "link")
+	configPath := filepath.Join(configDir, "pourover.lua")
+	if err := os.WriteFile(configPath, []byte(`return {
+  packages = { formulae = { "git", "fzf" }, casks = {} },
+  files = { links = { { source = "dot", target = "`+linkTgt+`" } } },
+  policy = { uninstall_mode = "safe" },
+}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	runner := &orderRecordingRunner{
+		listFormula: []byte("git\n"),
+		listCask:    []byte(""),
+		linkTarget:  linkTgt,
+	}
+	p, err := buildPlan(context.Background(), configPath, runner)
+	if err != nil {
+		t.Fatalf("buildPlan: %v", err)
+	}
+
+	cmd := &cobra.Command{}
+	cmd.SetContext(context.Background())
+	opts := applyOptions{mode: config.UninstallModeSafe, autoYes: true, configDir: configDir}
+	if err := executeApply(cmd, runner, p, opts); err != nil {
+		t.Fatalf("executeApply: %v", err)
+	}
+
+	if got := strings.Join(runner.events, ","); got != "brew" {
+		t.Fatalf("events = %q, want brew (install before links)", got)
+	}
+	if _, err := os.Lstat(linkTgt); err != nil {
+		t.Fatalf("expected link after brew phase: %v", err)
+	}
+	if len(runner.installs) != 1 || runner.installs[0] != "fzf" {
+		t.Fatalf("installs = %v, want [fzf]", runner.installs)
+	}
+}
+
+type orderRecordingRunner struct {
+	listFormula []byte
+	listCask    []byte
+	linkTarget  string
+	installs    []string
+	events      []string
+	t           *testing.T
+}
+
+func (r *orderRecordingRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
+	if len(args) == 2 && args[0] == "list" && args[1] == "--formula" {
+		return r.listFormula, nil
+	}
+	if len(args) == 2 && args[0] == "list" && args[1] == "--cask" {
+		return r.listCask, nil
+	}
+	if len(args) == 2 && args[0] == "install" {
+		if _, err := os.Lstat(r.linkTarget); err == nil {
+			return nil, fmt.Errorf("link %s existed before brew install (wrong order)", r.linkTarget)
+		}
+		r.events = append(r.events, "brew")
+		r.installs = append(r.installs, args[1])
+		return nil, nil
+	}
+	return nil, fmt.Errorf("unexpected brew args: %v", args)
+}
+
 func TestNewApplyCmd_HasDryRunFlag(t *testing.T) {
 	cmd := NewApplyCmd()
 	flag := cmd.Flags().Lookup("dry-run")

@@ -118,9 +118,10 @@ func TestUnsupportedApplyActions(t *testing.T) {
 		{Type: plan.ActionFormulaRemove, Name: "wget"},
 		{Type: plan.ActionCaskRemove, Name: "vlc"},
 		{Type: plan.ActionLinkCreate, Name: "/tmp/x", Source: "config/x"},
+		{Type: plan.ActionLinkUpdate, Name: "/tmp/y", Source: "config/y"},
 	}}
 	skipped := UnsupportedApplyActions(p)
-	if len(skipped) != 1 || skipped[0].Type != plan.ActionLinkCreate {
-		t.Fatalf("skipped = %+v, want one link_create", skipped)
+	if len(skipped) != 0 {
+		t.Fatalf("skipped = %+v, want none", skipped)
 	}
 }

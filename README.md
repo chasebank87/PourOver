@@ -10,12 +10,12 @@ pourover apply --dry-run
 pourover plan
 ```
 
-Apply Homebrew packages (installs and policy-aware removes). File links are planned but not applied yet:
+Apply packages and file links (policy-aware brew removes; use --yes in CI):
 
 ```bash
 pourover apply
-pourover apply --yes   # skip uninstall prompts (CI)
-pourover plan          # should show no brew actions after a full apply
+pourover apply --yes
+pourover plan   # should show no changes after a full apply
 ```
 
 ## Docs

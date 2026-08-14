@@ -56,14 +56,15 @@ func ApplyCaskInstalls(ctx context.Context, runner discovery.Runner, p plan.Plan
 	return n, nil
 }
 
-// UnsupportedApplyActions returns plan actions that apply does not run yet
-// (file links; brew installs and removes are supported).
+// UnsupportedApplyActions returns plan actions that apply does not run yet.
+// v1 apply supports all current brew and file-link action types.
 func UnsupportedApplyActions(p plan.Plan) []plan.Action {
 	var out []plan.Action
 	for _, a := range p.Actions {
 		switch a.Type {
 		case plan.ActionFormulaInstall, plan.ActionCaskInstall,
-			plan.ActionFormulaRemove, plan.ActionCaskRemove:
+			plan.ActionFormulaRemove, plan.ActionCaskRemove,
+			plan.ActionLinkCreate, plan.ActionLinkUpdate:
 			continue
 		default:
 			out = append(out, a)
