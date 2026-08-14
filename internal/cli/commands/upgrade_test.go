@@ -12,7 +12,7 @@ import (
 
 func TestNewUpgradeCmd_HasFlags(t *testing.T) {
 	cmd := NewUpgradeCmd()
-	if cmd.Flags().Lookup("dry-run") == nil || cmd.Flags().Lookup("yes") == nil {
+	if cmd.Flags().Lookup("dry-run") == nil || cmd.Flags().Lookup("yes") == nil || cmd.Flags().Lookup("skip-self-update") == nil {
 		t.Fatal("upgrade missing flags")
 	}
 }

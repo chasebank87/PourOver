@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/chasebank87/PourOver/internal/cli/commands"
+	"github.com/chasebank87/PourOver/internal/version"
 	"github.com/spf13/cobra"
 )
 
@@ -56,6 +57,7 @@ func NewRootCommand() *cobra.Command {
 
 It reconciles Homebrew packages, dotfiles, and config files from a
 declarative config (~/.pourover/) with one command: pourover apply.`,
+		Version:       version.String(),
 		SilenceErrors: true,
 	}
 	registerPersistentFlags(cmd)
@@ -65,6 +67,7 @@ declarative config (~/.pourover/) with one command: pourover apply.`,
 		commands.NewPlanCmd(),
 		commands.NewApplyCmd(),
 		commands.NewUpgradeCmd(),
+		commands.NewSelfUpdateCmd(),
 		commands.NewDoctorCmd(),
 		commands.NewBackupCmd(),
 		commands.NewRestoreCmd(),

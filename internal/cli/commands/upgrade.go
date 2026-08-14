@@ -20,22 +20,32 @@ import (
 func NewUpgradeCmd() *cobra.Command {
 	var dryRun bool
 	var autoYes bool
+	var skipSelf bool
 	cmd := &cobra.Command{
 		Use:   "upgrade",
-		Short: "Upgrade declared packages then reapply config",
-		Long: `Upgrade runs brew upgrade for each declared formula/cask that is already
-installed, then rebuilds the apply plan and reconciles (installs, removes,
-file links). Use --dry-run to preview upgrade and apply actions.`,
+		Short: "Update pourover, upgrade declared packages, then reapply",
+		Long: `Upgrade first self-updates the pourover binary from GitHub Releases
+(like brew update), then runs brew upgrade for each declared formula/cask
+that is already installed, then rebuilds the apply plan and reconciles.
+Use --dry-run to preview package upgrade and apply actions (skips self-update).
+Use --skip-self-update to only upgrade packages.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runUpgrade(cmd, dryRun, autoYes)
+			return runUpgrade(cmd, dryRun, autoYes, skipSelf)
 		},
 	}
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "preview upgrade and apply actions without modifying the system")
 	cmd.Flags().BoolVar(&autoYes, "yes", false, "skip confirmation prompts during the apply phase")
+	cmd.Flags().BoolVar(&skipSelf, "skip-self-update", false, "do not self-update the pourover binary")
 	return cmd
 }
 
-func runUpgrade(cmd *cobra.Command, dryRun, autoYes bool) error {
+func runUpgrade(cmd *cobra.Command, dryRun, autoYes, skipSelf bool) error {
+	if !dryRun && !skipSelf {
+		if err := runSelfUpdate(cmd, nil); err != nil {
+			return fmt.Errorf("self-update: %w", err)
+		}
+	}
+
 	configPath, verbose, asJSON, err := planDisplayOptions(cmd)
 	if err != nil {
 		return err

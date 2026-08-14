@@ -6,7 +6,7 @@ PourOver loads `~/.pourover/pourover.lua`, plans the diff against your machine, 
 
 ## Install
 
-One-liner (downloads the latest GitHub Release binary):
+One-liner (downloads the latest GitHub Release binary; installs Homebrew first if missing):
 
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/chasebank87/PourOver/main/scripts/install.sh)"
@@ -22,7 +22,7 @@ make install  # copies to ~/.local/bin by default (PREFIX=/usr/local make instal
 make test
 ```
 
-Requires macOS and Homebrew. Building from source also needs Go. CI runs `make vet`, `make test`, and `make build` on push/PR; tagged `v*` releases publish darwin archives via GoReleaser.
+Requires macOS. The installer bootstraps Homebrew when it is not already present. Building from source also needs Go. CI runs `make vet`, `make test`, and `make build` on push/PR; tagged `v*` releases publish darwin archives via GoReleaser.
 
 ## Quick start
 
@@ -49,11 +49,13 @@ pourover apply
 
 `apply --dry-run` matches `plan`. Use `apply --yes` to skip uninstall confirmation prompts (CI).
 
-Keep packages up to date:
+Keep packages (and PourOver itself) up to date — similar to `brew update` + `brew upgrade`:
 
 ```bash
-pourover upgrade           # brew upgrade declared packages, then reapply
-pourover upgrade --dry-run
+pourover self-update       # update the pourover binary from GitHub Releases
+pourover upgrade           # self-update, brew upgrade declared packages, then reapply
+pourover upgrade --dry-run # preview package/apply actions (skips self-update)
+pourover upgrade --skip-self-update
 ```
 
 ## Commands
@@ -64,7 +66,8 @@ pourover upgrade --dry-run
 | `import` | Import installed brew packages and common files into config |
 | `plan` | Show pending actions (`--json` for machine-readable) |
 | `apply` | Reconcile system (`--dry-run`, `--yes`) |
-| `upgrade` | Upgrade declared packages then reapply (`--dry-run`, `--yes`) |
+| `upgrade` | Self-update pourover, upgrade declared packages, then reapply (`--dry-run`, `--yes`, `--skip-self-update`) |
+| `self-update` | Replace the pourover binary from the latest GitHub Release |
 | `doctor` | Check PATH, brew, config, state dir, iCloud |
 | `backup` | Force local snapshot (+ iCloud mirror when enabled) |
 | `restore` | Restore `lock.json` / `last-plan.json` (`--snapshot`, `--icloud`) |
