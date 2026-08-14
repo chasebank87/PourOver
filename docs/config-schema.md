@@ -77,7 +77,7 @@ files = {
 | Key | Required | Type | Default | Description |
 |-----|----------|------|---------|-------------|
 | `enabled` | no | boolean | `false` | Mirror snapshots to iCloud after successful apply |
-| `path` | no | string | (built-in default) | Override iCloud destination directory |
+| `path` | no | string | `~/Library/Mobile Documents/com~apple~CloudDocs/PourOver/` | Override iCloud destination directory |
 
 ## Minimal example
 
