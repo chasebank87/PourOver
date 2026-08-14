@@ -61,6 +61,7 @@ declarative config (~/.pourover/) with one command: pourover apply.`,
 	registerPersistentFlags(cmd)
 	cmd.AddCommand(
 		commands.NewInitCmd(),
+		commands.NewImportCmd(),
 		commands.NewPlanCmd(),
 		commands.NewApplyCmd(),
 		commands.NewUpgradeCmd(),
