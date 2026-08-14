@@ -51,9 +51,12 @@ ensure_brew() {
     fi
   done
 
-  ohai "Homebrew not found; installing (NONINTERACTIVE=1)..."
+  ohai "Homebrew not found; installing via official installer..."
+  ohai "You may be prompted for your macOS password (Homebrew needs sudo once to create /opt/homebrew or /usr/local)."
   need_cmd bash
-  NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL "${BREW_INSTALL_URL}")" || die "Homebrew install failed"
+  # Do NOT set NONINTERACTIVE=1: that mode cannot prompt for sudo and fails even for
+  # Administrator accounts with the misleading "needs to be an Administrator" error.
+  /bin/bash -c "$(curl -fsSL "${BREW_INSTALL_URL}")" || die "Homebrew install failed"
 
   for candidate in /opt/homebrew/bin/brew /usr/local/bin/brew; do
     if [[ -x "$candidate" ]]; then
