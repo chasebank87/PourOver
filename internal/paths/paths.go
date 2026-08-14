@@ -64,3 +64,8 @@ func LastPlanFile(stateDir string) string {
 func HistoryDir(stateDir string) string {
 	return filepath.Join(stateDir, "history")
 }
+
+// SnapshotsDir returns stateDir/snapshots.
+func SnapshotsDir(stateDir string) string {
+	return filepath.Join(stateDir, "snapshots")
+}

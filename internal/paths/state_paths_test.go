@@ -27,4 +27,7 @@ func TestStateArtifactPaths(t *testing.T) {
 	if got := HistoryDir(root); got != filepath.Join(root, "history") {
 		t.Errorf("HistoryDir = %q", got)
 	}
+	if got := SnapshotsDir(root); got != filepath.Join(root, "snapshots") {
+		t.Errorf("SnapshotsDir = %q", got)
+	}
 }
