@@ -23,6 +23,8 @@ Unknown top-level or nested keys in Lua are ignored for v1 (not an error). Seman
 | `formulae` | array of strings | Homebrew formulae to install |
 | `casks` | array of strings | Homebrew casks to install |
 
+Names must be **lowercase Homebrew tokens** (`"raycast"`, not `"Raycast"`). Capital letters fail `Validate` / `pourover doctor` / `plan` / `apply` so a mistyped token cannot install under one casing and then look undeclared later.
+
 `pourover import --packages` rewrites `packages.lua` from `brew list` (use `--force` if packages are already declared).
 
 ## `files`

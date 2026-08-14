@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/chasebank87/PourOver/internal/backup"
 	"github.com/chasebank87/PourOver/internal/config"
@@ -18,8 +19,9 @@ func NewDoctorCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "doctor",
 		Short: "Check prerequisites and environment health",
-		Long: `Verify Homebrew is available, config is readable, the state directory
-is writable, and (when enabled) iCloud / git sync status.`,
+		Long: `Verify Homebrew is available, config is readable, package names are valid
+lowercase Homebrew tokens, the state directory is writable, and (when enabled)
+iCloud / git sync status.`,
 		RunE: runDoctor,
 	}
 }
@@ -160,6 +162,8 @@ func runDoctorChecks(in doctorInputs) (doctorReport, error) {
 		checks = append(checks, doctorCheck{Name: "config", OK: true, Detail: in.configPath})
 	}
 
+	checks = append(checks, packagesDoctorCheck(in.configPath)...)
+
 	if err := os.MkdirAll(in.stateDir, 0o755); err != nil {
 		checks = append(checks, doctorCheck{Name: "state", OK: false, Detail: err.Error()})
 	} else {
@@ -192,6 +196,29 @@ func runDoctorChecks(in doctorInputs) (doctorReport, error) {
 	checks = append(checks, gitDoctorCheck(in.configPath, in.manifest)...)
 
 	return doctorReport{Checks: checks}, nil
+}
+
+func packagesDoctorCheck(configPath string) []doctorCheck {
+	if _, err := os.Stat(configPath); err != nil {
+		return nil // config check already covers missing file
+	}
+	m, err := config.LoadManifest(configPath)
+	if err != nil {
+		if isPackageNameHealthError(err) {
+			return []doctorCheck{{Name: "packages", OK: false, Detail: err.Error()}}
+		}
+		return []doctorCheck{{Name: "packages", OK: true, Detail: "skipped (config invalid)"}}
+	}
+	n := len(m.Packages.Formulae) + len(m.Packages.Casks)
+	return []doctorCheck{{
+		Name:   "packages",
+		OK:     true,
+		Detail: fmt.Sprintf("%d declared package(s); Homebrew tokens are lowercase", n),
+	}}
+}
+
+func isPackageNameHealthError(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "lowercase Homebrew token")
 }
 
 func gitDoctorCheck(configPath string, manifest config.Manifest) []doctorCheck {

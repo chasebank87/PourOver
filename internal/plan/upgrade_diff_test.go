@@ -53,3 +53,12 @@ func TestBuildUpgradePlan_CaskDeclaredAsFormula(t *testing.T) {
 		t.Fatalf("cask upgrades = %v, want [raycast]", got)
 	}
 }
+
+func TestBuildUpgradePlan_CaseInsensitive(t *testing.T) {
+	desired := config.Packages{Casks: []string{"Raycast", "Warp"}}
+	current := discovery.BrewState{Casks: []string{"raycast", "warp"}}
+	p := BuildUpgradePlan(desired, current)
+	if got := ActionNames(p, ActionCaskUpgrade); len(got) != 2 || got[0] != "raycast" || got[1] != "warp" {
+		t.Fatalf("cask upgrades = %v, want [raycast warp]", got)
+	}
+}

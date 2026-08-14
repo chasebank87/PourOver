@@ -73,8 +73,17 @@ func isValidUninstallMode(m UninstallMode) bool {
 }
 
 func validatePackageName(name, field string) error {
-	if strings.TrimSpace(name) == "" {
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
 		return fmt.Errorf("%s: must not be empty", field)
+	}
+	if trimmed != name {
+		return fmt.Errorf("%s: must not have leading/trailing whitespace (got %q)", field, name)
+	}
+	for _, r := range name {
+		if r >= 'A' && r <= 'Z' {
+			return fmt.Errorf("%s: %q must be a lowercase Homebrew token (use %q)", field, name, strings.ToLower(name))
+		}
 	}
 	return nil
 }

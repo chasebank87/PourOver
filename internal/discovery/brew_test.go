@@ -10,6 +10,7 @@ import (
 // fakeRunner maps "arg1 arg2 ..." to stdout bytes (no real brew calls).
 type fakeRunner struct {
 	responses map[string][]byte
+	errFor    map[string]error
 	err       error
 }
 
@@ -18,6 +19,11 @@ func (f *fakeRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
 		return nil, f.err
 	}
 	key := strings.Join(args, " ")
+	if f.errFor != nil {
+		if err, ok := f.errFor[key]; ok {
+			return nil, err
+		}
+	}
 	out, ok := f.responses[key]
 	if !ok {
 		return nil, fmt.Errorf("unexpected brew args: %s", key)

@@ -33,6 +33,16 @@ func TestValidate_UnknownUninstallMode(t *testing.T) {
 	}
 }
 
+func TestValidate_CapitalizedPackageName(t *testing.T) {
+	err := Validate(&Manifest{
+		Policy:   Policy{UninstallMode: UninstallModeSafe},
+		Packages: Packages{Casks: []string{"Raycast"}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "lowercase Homebrew token") || !strings.Contains(err.Error(), "raycast") {
+		t.Fatalf("Validate() = %v", err)
+	}
+}
+
 func assertLoadErrorContains(t *testing.T, err error, substr string) {
 	t.Helper()
 	if err == nil {

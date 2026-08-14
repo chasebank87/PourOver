@@ -79,6 +79,39 @@ func TestRunDoctor_BrewMissing(t *testing.T) {
 	}
 }
 
+func TestRunDoctor_CapitalizedPackageName(t *testing.T) {
+	root := t.TempDir()
+	configPath := filepath.Join(root, "pourover.lua")
+	if err := os.WriteFile(configPath, []byte(`return {
+  packages = { formulae = { "git" }, casks = { "Raycast" } },
+  policy = { uninstall_mode = "safe" },
+}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	report, err := runDoctorChecks(doctorInputs{
+		configPath: configPath,
+		stateDir:   filepath.Join(root, "state"),
+		manifest:   config.Manifest{},
+		brewOK:     true,
+		pouroverOK: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.OK() {
+		t.Fatal("expected failure for capitalized cask name")
+	}
+	found := false
+	for _, c := range report.Checks {
+		if c.Name == "packages" && !c.OK && strings.Contains(c.Detail, "Raycast") && strings.Contains(c.Detail, "raycast") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("checks = %+v", report.Checks)
+	}
+}
+
 func TestNewDoctorCmd(t *testing.T) {
 	cmd := NewDoctorCmd()
 	if cmd.Use != "doctor" {

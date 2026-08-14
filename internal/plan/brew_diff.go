@@ -3,13 +3,14 @@ package plan
 import (
 	"slices"
 	"sort"
+	"strings"
 
 	"github.com/chasebank87/PourOver/internal/config"
 	"github.com/chasebank87/PourOver/internal/discovery"
 )
 
 // BuildBrewPlan computes install/remove actions for formulae and casks.
-// Package names are matched case-sensitively (Homebrew convention).
+// Package names are matched case-insensitively (Homebrew tokens are lowercase).
 //
 // Presence is cross-type: a package declared as a formula but installed as a
 // cask (or vice versa) counts as installed and is not removed as undeclared.
@@ -24,10 +25,10 @@ func BuildBrewPlan(desired config.Packages, current discovery.BrewState) Plan {
 	installedAny := sliceSet(append(append([]string{}, current.Formulae...), current.Casks...))
 
 	for _, name := range sortedMissingFromSet(desired.Formulae, installedAny) {
-		actions = append(actions, Action{Type: ActionFormulaInstall, Name: name})
+		actions = append(actions, Action{Type: ActionFormulaInstall, Name: brewToken(name)})
 	}
 	for _, name := range sortedMissingFromSet(desired.Casks, installedAny) {
-		actions = append(actions, Action{Type: ActionCaskInstall, Name: name})
+		actions = append(actions, Action{Type: ActionCaskInstall, Name: brewToken(name)})
 	}
 	for _, name := range sortedMissingFromSet(current.RemovableFormulae(), desiredAny) {
 		actions = append(actions, Action{Type: ActionFormulaRemove, Name: name})
@@ -47,7 +48,7 @@ func sortedMissing(want, have []string) []string {
 func sortedMissingFromSet(want []string, have map[string]struct{}) []string {
 	var missing []string
 	for _, name := range want {
-		if _, ok := have[name]; !ok {
+		if _, ok := have[brewToken(name)]; !ok {
 			missing = append(missing, name)
 		}
 	}
@@ -58,9 +59,13 @@ func sortedMissingFromSet(want []string, have map[string]struct{}) []string {
 func sliceSet(items []string) map[string]struct{} {
 	set := make(map[string]struct{}, len(items))
 	for _, item := range items {
-		set[item] = struct{}{}
+		set[brewToken(item)] = struct{}{}
 	}
 	return set
+}
+
+func brewToken(name string) string {
+	return strings.ToLower(strings.TrimSpace(name))
 }
 
 // ActionTypes returns the action type sequence for tests and assertions.

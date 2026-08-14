@@ -2,6 +2,7 @@ package discovery
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -72,6 +73,46 @@ func TestDiscoverBrew_EmptyLists(t *testing.T) {
 	}
 	if len(state.FormulaeRequested) != 0 {
 		t.Fatalf("FormulaeRequested = %#v, want empty", state.FormulaeRequested)
+	}
+}
+
+func TestDiscoverBrew_OnRequestFailsUsesLeaves(t *testing.T) {
+	runner := &fakeRunner{
+		responses: map[string][]byte{
+			"list --formula": []byte("git\ngettext\npcre2\n"),
+			"list --cask":    []byte("raycast\n"),
+			"leaves":         []byte("git\n"),
+		},
+		errFor: map[string]error{
+			"list --formula --installed-on-request": fmt.Errorf("api unavailable"),
+		},
+	}
+	state, err := DiscoverBrew(context.Background(), runner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(state.FormulaeRequested) != 1 || state.FormulaeRequested[0] != "git" {
+		t.Fatalf("FormulaeRequested = %#v, want [git] from leaves", state.FormulaeRequested)
+	}
+}
+
+func TestDiscoverBrew_OnRequestAndLeavesFailSkipsFormulaRemoves(t *testing.T) {
+	runner := &fakeRunner{
+		responses: map[string][]byte{
+			"list --formula": []byte("git\ngettext\n"),
+			"list --cask":    []byte(""),
+		},
+		errFor: map[string]error{
+			"list --formula --installed-on-request": fmt.Errorf("api unavailable"),
+			"leaves":                                fmt.Errorf("api unavailable"),
+		},
+	}
+	state, err := DiscoverBrew(context.Background(), runner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(state.FormulaeRequested) != 0 {
+		t.Fatalf("FormulaeRequested = %#v, want empty (no dep uninstalls)", state.FormulaeRequested)
 	}
 }
 

@@ -97,19 +97,13 @@ func TestBuildBrewPlan_DeterministicOrder(t *testing.T) {
 	}
 }
 
-func TestBuildBrewPlan_CaseSensitive(t *testing.T) {
+func TestBuildBrewPlan_CaseInsensitive(t *testing.T) {
 	plan := BuildBrewPlan(
-		config.Packages{Formulae: []string{"Git"}},
-		discovery.BrewState{Formulae: []string{"git"}},
+		config.Packages{Casks: []string{"Raycast", "Warp"}},
+		discovery.BrewState{Casks: []string{"raycast", "warp"}},
 	)
-	if len(plan.Actions) != 2 {
-		t.Fatalf("expected install+remove for case mismatch, got %d actions: %v", len(plan.Actions), plan.Actions)
-	}
-	if plan.Actions[0].Type != ActionFormulaInstall || plan.Actions[0].Name != "Git" {
-		t.Errorf("first action = %+v", plan.Actions[0])
-	}
-	if plan.Actions[1].Type != ActionFormulaRemove || plan.Actions[1].Name != "git" {
-		t.Errorf("second action = %+v", plan.Actions[1])
+	if len(plan.Actions) != 0 {
+		t.Fatalf("expected no actions for case-only mismatch, got %v", plan.Actions)
 	}
 }
 

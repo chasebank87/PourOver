@@ -1,5 +1,5 @@
 -- Homebrew packages declared for PourOver.
--- GUI apps like Raycast/Warp belong in casks, not formulae.
+-- Use lowercase Homebrew tokens (e.g. "raycast", not "Raycast").
 return {
   formulae = {
     "git",

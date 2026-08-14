@@ -11,26 +11,34 @@ import (
 // Order: formula upgrades then cask upgrades, each group sorted by name.
 //
 // A package declared as a formula but installed as a cask (or vice versa) is
-// upgraded with the type that matches how it is installed.
+// upgraded with the type that matches how it is installed. Names match
+// case-insensitively; action names use the installed Homebrew token.
 func BuildUpgradePlan(desired config.Packages, current discovery.BrewState) Plan {
-	haveFormulae := sliceSet(current.Formulae)
-	haveCasks := sliceSet(current.Casks)
+	haveFormulae := map[string]string{} // lower -> canonical installed name
+	for _, name := range current.Formulae {
+		haveFormulae[brewToken(name)] = name
+	}
+	haveCasks := map[string]string{}
+	for _, name := range current.Casks {
+		haveCasks[brewToken(name)] = name
+	}
 
 	var formulae, casks []string
 	seen := map[string]struct{}{}
 
 	consider := func(name string) {
-		if _, ok := seen[name]; ok {
+		key := brewToken(name)
+		if _, ok := seen[key]; ok {
 			return
 		}
-		if _, ok := haveFormulae[name]; ok {
-			formulae = append(formulae, name)
-			seen[name] = struct{}{}
+		if installed, ok := haveFormulae[key]; ok {
+			formulae = append(formulae, installed)
+			seen[key] = struct{}{}
 			return
 		}
-		if _, ok := haveCasks[name]; ok {
-			casks = append(casks, name)
-			seen[name] = struct{}{}
+		if installed, ok := haveCasks[key]; ok {
+			casks = append(casks, installed)
+			seen[key] = struct{}{}
 		}
 	}
 

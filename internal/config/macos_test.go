@@ -266,3 +266,21 @@ func TestMacOSDefaultsDoc_MatchesGenerator(t *testing.T) {
 		t.Fatalf("markdown missing %q", want)
 	}
 }
+
+func TestLoadManifest_RejectsCapitalizedBrewNames(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "pourover.lua")
+	src := `
+return {
+  packages = { formulae = { "git" }, casks = { "Raycast", "warp" } },
+  policy = { uninstall_mode = "safe" },
+}
+`
+	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := LoadManifest(path)
+	if err == nil || !strings.Contains(err.Error(), "Raycast") || !strings.Contains(err.Error(), "raycast") {
+		t.Fatalf("err=%v, want lowercase Homebrew token error for Raycast", err)
+	}
+}
