@@ -5,17 +5,67 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. 0.1.0 or v0.1.0)"
+        required: true
+        type: string
 
 permissions:
   contents: write
 
+# Note: tags pushed with GITHUB_TOKEN do not re-trigger workflows, so
+# workflow_dispatch both creates the tag and runs GoReleaser in this run.
 jobs:
+  tag:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.ver.outputs.tag }}
+    steps:
+      - name: Normalize version
+        id: ver
+        env:
+          RAW_VERSION: ${{ inputs.version }}
+        run: |
+          raw="${RAW_VERSION#v}"
+          if [[ ! "$raw" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid version: $RAW_VERSION (want X.Y.Z or vX.Y.Z)"
+            exit 1
+          fi
+          echo "tag=v${raw}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Create and push tag
+        env:
+          TAG: ${{ steps.ver.outputs.tag }}
+        run: |
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+
   goreleaser:
+    needs: tag
+    if: |
+      always() &&
+      !cancelled() &&
+      (needs.tag.result == 'success' || needs.tag.result == 'skipped') &&
+      (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')))
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ needs.tag.outputs.tag || github.ref }}
 
       - uses: actions/setup-go@v5
         with:

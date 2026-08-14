@@ -14,9 +14,9 @@ Support **both**:
 1. **Tag push** — `git tag vX.Y.Z && git push origin vX.Y.Z` triggers GoReleaser (unchanged responsibility).
 2. **Workflow dispatch** — Actions → Release → Run workflow with a version input; the workflow **only creates and pushes an annotated tag on `main`**. The resulting tag push runs the publish job once.
 
-## Why split tag vs publish
+## Why dispatch also runs GoReleaser
 
-If dispatch both pushed a tag and ran GoReleaser, the tag push would start a second release job (duplicate/race). Dispatch = cut tag; tag push = publish.
+Tags pushed with `GITHUB_TOKEN` do **not** trigger new workflow runs. So `workflow_dispatch` creates the annotated tag on `main` **and** runs GoReleaser in the same workflow. Local/human tag pushes still use the `push: tags` path only (the `tag` job is skipped).
 
 ## Dispatch behavior
 

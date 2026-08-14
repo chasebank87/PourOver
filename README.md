@@ -24,6 +24,18 @@ make test
 
 Requires macOS. The installer bootstraps Homebrew when it is not already present. Building from source also needs Go. CI runs `make vet`, `make test`, and `make build` on push/PR; tagged `v*` releases publish darwin archives via GoReleaser.
 
+## Releasing
+
+Publish a GitHub Release (darwin archives for install / `self-update`) via either:
+
+1. **Tag push**
+   ```bash
+   git tag v0.1.0
+   git push origin v0.1.0
+   ```
+2. **Actions UI** — Actions → **release** → Run workflow → enter `0.1.0` or `v0.1.0`.  
+   This tags current `main` and runs GoReleaser in the same workflow (tag pushes from `GITHUB_TOKEN` do not start a second run).
+
 ## Quick start
 
 New machine:
