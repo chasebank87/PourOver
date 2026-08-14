@@ -115,6 +115,8 @@ func TestUnsupportedApplyActions(t *testing.T) {
 	p := plan.Plan{Actions: []plan.Action{
 		{Type: plan.ActionFormulaInstall, Name: "fzf"},
 		{Type: plan.ActionCaskInstall, Name: "raycast"},
+		{Type: plan.ActionFormulaRemove, Name: "wget"},
+		{Type: plan.ActionCaskRemove, Name: "vlc"},
 		{Type: plan.ActionLinkCreate, Name: "/tmp/x", Source: "config/x"},
 	}}
 	skipped := UnsupportedApplyActions(p)

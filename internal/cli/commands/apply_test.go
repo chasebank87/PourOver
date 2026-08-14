@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/chasebank87/PourOver/internal/config"
 	"github.com/chasebank87/PourOver/internal/plan"
 	"github.com/spf13/cobra"
 )
@@ -134,7 +135,8 @@ func TestExecuteApply_FormulaInstallOnly(t *testing.T) {
 
 	cmd := &cobra.Command{}
 	cmd.SetContext(context.Background())
-	if err := executeApply(cmd, runner, p); err != nil {
+	opts := applyOptions{mode: config.UninstallModeSafe, autoYes: true}
+	if err := executeApply(cmd, runner, p, opts); err != nil {
 		t.Fatalf("executeApply: %v", err)
 	}
 	if len(runner.installs) != 1 || runner.installs[0] != "fzf" {
@@ -156,6 +158,7 @@ type installRecordingRunner struct {
 	listFormula []byte
 	listCask    []byte
 	installs    []string
+	uninstalls  []string
 }
 
 func (r *installRecordingRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
@@ -173,7 +176,90 @@ func (r *installRecordingRunner) Run(ctx context.Context, args ...string) ([]byt
 		r.installs = append(r.installs, "cask:"+args[2])
 		return nil, nil
 	}
+	if len(args) == 2 && args[0] == "uninstall" {
+		r.uninstalls = append(r.uninstalls, args[1])
+		return nil, nil
+	}
+	if len(args) == 3 && args[0] == "uninstall" && args[1] == "--cask" {
+		r.uninstalls = append(r.uninstalls, "cask:"+args[2])
+		return nil, nil
+	}
 	return nil, fmt.Errorf("unexpected brew args: %v", args)
+}
+
+func TestExecuteApply_StrictRemoves(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "cfg")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(configDir, "pourover.lua")
+	if err := os.WriteFile(configPath, []byte(`return {
+  packages = { formulae = { "git" }, casks = {} },
+  files = { links = {} },
+  policy = { uninstall_mode = "strict" },
+}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	runner := &installRecordingRunner{
+		listFormula: []byte("git\nwget\n"),
+		listCask:    []byte("vlc\n"),
+	}
+	p, err := buildPlan(context.Background(), configPath, runner)
+	if err != nil {
+		t.Fatalf("buildPlan: %v", err)
+	}
+
+	cmd := &cobra.Command{}
+	cmd.SetContext(context.Background())
+	cmd.SetIn(strings.NewReader(""))
+	opts := applyOptions{mode: config.UninstallModeStrict, autoYes: false}
+	if err := executeApply(cmd, runner, p, opts); err != nil {
+		t.Fatalf("executeApply: %v", err)
+	}
+	if got := strings.Join(runner.uninstalls, ","); got != "wget,cask:vlc" {
+		t.Fatalf("uninstalls = %q, want wget,cask:vlc", got)
+	}
+}
+
+func TestExecuteApply_SafeRemovesWithYes(t *testing.T) {
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionFormulaRemove, Name: "wget"},
+	}}
+	runner := &installRecordingRunner{}
+	cmd := &cobra.Command{}
+	cmd.SetContext(context.Background())
+	opts := applyOptions{mode: config.UninstallModeSafe, autoYes: true}
+	if err := executeApply(cmd, runner, p, opts); err != nil {
+		t.Fatalf("executeApply: %v", err)
+	}
+	if len(runner.uninstalls) != 1 || runner.uninstalls[0] != "wget" {
+		t.Fatalf("uninstalls = %v, want [wget]", runner.uninstalls)
+	}
+}
+
+func TestExecuteApply_NonDestructiveSkipsRemoves(t *testing.T) {
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionFormulaRemove, Name: "wget"},
+	}}
+	runner := &installRecordingRunner{}
+	cmd := &cobra.Command{}
+	cmd.SetContext(context.Background())
+	opts := applyOptions{mode: config.UninstallModeNonDestructive, autoYes: true}
+	if err := executeApply(cmd, runner, p, opts); err != nil {
+		t.Fatalf("executeApply: %v", err)
+	}
+	if len(runner.uninstalls) != 0 {
+		t.Fatalf("uninstalls = %v, want none", runner.uninstalls)
+	}
+}
+
+func TestNewApplyCmd_HasYesFlag(t *testing.T) {
+	cmd := NewApplyCmd()
+	if cmd.Flags().Lookup("yes") == nil {
+		t.Fatal("missing --yes flag")
+	}
 }
 
 func TestExecuteApply_FormulaAndCaskInstalls(t *testing.T) {
@@ -202,7 +288,8 @@ func TestExecuteApply_FormulaAndCaskInstalls(t *testing.T) {
 
 	cmd := &cobra.Command{}
 	cmd.SetContext(context.Background())
-	if err := executeApply(cmd, runner, p); err != nil {
+	opts := applyOptions{mode: config.UninstallModeSafe, autoYes: true}
+	if err := executeApply(cmd, runner, p, opts); err != nil {
 		t.Fatalf("executeApply: %v", err)
 	}
 	if got := strings.Join(runner.installs, ","); got != "fzf,cask:raycast" {
@@ -233,3 +320,4 @@ func TestNewApplyCmd_HasDryRunFlag(t *testing.T) {
 		t.Errorf("--dry-run usage = %q, want mention of plan", flag.Usage)
 	}
 }
+

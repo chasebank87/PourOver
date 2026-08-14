@@ -5,13 +5,20 @@ import (
 	"os"
 	"strings"
 
+	"github.com/chasebank87/PourOver/internal/config"
 	"github.com/chasebank87/PourOver/internal/discovery"
 	"github.com/chasebank87/PourOver/internal/exec"
 	"github.com/chasebank87/PourOver/internal/plan"
+	"github.com/chasebank87/PourOver/internal/policy"
 	"github.com/spf13/cobra"
 )
 
-func runApply(cmd *cobra.Command, dryRun bool) error {
+type applyOptions struct {
+	mode    config.UninstallMode
+	autoYes bool
+}
+
+func runApply(cmd *cobra.Command, dryRun, autoYes bool) error {
 	configPath, verbose, asJSON, err := planDisplayOptions(cmd)
 	if err != nil {
 		return err
@@ -38,10 +45,18 @@ func runApply(cmd *cobra.Command, dryRun bool) error {
 		return printPlan(p, asJSON)
 	}
 
-	return executeApply(cmd, runner, p)
+	manifest, err := config.LoadManifest(configPath)
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+	opts := applyOptions{
+		mode:    policy.ResolveModeFromManifest(manifest),
+		autoYes: autoYes,
+	}
+	return executeApply(cmd, runner, p, opts)
 }
 
-func executeApply(cmd *cobra.Command, runner discovery.Runner, p plan.Plan) error {
+func executeApply(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, opts applyOptions) error {
 	skipped := exec.UnsupportedApplyActions(p)
 	if len(p.Actions) == 0 {
 		fmt.Fprintln(os.Stderr, "No changes.")
@@ -56,13 +71,23 @@ func executeApply(cmd *cobra.Command, runner discovery.Runner, p plan.Plan) erro
 	if err != nil {
 		return err
 	}
-	n := formulae + casks
+
+	confirm := removeConfirmer(cmd, opts.autoYes)
+	removed, err := exec.ApplyRemoves(cmd.Context(), runner, p, opts.mode, confirm)
+	if err != nil {
+		return err
+	}
+
+	n := formulae + casks + removed
 
 	if formulae > 0 {
 		fmt.Fprintf(os.Stderr, "Installed %d formula(s).\n", formulae)
 	}
 	if casks > 0 {
 		fmt.Fprintf(os.Stderr, "Installed %d cask(s).\n", casks)
+	}
+	if removed > 0 {
+		fmt.Fprintf(os.Stderr, "Removed %d package(s).\n", removed)
 	}
 	if len(skipped) > 0 {
 		fmt.Fprintf(os.Stderr, "Skipped %d action(s) not yet supported by apply:\n", len(skipped))
@@ -72,7 +97,17 @@ func executeApply(cmd *cobra.Command, runner discovery.Runner, p plan.Plan) erro
 		}
 	}
 	if n == 0 && len(skipped) == len(p.Actions) {
-		fmt.Fprintln(os.Stderr, "No installs to apply.")
+		fmt.Fprintln(os.Stderr, "No brew actions to apply.")
 	}
 	return nil
+}
+
+func removeConfirmer(cmd *cobra.Command, autoYes bool) exec.ConfirmRemoves {
+	return func(names []string) bool {
+		if autoYes {
+			return true
+		}
+		prompt := fmt.Sprintf("Uninstall undeclared packages: %s?", strings.Join(names, ", "))
+		return exec.ConfirmYes(cmd.InOrStdin(), cmd.ErrOrStderr(), prompt)
+	}
 }

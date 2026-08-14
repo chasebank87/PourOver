@@ -10,11 +10,12 @@ pourover apply --dry-run
 pourover plan
 ```
 
-Apply missing Homebrew formulae and casks (removes and file links are planned but not applied yet):
+Apply Homebrew packages (installs and policy-aware removes). File links are planned but not applied yet:
 
 ```bash
 pourover apply
-pourover plan   # should show no install for formulae you just applied
+pourover apply --yes   # skip uninstall prompts (CI)
+pourover plan          # should show no brew actions after a full apply
 ```
 
 ## Docs
