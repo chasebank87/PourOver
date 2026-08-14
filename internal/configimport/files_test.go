@@ -154,6 +154,38 @@ func TestImportFile_SymlinkToDirectoryInsideTree(t *testing.T) {
 	}
 }
 
+func TestImportFile_ReimportWhenAlreadySymlinkedIntoConfig(t *testing.T) {
+	home := t.TempDir()
+	cfgDir := filepath.Join(home, ".pourover")
+	src := filepath.Join(cfgDir, "config", "home", "zshrc")
+	if err := os.MkdirAll(filepath.Dir(src), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(src, []byte("export HI=1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(home, ".zshrc")
+	if err := os.Symlink(src, target); err != nil {
+		t.Fatal(err)
+	}
+	c := FileCandidate{
+		TargetPath: target,
+		TargetDecl: "~/.zshrc",
+		RelSource:  "config/home/zshrc",
+	}
+	if _, err := ImportFile(cfgDir, c, true); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(src)
+	if err != nil || string(data) != "export HI=1\n" {
+		t.Fatalf("content = %q err=%v", data, err)
+	}
+	got, err := os.Readlink(target)
+	if err != nil || got != src {
+		t.Fatalf("symlink = %q err=%v", got, err)
+	}
+}
+
 func TestImportFile_ClearsLeftoverFileWhereDirectoryNeeded(t *testing.T) {
 	home := t.TempDir()
 	cfgDir := filepath.Join(home, ".pourover")

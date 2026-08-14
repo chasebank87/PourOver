@@ -83,14 +83,26 @@ func ImportFile(cfgDir string, c FileCandidate, applyLive bool) (config.FileLink
 		copyFrom = c.TargetPath
 	}
 
-	// Clear any partial tree from a previous failed import (e.g. empty file left
-	// where a directory should be after copyFile opened a symlink-to-dir).
+	// Copy via a temp path first. The live target may already be a symlink into
+	// srcAbs from a previous import; deleting srcAbs before copying would remove
+	// the only remaining content (stat: no such file or directory).
+	tmpDst := srcAbs + ".pourover-import-tmp"
+	_ = os.RemoveAll(tmpDst)
+	if err := copyPath(copyFrom, tmpDst); err != nil {
+		_ = os.RemoveAll(tmpDst)
+		return config.FileLink{}, err
+	}
 	if err := os.RemoveAll(srcAbs); err != nil {
+		_ = os.RemoveAll(tmpDst)
 		return config.FileLink{}, fmt.Errorf("clear %s: %w", srcAbs, err)
 	}
-
-	if err := copyPath(copyFrom, srcAbs); err != nil {
-		return config.FileLink{}, err
+	if err := os.Rename(tmpDst, srcAbs); err != nil {
+		// Cross-device rename is rare under the same cfgDir; fall back to copy.
+		if err := copyPath(tmpDst, srcAbs); err != nil {
+			_ = os.RemoveAll(tmpDst)
+			return config.FileLink{}, err
+		}
+		_ = os.RemoveAll(tmpDst)
 	}
 
 	link := config.FileLink{Source: c.RelSource, Target: c.TargetDecl}
