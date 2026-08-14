@@ -1,10 +1,25 @@
 # PourOver
+
 Declarative Homebrew and dotfile management for macOS.
+
+PourOver loads `~/.pourover/pourover.lua`, plans the diff against your machine, and applies Homebrew packages plus symlink file links.
+
+## Install
+
+```bash
+git clone https://github.com/chasebank87/PourOver.git
+cd PourOver
+go build -o pourover ./cmd/pourover
+# optional: move onto PATH
+```
+
+Requires macOS, Go (to build), and Homebrew.
 
 ## Quick start
 
 ```bash
 pourover init
+pourover doctor
 pourover plan
 pourover apply --dry-run
 pourover apply
@@ -12,25 +27,50 @@ pourover apply
 
 `init` scaffolds `~/.pourover/` (`pourover.lua`, `packages.lua`, example `config/`). Use `--force` to overwrite.
 
-Preview without modifying the system (`apply --dry-run` matches `plan`):
+`apply --dry-run` matches `plan`. Use `apply --yes` to skip uninstall confirmation prompts (CI).
 
-```bash
-pourover apply --dry-run
-pourover plan
+## Commands
+
+| Command | Purpose |
+|---------|---------|
+| `init` | Scaffold config |
+| `plan` | Show pending actions (`--json` for machine-readable) |
+| `apply` | Reconcile system (`--dry-run`, `--yes`) |
+| `doctor` | Check brew, config, state dir, iCloud |
+| `backup` | Force local snapshot (+ iCloud mirror when enabled) |
+| `restore` | Restore `lock.json` / `last-plan.json` (`--snapshot`, `--icloud`) |
+
+Global flags: `--config`, `--verbose` / `-v`, `--json`.
+
+## Policies
+
+`policy.uninstall_mode` in Lua:
+
+- **safe** (default) — prompt once before uninstalling undeclared packages
+- **strict** — uninstall without prompting
+- **non_destructive** — never uninstall undeclared packages
+
+## Paths
+
+| Role | Default |
+|------|---------|
+| Config | `~/.pourover/` |
+| State | `~/Library/Application Support/PourOver/state/` |
+| iCloud mirror | `~/Library/Mobile Documents/com~apple~CloudDocs/PourOver/` |
+
+State artifacts: `lock.json`, `last-plan.json`, `history/`, `snapshots/`.
+
+Enable iCloud mirroring in config:
+
+```lua
+backup = { icloud = { enabled = true } }  -- optional: path = "..."
 ```
 
-Apply packages and file links (policy-aware brew removes; use `--yes` in CI):
-
-```bash
-pourover apply
-pourover apply --yes
-pourover plan   # should show no changes after a full apply
-```
-
-Successful applies write `lock.json` and `last-plan.json` under `~/Library/Application Support/PourOver/state/`.
+When enabled, successful `apply` and `backup` write a local snapshot and mirror it if iCloud Drive is available.
 
 ## Docs
 
 - [Config schema](docs/config-schema.md)
 - [Plan output format](docs/plan-output.md)
 - [v2 backlog](docs/v2-backlog.md) — deferred features so v1 stays focused
+- [v1 micro-steps](docs/plans/2026-05-18-pourover-v1-micro-steps.md)
