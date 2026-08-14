@@ -13,13 +13,22 @@ const (
 	ConfigFileName = "pourover.lua"
 )
 
-// DefaultConfigFile returns ~/.pourover/pourover.lua.
-func DefaultConfigFile() (string, error) {
+// DefaultConfigDir returns ~/.pourover.
+func DefaultConfigDir() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("home directory: %w", err)
 	}
-	return filepath.Join(home, ConfigDirName, ConfigFileName), nil
+	return filepath.Join(home, ConfigDirName), nil
+}
+
+// DefaultConfigFile returns ~/.pourover/pourover.lua.
+func DefaultConfigFile() (string, error) {
+	dir, err := DefaultConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, ConfigFileName), nil
 }
 
 // ResolveConfigFile returns flagPath when set, otherwise the default config path.

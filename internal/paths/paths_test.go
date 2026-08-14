@@ -15,6 +15,16 @@ func TestResolveConfigFile_FlagOverride(t *testing.T) {
 	}
 }
 
+func TestDefaultConfigDir_UnderHome(t *testing.T) {
+	got, err := DefaultConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Base(got) != ConfigDirName {
+		t.Errorf("base = %q, want %q", filepath.Base(got), ConfigDirName)
+	}
+}
+
 func TestDefaultConfigFile_UnderHome(t *testing.T) {
 	got, err := DefaultConfigFile()
 	if err != nil {

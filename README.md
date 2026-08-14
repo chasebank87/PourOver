@@ -3,14 +3,23 @@ Declarative Homebrew and dotfile management for macOS.
 
 ## Quick start
 
-Preview changes without modifying your system (same output as `plan`):
+```bash
+pourover init
+pourover plan
+pourover apply --dry-run
+pourover apply
+```
+
+`init` scaffolds `~/.pourover/` (`pourover.lua`, `packages.lua`, example `config/`). Use `--force` to overwrite.
+
+Preview without modifying the system (`apply --dry-run` matches `plan`):
 
 ```bash
 pourover apply --dry-run
 pourover plan
 ```
 
-Apply packages and file links (policy-aware brew removes; use --yes in CI):
+Apply packages and file links (policy-aware brew removes; use `--yes` in CI):
 
 ```bash
 pourover apply
