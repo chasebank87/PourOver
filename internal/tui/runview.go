@@ -177,6 +177,7 @@ func runApplyFlow(
 		StateDir:    stateDir,
 		Mode:        mode,
 		FileReplace: policy.ResolveFileReplaceFromManifest(manifest),
+		FilesMode:   policy.ResolveFilesModeFromManifest(manifest),
 		AutoYes:     false,
 		Progress:    progress,
 		Confirm:     m.confirmer,
@@ -233,6 +234,7 @@ func runUpgradeFlow(
 		StateDir:    stateDir,
 		Mode:        mode,
 		FileReplace: policy.ResolveFileReplaceFromManifest(manifest),
+		FilesMode:   policy.ResolveFilesModeFromManifest(manifest),
 		AutoYes:     false,
 		Progress:    progress,
 		Confirm:     m.confirmer,
@@ -406,6 +408,7 @@ func formatApplySummary(r engine.ApplyResult) string {
 	add(r.Linked, "link", "links")
 	add(r.Managed, "managed copy", "managed copies")
 	add(r.Unlinked, "unlink", "unlinks")
+	add(r.Pruned, "prune", "prunes")
 	add(r.Renames, "rename note", "rename notes")
 	add(r.Skipped, "skipped", "skipped")
 	add(r.Failures, "failure", "failures")

@@ -476,3 +476,136 @@ func TestEscapeBackupPath(t *testing.T) {
 		t.Fatalf("EscapeBackupPath = %q, want %q", got, want)
 	}
 }
+
+func TestApplyFilePrunes_ByMode(t *testing.T) {
+	root := t.TempDir()
+	pathA := filepath.Join(root, "a.txt")
+	pathB := filepath.Join(root, "b.txt")
+	write := func(t *testing.T) {
+		t.Helper()
+		if err := os.WriteFile(pathA, []byte("a"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(pathB, []byte("b"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionFilePrune, Name: pathA},
+		{Type: plan.ActionFilePrune, Name: pathB},
+		{Type: plan.ActionFormulaInstall, Name: "fzf"},
+	}}
+
+	t.Run("safe_confirm_false", func(t *testing.T) {
+		write(t)
+		var prompted bool
+		confirm := func(paths []string) bool {
+			prompted = true
+			if len(paths) != 2 {
+				t.Fatalf("paths = %v, want 2", paths)
+			}
+			return false
+		}
+		n, err := ApplyFilePrunes(p, config.FilesModeSafe, confirm, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !prompted {
+			t.Fatal("expected confirm prompt")
+		}
+		if n != 0 {
+			t.Fatalf("n=%d, want 0", n)
+		}
+		if _, err := os.Stat(pathA); err != nil {
+			t.Fatalf("pathA should remain: %v", err)
+		}
+		if _, err := os.Stat(pathB); err != nil {
+			t.Fatalf("pathB should remain: %v", err)
+		}
+	})
+
+	t.Run("safe_confirm_true", func(t *testing.T) {
+		write(t)
+		var gotPaths []string
+		confirm := func(paths []string) bool {
+			gotPaths = append([]string(nil), paths...)
+			return true
+		}
+		n, err := ApplyFilePrunes(p, config.FilesModeSafe, confirm, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n != 2 {
+			t.Fatalf("n=%d, want 2", n)
+		}
+		if len(gotPaths) != 2 || gotPaths[0] != pathA || gotPaths[1] != pathB {
+			t.Fatalf("confirm paths = %v", gotPaths)
+		}
+		if _, err := os.Lstat(pathA); !os.IsNotExist(err) {
+			t.Fatalf("pathA should be removed: %v", err)
+		}
+		if _, err := os.Lstat(pathB); !os.IsNotExist(err) {
+			t.Fatalf("pathB should be removed: %v", err)
+		}
+	})
+
+	t.Run("strict_no_confirm", func(t *testing.T) {
+		write(t)
+		var prompted bool
+		confirm := func(paths []string) bool {
+			prompted = true
+			return false
+		}
+		n, err := ApplyFilePrunes(p, config.FilesModeStrict, confirm, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if prompted {
+			t.Fatal("strict should not prompt")
+		}
+		if n != 2 {
+			t.Fatalf("n=%d, want 2", n)
+		}
+		if _, err := os.Lstat(pathA); !os.IsNotExist(err) {
+			t.Fatalf("pathA should be removed: %v", err)
+		}
+	})
+
+	t.Run("non_destructive_skips", func(t *testing.T) {
+		write(t)
+		var prompted bool
+		confirm := func(paths []string) bool {
+			prompted = true
+			return true
+		}
+		n, err := ApplyFilePrunes(p, config.FilesModeNonDestructive, confirm, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if prompted {
+			t.Fatal("non_destructive should not prompt")
+		}
+		if n != 0 {
+			t.Fatalf("n=%d, want 0", n)
+		}
+		if _, err := os.Stat(pathA); err != nil {
+			t.Fatalf("pathA should remain: %v", err)
+		}
+	})
+
+	t.Run("no_prunes_no_prompt", func(t *testing.T) {
+		onlyInstall := plan.Plan{Actions: []plan.Action{{Type: plan.ActionFormulaInstall, Name: "fzf"}}}
+		var prompted bool
+		confirm := func(paths []string) bool {
+			prompted = true
+			return true
+		}
+		n, err := ApplyFilePrunes(onlyInstall, config.FilesModeSafe, confirm, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n != 0 || prompted {
+			t.Fatalf("n=%d prompted=%v, want no work", n, prompted)
+		}
+	})
+}

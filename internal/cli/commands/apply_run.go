@@ -126,6 +126,7 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 		StateDir:    opts.stateDir,
 		Mode:        opts.mode,
 		FileReplace: policy.ResolveFileReplaceFromManifest(opts.manifest),
+		FilesMode:   policy.ResolveFilesModeFromManifest(opts.manifest),
 		AutoYes:     opts.autoYes,
 		Quiet:       opts.quiet,
 		Progress:    progress,
@@ -141,7 +142,7 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 	result, err := engine.Apply(cmd.Context(), runner, p, engineOpts)
 
 	n := result.Taps + result.Formulae + result.Casks + result.Removed + result.Defaults +
-		result.Linked + result.Managed + result.Unlinked
+		result.Linked + result.Managed + result.Unlinked + result.Pruned
 
 	if session != nil {
 		session.Finish(ui.Summary{
@@ -153,6 +154,7 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 			Linked:   result.Linked,
 			Managed:  result.Managed,
 			Unlinked: result.Unlinked,
+			Pruned:   result.Pruned,
 			Renames:  result.Renames,
 			Skipped:  result.Skipped,
 			Failures: result.Failures,
@@ -183,6 +185,9 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 		}
 		if result.Unlinked > 0 {
 			fmt.Fprintf(out, "Unlinked %d file(s).\n", result.Unlinked)
+		}
+		if result.Pruned > 0 {
+			fmt.Fprintf(out, "Pruned %d owned file(s).\n", result.Pruned)
 		}
 		printCaskRenameAdvice(out, renames)
 		if len(skipped) > 0 {

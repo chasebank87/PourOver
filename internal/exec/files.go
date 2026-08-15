@@ -372,3 +372,70 @@ func SafeUnlink(path string) error {
 	}
 	return nil
 }
+
+// ConfirmPrunes asks whether to proceed with removing PourOver-owned undeclared files.
+// paths are target paths only (no action type prefix).
+type ConfirmPrunes func(paths []string) bool
+
+// ApplyFilePrunes runs file_prune actions according to files_mode.
+//
+//   - non_destructive: skip all prunes (no prompt); plan should normally be empty
+//   - strict: prune without prompting
+//   - safe: prompt once via confirm; if declined, skip all prunes
+//
+// confirm may be nil when mode is not safe (or when there are no prunes).
+// Per-path failures are collected so later prunes still run.
+func ApplyFilePrunes(p plan.Plan, mode config.FilesMode, confirm ConfirmPrunes, progress Progress) (int, error) {
+	var prunes []plan.Action
+	for _, a := range p.Actions {
+		if a.Type == plan.ActionFilePrune {
+			prunes = append(prunes, a)
+		}
+	}
+	if len(prunes) == 0 {
+		return 0, nil
+	}
+
+	switch mode {
+	case config.FilesModeNonDestructive:
+		return 0, nil
+	case config.FilesModeSafe, "":
+		paths := make([]string, len(prunes))
+		for i, a := range prunes {
+			paths[i] = a.Name
+		}
+		if confirm == nil || !confirm(paths) {
+			return 0, nil
+		}
+	case config.FilesModeStrict:
+		// no prompt
+	default:
+		paths := make([]string, len(prunes))
+		for i, a := range prunes {
+			paths[i] = a.Name
+		}
+		if confirm == nil || !confirm(paths) {
+			return 0, nil
+		}
+	}
+
+	n := 0
+	var errs []error
+	for _, a := range prunes {
+		report(progress, a)
+
+		targetPath, err := resolveLinkTarget(a.Name)
+		if err != nil {
+			reportFailure(progress, err)
+			errs = append(errs, err)
+			continue
+		}
+		if err := SafeUnlink(targetPath); err != nil {
+			reportFailure(progress, err)
+			errs = append(errs, err)
+			continue
+		}
+		n++
+	}
+	return n, errors.Join(errs...)
+}

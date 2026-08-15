@@ -267,6 +267,7 @@ func TestUnsupportedApplyActions(t *testing.T) {
 		{Type: plan.ActionLinkUpdate, Name: "/tmp/y", Source: "config/y"},
 		{Type: plan.ActionManagedCopy, Name: "/tmp/m", Source: "config/m"},
 		{Type: plan.ActionFileUnlink, Name: "/tmp/u"},
+		{Type: plan.ActionFilePrune, Name: "/tmp/p"},
 		{Type: plan.ActionCaskRename, Name: "windsurf", Value: "devin-desktop"},
 		{Type: plan.ActionFormulaUpgrade, Name: "git"},
 	}}

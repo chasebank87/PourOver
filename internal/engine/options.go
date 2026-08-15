@@ -17,6 +17,7 @@ type ApplyOptions struct {
 	StateDir    string               // for file backup-on-replace
 	Mode        config.UninstallMode // empty → resolve from manifest
 	FileReplace config.FileReplaceMode
+	FilesMode   config.FilesMode // empty → resolve from manifest (callers should set)
 	AutoYes     bool
 	Quiet       bool
 	DryRun      bool

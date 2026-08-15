@@ -147,7 +147,7 @@ func UnsupportedApplyActions(p plan.Plan) []plan.Action {
 			plan.ActionFormulaInstall, plan.ActionCaskInstall,
 			plan.ActionFormulaRemove, plan.ActionCaskRemove,
 			plan.ActionLinkCreate, plan.ActionLinkUpdate, plan.ActionLinkReplace,
-			plan.ActionManagedCopy, plan.ActionFileUnlink,
+			plan.ActionManagedCopy, plan.ActionFileUnlink, plan.ActionFilePrune,
 			plan.ActionDefaultsWrite,
 			plan.ActionCaskRename:
 			continue

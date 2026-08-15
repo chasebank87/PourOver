@@ -14,8 +14,9 @@ import (
 )
 
 // Apply runs the reconcile mutation loop for taps, formulae, casks, removes,
-// defaults, file links, managed copies, and unlinks. It does not create UI
-// sessions or print summaries; frontends pass Progress / Confirmer / writers via opts.
+// defaults, file links, managed copies, unlinks, and owned-file prunes. It does
+// not create UI sessions or print summaries; frontends pass Progress / Confirmer
+// / writers via opts.
 func Apply(ctx context.Context, runner discovery.Runner, p plan.Plan, opts ApplyOptions) (ApplyResult, error) {
 	renames := exec.CaskRenameActions(p)
 	skipped := exec.UnsupportedApplyActions(p)
@@ -111,6 +112,12 @@ func Apply(ctx context.Context, runner discovery.Runner, p plan.Plan, opts Apply
 		errs = append(errs, err)
 	}
 
+	phase("prune")
+	pruned, err := exec.ApplyFilePrunes(p, opts.FilesMode, confirmPrunes(opts), progress)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
 	result.Taps = taps
 	result.Formulae = formulae
 	result.Casks = casks
@@ -119,6 +126,7 @@ func Apply(ctx context.Context, runner discovery.Runner, p plan.Plan, opts Apply
 	result.Linked = linked
 	result.Managed = managed
 	result.Unlinked = unlinked
+	result.Pruned = pruned
 	result.Failures = failures
 	return result, errors.Join(errs...)
 }
@@ -132,6 +140,19 @@ func confirmRemoves(opts ApplyOptions) exec.ConfirmRemoves {
 			return false
 		}
 		prompt := fmt.Sprintf("Uninstall undeclared packages: %s?", strings.Join(names, ", "))
+		return opts.Confirm.Confirm(prompt)
+	}
+}
+
+func confirmPrunes(opts ApplyOptions) exec.ConfirmPrunes {
+	return func(paths []string) bool {
+		if opts.AutoYes {
+			return true
+		}
+		if opts.Confirm == nil {
+			return false
+		}
+		prompt := fmt.Sprintf("Remove PourOver-owned undeclared files: %s?", strings.Join(paths, ", "))
 		return opts.Confirm.Confirm(prompt)
 	}
 }

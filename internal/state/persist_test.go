@@ -164,6 +164,7 @@ func TestComputeOwnedFiles_AddsCreatesRemovesUnlinks(t *testing.T) {
 	prev := []string{
 		filepath.Join(home, ".keep"),
 		filepath.Join(home, ".gone"),
+		filepath.Join(home, ".pruned"),
 	}
 	p := plan.Plan{Actions: []plan.Action{
 		{Type: plan.ActionLinkCreate, Name: "~/.newlink", Source: "config/new"},
@@ -171,6 +172,7 @@ func TestComputeOwnedFiles_AddsCreatesRemovesUnlinks(t *testing.T) {
 		{Type: plan.ActionManagedCopy, Name: "~/.managed", Source: "config/managed"},
 		{Type: plan.ActionLinkReplace, Name: "~/.replaced", Source: "config/replaced"},
 		{Type: plan.ActionFileUnlink, Name: "~/.gone"},
+		{Type: plan.ActionFilePrune, Name: "~/.pruned"},
 		{Type: plan.ActionFormulaInstall, Name: "git"},
 	}}
 
