@@ -79,12 +79,13 @@ func runApply(cmd *cobra.Command, dryRun, autoYes, quiet bool) error {
 }
 
 func executeApply(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, opts applyOptions) error {
-	applyErr := runApplyActions(cmd, runner, p, opts)
+	result, applyErr := runApplyActions(cmd, runner, p, opts)
 	if err := engine.FinalizeApply(engine.FinalizeOptions{
-		StateDir:  opts.stateDir,
-		ConfigDir: opts.configDir,
-		Manifest:  opts.manifest,
-		Now:       opts.now,
+		StateDir:    opts.stateDir,
+		ConfigDir:   opts.configDir,
+		Manifest:    opts.manifest,
+		PrunedPaths: result.PrunedPaths,
+		Now:         opts.now,
 	}, p, applyErr); err != nil {
 		return err
 	}
@@ -92,11 +93,11 @@ func executeApply(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, opts
 	return nil
 }
 
-func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, opts applyOptions) error {
+func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, opts applyOptions) (engine.ApplyResult, error) {
 	out := cmd.ErrOrStderr()
 	if len(p.Actions) == 0 {
 		fmt.Fprintln(out, "No changes.")
-		return nil
+		return engine.ApplyResult{Plan: p}, nil
 	}
 
 	renames := exec.CaskRenameActions(p)
@@ -200,7 +201,7 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 			fmt.Fprintln(out, "No actions to apply.")
 		}
 	}
-	return err
+	return result, err
 }
 
 type stdinConfirmer struct {

@@ -172,7 +172,7 @@ func TestComputeOwnedFiles_AddsCreatesRemovesUnlinks(t *testing.T) {
 		{Type: plan.ActionManagedCopy, Name: "~/.managed", Source: "config/managed"},
 		{Type: plan.ActionLinkReplace, Name: "~/.replaced", Source: "config/replaced"},
 		{Type: plan.ActionFileUnlink, Name: "~/.gone"},
-		{Type: plan.ActionFilePrune, Name: "~/.pruned"},
+		{Type: plan.ActionFilePrune, Name: "~/.pruned"}, // plan-only; does not drop ownership
 		{Type: plan.ActionFormulaInstall, Name: "git"},
 	}}
 
@@ -184,10 +184,20 @@ func TestComputeOwnedFiles_AddsCreatesRemovesUnlinks(t *testing.T) {
 		filepath.Join(home, ".keep"),
 		filepath.Join(home, ".managed"),
 		filepath.Join(home, ".newlink"),
+		filepath.Join(home, ".pruned"),
 		filepath.Join(home, ".replaced"),
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("owned = %#v, want %#v", got, want)
+	}
+}
+
+func TestRemoveOwnedPaths(t *testing.T) {
+	owned := []string{"/a", "/b", "/c"}
+	got := RemoveOwnedPaths(owned, []string{"/b", "/missing"})
+	want := []string{"/a", "/c"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("RemoveOwnedPaths = %#v, want %#v", got, want)
 	}
 }
 

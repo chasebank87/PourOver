@@ -113,7 +113,7 @@ func Apply(ctx context.Context, runner discovery.Runner, p plan.Plan, opts Apply
 	}
 
 	phase("prune")
-	pruned, err := exec.ApplyFilePrunes(p, opts.FilesMode, confirmPrunes(opts), progress)
+	prunedPaths, err := exec.ApplyFilePrunes(p, opts.FilesMode, confirmPrunes(opts), progress)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -126,7 +126,8 @@ func Apply(ctx context.Context, runner discovery.Runner, p plan.Plan, opts Apply
 	result.Linked = linked
 	result.Managed = managed
 	result.Unlinked = unlinked
-	result.Pruned = pruned
+	result.Pruned = len(prunedPaths)
+	result.PrunedPaths = prunedPaths
 	result.Failures = failures
 	return result, errors.Join(errs...)
 }

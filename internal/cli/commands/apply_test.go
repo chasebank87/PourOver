@@ -678,7 +678,7 @@ func TestRunApplyActions_CaskRenamesAreAdvisory(t *testing.T) {
 		{Type: plan.ActionCaskRename, Name: "windsurf", Value: "devin-desktop"},
 		{Type: plan.ActionCaskRename, Name: "vmware-horizon-client", Value: "omnissa-horizon-client"},
 	}}
-	err := runApplyActions(cmd, &recordingRunner{}, p, applyOptions{autoYes: true, quiet: true})
+	_, err := runApplyActions(cmd, &recordingRunner{}, p, applyOptions{autoYes: true, quiet: true})
 	if err != nil {
 		t.Fatalf("runApplyActions: %v", err)
 	}

@@ -506,15 +506,15 @@ func TestApplyFilePrunes_ByMode(t *testing.T) {
 			}
 			return false
 		}
-		n, err := ApplyFilePrunes(p, config.FilesModeSafe, confirm, nil)
+		removed, err := ApplyFilePrunes(p, config.FilesModeSafe, confirm, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if !prompted {
 			t.Fatal("expected confirm prompt")
 		}
-		if n != 0 {
-			t.Fatalf("n=%d, want 0", n)
+		if len(removed) != 0 {
+			t.Fatalf("removed=%v, want none", removed)
 		}
 		if _, err := os.Stat(pathA); err != nil {
 			t.Fatalf("pathA should remain: %v", err)
@@ -531,12 +531,12 @@ func TestApplyFilePrunes_ByMode(t *testing.T) {
 			gotPaths = append([]string(nil), paths...)
 			return true
 		}
-		n, err := ApplyFilePrunes(p, config.FilesModeSafe, confirm, nil)
+		removed, err := ApplyFilePrunes(p, config.FilesModeSafe, confirm, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if n != 2 {
-			t.Fatalf("n=%d, want 2", n)
+		if len(removed) != 2 || removed[0] != pathA || removed[1] != pathB {
+			t.Fatalf("removed=%v, want [%s %s]", removed, pathA, pathB)
 		}
 		if len(gotPaths) != 2 || gotPaths[0] != pathA || gotPaths[1] != pathB {
 			t.Fatalf("confirm paths = %v", gotPaths)
@@ -556,15 +556,15 @@ func TestApplyFilePrunes_ByMode(t *testing.T) {
 			prompted = true
 			return false
 		}
-		n, err := ApplyFilePrunes(p, config.FilesModeStrict, confirm, nil)
+		removed, err := ApplyFilePrunes(p, config.FilesModeStrict, confirm, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if prompted {
 			t.Fatal("strict should not prompt")
 		}
-		if n != 2 {
-			t.Fatalf("n=%d, want 2", n)
+		if len(removed) != 2 {
+			t.Fatalf("removed=%v, want 2", removed)
 		}
 		if _, err := os.Lstat(pathA); !os.IsNotExist(err) {
 			t.Fatalf("pathA should be removed: %v", err)
@@ -578,15 +578,15 @@ func TestApplyFilePrunes_ByMode(t *testing.T) {
 			prompted = true
 			return true
 		}
-		n, err := ApplyFilePrunes(p, config.FilesModeNonDestructive, confirm, nil)
+		removed, err := ApplyFilePrunes(p, config.FilesModeNonDestructive, confirm, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if prompted {
 			t.Fatal("non_destructive should not prompt")
 		}
-		if n != 0 {
-			t.Fatalf("n=%d, want 0", n)
+		if len(removed) != 0 {
+			t.Fatalf("removed=%v, want none", removed)
 		}
 		if _, err := os.Stat(pathA); err != nil {
 			t.Fatalf("pathA should remain: %v", err)
@@ -600,12 +600,12 @@ func TestApplyFilePrunes_ByMode(t *testing.T) {
 			prompted = true
 			return true
 		}
-		n, err := ApplyFilePrunes(onlyInstall, config.FilesModeSafe, confirm, nil)
+		removed, err := ApplyFilePrunes(onlyInstall, config.FilesModeSafe, confirm, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if n != 0 || prompted {
-			t.Fatalf("n=%d prompted=%v, want no work", n, prompted)
+		if len(removed) != 0 || prompted {
+			t.Fatalf("removed=%v prompted=%v, want no work", removed, prompted)
 		}
 	})
 }

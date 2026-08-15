@@ -188,9 +188,10 @@ func runApplyFlow(
 		},
 	})
 	finalErr := engine.FinalizeApply(engine.FinalizeOptions{
-		StateDir:  stateDir,
-		ConfigDir: filepath.Dir(m.configPath),
-		Manifest:  manifest,
+		StateDir:    stateDir,
+		ConfigDir:   filepath.Dir(m.configPath),
+		Manifest:    manifest,
+		PrunedPaths: result.PrunedPaths,
 	}, p, applyErr)
 	// Skip maybeAutoPushConfig in TUI (Phase 2 config screens).
 	sendDone(formatApplySummary(result), finalErr)
@@ -245,9 +246,10 @@ func runUpgradeFlow(
 		},
 	})
 	finalErr := engine.FinalizeApply(engine.FinalizeOptions{
-		StateDir:  stateDir,
-		ConfigDir: filepath.Dir(m.configPath),
-		Manifest:  manifest,
+		StateDir:    stateDir,
+		ConfigDir:   filepath.Dir(m.configPath),
+		Manifest:    manifest,
+		PrunedPaths: applyResult.PrunedPaths,
 	}, applyPlan, applyErr)
 	// Skip maybeAutoPushConfig in TUI (Phase 2 config screens).
 	summary := joinSummaries(formatUpgradeSummary(upResult), formatApplySummary(applyResult))

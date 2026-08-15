@@ -384,8 +384,9 @@ type ConfirmPrunes func(paths []string) bool
 //   - safe: prompt once via confirm; if declined, skip all prunes
 //
 // confirm may be nil when mode is not safe (or when there are no prunes).
-// Per-path failures are collected so later prunes still run.
-func ApplyFilePrunes(p plan.Plan, mode config.FilesMode, confirm ConfirmPrunes, progress Progress) (int, error) {
+// Returns absolute paths successfully removed. Per-path failures are collected
+// so later prunes still run; failed paths are omitted from the returned list.
+func ApplyFilePrunes(p plan.Plan, mode config.FilesMode, confirm ConfirmPrunes, progress Progress) ([]string, error) {
 	var prunes []plan.Action
 	for _, a := range p.Actions {
 		if a.Type == plan.ActionFilePrune {
@@ -393,19 +394,19 @@ func ApplyFilePrunes(p plan.Plan, mode config.FilesMode, confirm ConfirmPrunes, 
 		}
 	}
 	if len(prunes) == 0 {
-		return 0, nil
+		return nil, nil
 	}
 
 	switch mode {
 	case config.FilesModeNonDestructive:
-		return 0, nil
+		return nil, nil
 	case config.FilesModeSafe, "":
 		paths := make([]string, len(prunes))
 		for i, a := range prunes {
 			paths[i] = a.Name
 		}
 		if confirm == nil || !confirm(paths) {
-			return 0, nil
+			return nil, nil
 		}
 	case config.FilesModeStrict:
 		// no prompt
@@ -415,11 +416,11 @@ func ApplyFilePrunes(p plan.Plan, mode config.FilesMode, confirm ConfirmPrunes, 
 			paths[i] = a.Name
 		}
 		if confirm == nil || !confirm(paths) {
-			return 0, nil
+			return nil, nil
 		}
 	}
 
-	n := 0
+	var removed []string
 	var errs []error
 	for _, a := range prunes {
 		report(progress, a)
@@ -435,7 +436,7 @@ func ApplyFilePrunes(p plan.Plan, mode config.FilesMode, confirm ConfirmPrunes, 
 			errs = append(errs, err)
 			continue
 		}
-		n++
+		removed = append(removed, targetPath)
 	}
-	return n, errors.Join(errs...)
+	return removed, errors.Join(errs...)
 }
