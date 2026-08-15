@@ -4,7 +4,9 @@ Ideas and scope **explicitly deferred from v1**. When we cut v1, anything not do
 
 **How to use:** Add items with a short rationale and link to the v1 decision or milestone that deferred them. When starting v2 planning, triage this list into milestones.
 
-**Related:** v1 decisions live in `docs/plans/2026-05-18-pourover-v1-micro-steps.md` (Open decisions table). v1 non-goals in `docs/plans/2026-05-18-pourover-v1-design.md`.
+**Related:** v1 decisions live in `docs/plans/2026-05-18-pourover-v1-micro-steps.md` (Open decisions table). v1 non-goals in `docs/plans/2026-05-18-pourover-v1-design.md`. V2 plan: `docs/plans/2026-08-15-pourover-v2-implementation.md`.
+
+**V2 progress:** Phase 0 (reconcile engine façade) is done — `internal/engine` owns BuildPlan, Apply, UpgradePackages, Doctor, Backup, Restore, and Import; the CLI is a thin frontend. Next is Phase 1 (TUI).
 
 ---
 
