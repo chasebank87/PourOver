@@ -21,6 +21,27 @@ type Manifest struct {
 // MacOS holds declarative macOS preferences (nix-darwin-style defaults).
 type MacOS struct {
 	Defaults MacOSDefaults `json:"defaults"`
+	Security MacOSSecurity `json:"security"`
+}
+
+// MacOSSecurity holds security-related macOS settings (PAM, etc.).
+type MacOSSecurity struct {
+	PAM MacOSPAM `json:"pam"`
+}
+
+// MacOSPAM holds PAM service configuration.
+type MacOSPAM struct {
+	SudoLocal SudoLocalPAM `json:"sudo_local"`
+}
+
+// SudoLocalPAM configures /etc/pam.d/sudo_local (Touch ID / Watch / reattach).
+// Omitted sudo_local table means unmanaged (Configured=false).
+type SudoLocalPAM struct {
+	Configured  bool // true if sudo_local table present
+	Enable      bool
+	Reattach    bool
+	TouchIDAuth bool
+	WatchIDAuth bool
 }
 
 // MacOSDefaults groups named nix-darwin-style domains plus a custom escape hatch.

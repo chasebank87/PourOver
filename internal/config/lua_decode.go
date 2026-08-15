@@ -57,19 +57,31 @@ func decodeMacOS(L *lua.LState, root *lua.LTable, key string) (MacOS, error) {
 	return decodeMacOSTable(L, tbl)
 }
 
-// decodeMacOSTable decodes a macos table shaped as { defaults = { … } }.
+// decodeMacOSTable decodes a macos table shaped as { defaults = { … }, security = { … } }.
 func decodeMacOSTable(L *lua.LState, tbl *lua.LTable) (MacOS, error) {
-	defaultsTbl, ok, err := fieldTable(L, tbl, "defaults")
+	defaults, err := decodeMacOSDefaults(L, tbl)
 	if err != nil {
-		return MacOS{}, fmt.Errorf("macos.%w", err)
+		return MacOS{}, err
+	}
+	security, err := decodeMacOSSecurity(L, tbl)
+	if err != nil {
+		return MacOS{}, err
+	}
+	return MacOS{Defaults: defaults, Security: security}, nil
+}
+
+func decodeMacOSDefaults(L *lua.LState, macosTbl *lua.LTable) (MacOSDefaults, error) {
+	defaultsTbl, ok, err := fieldTable(L, macosTbl, "defaults")
+	if err != nil {
+		return MacOSDefaults{}, fmt.Errorf("macos.%w", err)
 	}
 	if !ok {
-		return MacOS{}, nil
+		return MacOSDefaults{}, nil
 	}
 
 	custom, err := fieldCustomSettings(L, defaultsTbl, "custom")
 	if err != nil {
-		return MacOS{}, fmt.Errorf("macos.defaults.%w", err)
+		return MacOSDefaults{}, fmt.Errorf("macos.defaults.%w", err)
 	}
 
 	sections := make(map[string]map[string]SettingValue)
@@ -103,13 +115,87 @@ func decodeMacOSTable(L *lua.LState, tbl *lua.LTable) (MacOS, error) {
 		}
 	})
 	if walkErr != nil {
-		return MacOS{}, walkErr
+		return MacOSDefaults{}, walkErr
 	}
 
-	return MacOS{Defaults: MacOSDefaults{
+	return MacOSDefaults{
 		Sections: sections,
 		Custom:   custom,
-	}}, nil
+	}, nil
+}
+
+func decodeMacOSSecurity(L *lua.LState, macosTbl *lua.LTable) (MacOSSecurity, error) {
+	secTbl, ok, err := fieldTable(L, macosTbl, "security")
+	if err != nil {
+		return MacOSSecurity{}, fmt.Errorf("macos.%w", err)
+	}
+	if !ok {
+		return MacOSSecurity{}, nil
+	}
+
+	pamTbl, ok, err := fieldTable(L, secTbl, "pam")
+	if err != nil {
+		return MacOSSecurity{}, fmt.Errorf("macos.security.%w", err)
+	}
+	if !ok {
+		return MacOSSecurity{}, nil
+	}
+
+	sudoLocal, err := decodeSudoLocalPAM(L, pamTbl)
+	if err != nil {
+		return MacOSSecurity{}, err
+	}
+	return MacOSSecurity{PAM: MacOSPAM{SudoLocal: sudoLocal}}, nil
+}
+
+func decodeSudoLocalPAM(L *lua.LState, pamTbl *lua.LTable) (SudoLocalPAM, error) {
+	tbl, ok, err := fieldTable(L, pamTbl, "sudo_local")
+	if err != nil {
+		return SudoLocalPAM{}, fmt.Errorf("macos.security.pam.%w", err)
+	}
+	if !ok {
+		return SudoLocalPAM{}, nil
+	}
+
+	out := SudoLocalPAM{Configured: true}
+	prefix := "macos.security.pam.sudo_local"
+
+	enable, err := optionalBool(L, tbl, "enable", prefix)
+	if err != nil {
+		return SudoLocalPAM{}, err
+	}
+	out.Enable = enable
+
+	reattach, err := optionalBool(L, tbl, "reattach", prefix)
+	if err != nil {
+		return SudoLocalPAM{}, err
+	}
+	out.Reattach = reattach
+
+	touchID, err := optionalBool(L, tbl, "touch_id_auth", prefix)
+	if err != nil {
+		return SudoLocalPAM{}, err
+	}
+	out.TouchIDAuth = touchID
+
+	watchID, err := optionalBool(L, tbl, "watch_id_auth", prefix)
+	if err != nil {
+		return SudoLocalPAM{}, err
+	}
+	out.WatchIDAuth = watchID
+
+	return out, nil
+}
+
+func optionalBool(L *lua.LState, tbl *lua.LTable, key, prefix string) (bool, error) {
+	lv := L.GetField(tbl, key)
+	if lv == lua.LNil {
+		return false, nil
+	}
+	if lv.Type() != lua.LTBool {
+		return false, fmt.Errorf("%s.%s: expected boolean, got %s", prefix, key, lv.Type())
+	}
+	return lua.LVAsBool(lv), nil
 }
 
 func decodeSettingMapFromTable(L *lua.LState, inner *lua.LTable, key string) (map[string]SettingValue, error) {
