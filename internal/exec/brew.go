@@ -9,13 +9,13 @@ import (
 	"github.com/chasebank87/PourOver/internal/plan"
 )
 
-// AddTap runs `brew tap <name>` then `brew trust --tap <name>` for non-official taps
-// (Homebrew 6+ requires explicit trust before loading third-party tap code).
-func AddTap(ctx context.Context, runner discovery.Runner, name string) error {
+// AddTap runs `brew tap <name>` then, when trusted is true, `brew trust --tap <name>`
+// for non-official taps (Homebrew 6+ requires explicit trust before loading third-party tap code).
+func AddTap(ctx context.Context, runner discovery.Runner, name string, trusted bool) error {
 	if _, err := runner.Run(ctx, "tap", name); err != nil {
 		return fmt.Errorf("brew tap %s: %w", name, err)
 	}
-	if discovery.NeedsExplicitTrust(name) {
+	if trusted && discovery.NeedsExplicitTrust(name) {
 		if err := TrustTap(ctx, runner, name); err != nil {
 			return err
 		}
@@ -67,7 +67,7 @@ func ApplyTapAdds(ctx context.Context, runner discovery.Runner, p plan.Plan, pro
 		switch a.Type {
 		case plan.ActionTapAdd:
 			report(progress, a)
-			if err := AddTap(ctx, runner, a.Name); err != nil {
+			if err := AddTap(ctx, runner, a.Name, a.Trusted); err != nil {
 				reportFailure(progress, err)
 				errs = append(errs, err)
 				continue

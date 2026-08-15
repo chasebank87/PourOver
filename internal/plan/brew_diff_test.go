@@ -52,7 +52,7 @@ func TestBuildBrewPlan_TapAddBeforeInstalls(t *testing.T) {
 
 func TestBuildBrewPlan_TrustAlreadyTapped(t *testing.T) {
 	plan := BuildBrewPlan(
-		config.Packages{Taps: []config.TapSpec{{Name: "nikitabobko/tap"}}},
+		config.Packages{Taps: []config.TapSpec{{Name: "nikitabobko/tap", Trusted: true}}},
 		discovery.BrewState{
 			Taps:        []string{"homebrew/core", "nikitabobko/tap"},
 			TrustedTaps: nil,
@@ -66,9 +66,25 @@ func TestBuildBrewPlan_TrustAlreadyTapped(t *testing.T) {
 	}
 }
 
+func TestBuildBrewPlan_SkipTrustWhenTrustedFalse(t *testing.T) {
+	plan := BuildBrewPlan(
+		config.Packages{Taps: []config.TapSpec{{Name: "nikitabobko/tap", Trusted: false}}},
+		discovery.BrewState{
+			Taps:        []string{"homebrew/core", "nikitabobko/tap"},
+			TrustedTaps: nil,
+		},
+	)
+	if names := ActionNames(plan, ActionTapTrust); len(names) != 0 {
+		t.Fatalf("tap trusts = %v, want none when trusted=false", names)
+	}
+	if names := ActionNames(plan, ActionTapAdd); len(names) != 0 {
+		t.Fatalf("unexpected tap adds = %v", names)
+	}
+}
+
 func TestBuildBrewPlan_SkipTrustWhenAlreadyTrusted(t *testing.T) {
 	plan := BuildBrewPlan(
-		config.Packages{Taps: []config.TapSpec{{Name: "nikitabobko/tap"}}},
+		config.Packages{Taps: []config.TapSpec{{Name: "nikitabobko/tap", Trusted: true}}},
 		discovery.BrewState{
 			Taps:        []string{"nikitabobko/tap"},
 			TrustedTaps: []string{"nikitabobko/tap"},

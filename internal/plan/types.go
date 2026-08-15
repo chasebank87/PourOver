@@ -26,13 +26,14 @@ const (
 
 // Action is one change to apply.
 type Action struct {
-	Type   ActionType `json:"type"`
-	Name   string     `json:"name"`
-	Source string     `json:"source,omitempty"`
-	Domain string     `json:"domain,omitempty"`
-	Key    string     `json:"key,omitempty"`
-	Value  string     `json:"value,omitempty"`
-	Kind   string     `json:"kind,omitempty"`
+	Type    ActionType `json:"type"`
+	Name    string     `json:"name"`
+	Source  string     `json:"source,omitempty"`
+	Domain  string     `json:"domain,omitempty"`
+	Key     string     `json:"key,omitempty"`
+	Value   string     `json:"value,omitempty"`
+	Kind    string     `json:"kind,omitempty"`
+	Trusted bool       `json:"trusted,omitempty"` // tap_add: whether to brew trust after tap
 }
 
 // Plan is an ordered list of actions to reconcile state.

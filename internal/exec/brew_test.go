@@ -57,7 +57,7 @@ func TestInstallFormula_RunsBrewInstall(t *testing.T) {
 
 func TestAddTap_TrustsAfterTap(t *testing.T) {
 	runner := &installRecordingRunner{}
-	if err := AddTap(context.Background(), runner, "nikitabobko/tap"); err != nil {
+	if err := AddTap(context.Background(), runner, "nikitabobko/tap", true); err != nil {
 		t.Fatalf("AddTap: %v", err)
 	}
 	if got := strings.Join(runner.installs, ","); got != "tap:nikitabobko/tap,trust:nikitabobko/tap" {
@@ -65,9 +65,19 @@ func TestAddTap_TrustsAfterTap(t *testing.T) {
 	}
 }
 
+func TestAddTap_SkipsTrustWhenUntrusted(t *testing.T) {
+	runner := &installRecordingRunner{}
+	if err := AddTap(context.Background(), runner, "nikitabobko/tap", false); err != nil {
+		t.Fatalf("AddTap: %v", err)
+	}
+	if got := strings.Join(runner.installs, ","); got != "tap:nikitabobko/tap" {
+		t.Fatalf("calls = %q, want tap only when trusted=false", got)
+	}
+}
+
 func TestAddTap_SkipsTrustForOfficial(t *testing.T) {
 	runner := &installRecordingRunner{}
-	if err := AddTap(context.Background(), runner, "homebrew/cask-fonts"); err != nil {
+	if err := AddTap(context.Background(), runner, "homebrew/cask-fonts", true); err != nil {
 		t.Fatalf("AddTap: %v", err)
 	}
 	if got := strings.Join(runner.installs, ","); got != "tap:homebrew/cask-fonts" {
@@ -78,9 +88,9 @@ func TestAddTap_SkipsTrustForOfficial(t *testing.T) {
 func TestApplyTapAdds_OnlyTaps(t *testing.T) {
 	runner := &installRecordingRunner{}
 	p := plan.Plan{Actions: []plan.Action{
-		{Type: plan.ActionTapAdd, Name: "homebrew/cask-fonts"},
+		{Type: plan.ActionTapAdd, Name: "homebrew/cask-fonts", Trusted: true},
 		{Type: plan.ActionFormulaInstall, Name: "fzf"},
-		{Type: plan.ActionTapAdd, Name: "nikitabobko/tap"},
+		{Type: plan.ActionTapAdd, Name: "nikitabobko/tap", Trusted: true},
 	}}
 	n, err := ApplyTapAdds(context.Background(), runner, p, nil)
 	if err != nil {
@@ -91,6 +101,23 @@ func TestApplyTapAdds_OnlyTaps(t *testing.T) {
 	}
 	if got := strings.Join(runner.installs, ","); got != "tap:homebrew/cask-fonts,tap:nikitabobko/tap,trust:nikitabobko/tap,update" {
 		t.Fatalf("order = %q", got)
+	}
+}
+
+func TestApplyTapAdds_SkipsTrustWhenUntrusted(t *testing.T) {
+	runner := &installRecordingRunner{}
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionTapAdd, Name: "nikitabobko/tap", Trusted: false},
+	}}
+	n, err := ApplyTapAdds(context.Background(), runner, p, nil)
+	if err != nil {
+		t.Fatalf("ApplyTapAdds: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("count = %d, want 1", n)
+	}
+	if got := strings.Join(runner.installs, ","); got != "tap:nikitabobko/tap,update" {
+		t.Fatalf("order = %q, want tap only then update", got)
 	}
 }
 

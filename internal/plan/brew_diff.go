@@ -27,12 +27,19 @@ func BuildBrewPlan(desired config.Packages, current discovery.BrewState) Plan {
 	currentTaps := sliceSet(current.Taps)
 	trustedTaps := sliceSet(current.TrustedTaps)
 
-	for _, name := range sortedMissingFromSet(desired.TapNames(), currentTaps) {
-		actions = append(actions, Action{Type: ActionTapAdd, Name: brewToken(name)})
+	for _, tap := range sortedMissingTaps(desired.Taps, currentTaps) {
+		actions = append(actions, Action{
+			Type:    ActionTapAdd,
+			Name:    brewToken(tap.Name),
+			Trusted: tap.Trusted,
+		})
 	}
 	var needTrust []string
-	for _, name := range desired.TapNames() {
-		token := brewToken(name)
+	for _, tap := range desired.Taps {
+		if !tap.Trusted {
+			continue
+		}
+		token := brewToken(tap.Name)
 		if !discovery.NeedsExplicitTrust(token) {
 			continue
 		}
@@ -70,6 +77,19 @@ func BuildBrewPlan(desired config.Packages, current discovery.BrewState) Plan {
 // sortedMissing returns names in want that are not in have, sorted alphabetically.
 func sortedMissing(want, have []string) []string {
 	return sortedMissingFromSet(want, sliceSet(have))
+}
+
+func sortedMissingTaps(want []config.TapSpec, have map[string]struct{}) []config.TapSpec {
+	var missing []config.TapSpec
+	for _, tap := range want {
+		if _, ok := have[brewToken(tap.Name)]; !ok {
+			missing = append(missing, tap)
+		}
+	}
+	sort.Slice(missing, func(i, j int) bool {
+		return brewToken(missing[i].Name) < brewToken(missing[j].Name)
+	})
+	return missing
 }
 
 func sortedMissingFromSet(want []string, have map[string]struct{}) []string {
