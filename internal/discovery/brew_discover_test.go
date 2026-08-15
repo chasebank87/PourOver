@@ -180,6 +180,36 @@ func TestParseTrustTapsJSON(t *testing.T) {
 	}
 }
 
+func TestDetectCaskRenames(t *testing.T) {
+	runner := &fakeRunner{
+		responses: map[string][]byte{
+			"info --json=v2 --cask windsurf vmware-horizon-client": []byte(`{
+  "casks": [
+    {"token": "devin-desktop", "old_tokens": ["windsurf"]},
+    {"token": "omnissa-horizon-client", "old_tokens": ["vmware-horizon-client"]}
+  ]
+}`),
+		},
+	}
+	got, err := DetectCaskRenames(context.Background(), runner,
+		[]string{"windsurf", "vmware-horizon-client", "raycast"},
+		[]string{"devin-desktop", "omnissa-horizon-client", "raycast"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("renames = %#v", got)
+	}
+	byFrom := map[string]string{}
+	for _, r := range got {
+		byFrom[r.From] = r.To
+	}
+	if byFrom["windsurf"] != "devin-desktop" || byFrom["vmware-horizon-client"] != "omnissa-horizon-client" {
+		t.Fatalf("byFrom = %#v", byFrom)
+	}
+}
+
 func readFixture(t *testing.T, name string) []byte {
 	t.Helper()
 	path := filepath.Join("..", "..", "test", "fixtures", "brew", name)

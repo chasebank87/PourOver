@@ -37,6 +37,10 @@ func buildPlanWith(ctx context.Context, configPath string, runner discovery.Runn
 		return plan.Plan{}, fmt.Errorf("discover brew: %w", err)
 	}
 	brewPlan := plan.BuildBrewPlan(manifest.Packages, brewState)
+	brewPlan, err = plan.AdviseCaskRenames(ctx, runner, brewPlan, brewState.Casks)
+	if err != nil {
+		return plan.Plan{}, fmt.Errorf("detect cask renames: %w", err)
+	}
 
 	desired := config.FlattenDefaults(manifest.MacOS.Defaults)
 	statuses, err := discovery.DiscoverDefaults(ctx, defaultsRunner, desired)

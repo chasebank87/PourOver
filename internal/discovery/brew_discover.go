@@ -76,23 +76,122 @@ func parseBrewList(out []byte) []string {
 	return fields
 }
 
+// CaskRename is a declared cask token that Homebrew resolves to a different
+// installed token (retired name / old_tokens shim).
+type CaskRename struct {
+	From string // name in config
+	To   string // current Homebrew token
+}
+
+// DetectCaskRenames reports declared cask names that are missing from the
+// installed list but resolve via `brew info` to a different token that is
+// already installed. Callers should advise updating the config instead of
+// installing the old name.
+func DetectCaskRenames(ctx context.Context, runner Runner, declared []string, installed []string) ([]CaskRename, error) {
+	have := map[string]struct{}{}
+	for _, name := range installed {
+		have[brewToken(name)] = struct{}{}
+	}
+	var missing []string
+	for _, name := range declared {
+		token := brewToken(name)
+		if token == "" {
+			continue
+		}
+		if _, ok := have[token]; ok {
+			continue
+		}
+		missing = append(missing, token)
+	}
+	if len(missing) == 0 {
+		return nil, nil
+	}
+
+	args := append([]string{"info", "--json=v2", "--cask"}, missing...)
+	out, err := runner.Run(ctx, args...)
+	if err != nil {
+		// Best-effort: rename detection should not block planning installs.
+		return nil, nil
+	}
+	resolved := parseCaskInfoTokens(out)
+	var renames []CaskRename
+	seen := map[string]struct{}{}
+	for _, from := range missing {
+		to, ok := resolved[from]
+		if !ok || to == "" || to == from {
+			continue
+		}
+		if _, installed := have[to]; !installed {
+			continue
+		}
+		if _, dup := seen[from]; dup {
+			continue
+		}
+		seen[from] = struct{}{}
+		renames = append(renames, CaskRename{From: from, To: to})
+	}
+	return renames, nil
+}
+
+type caskInfoJSON struct {
+	Casks []struct {
+		Token     string   `json:"token"`
+		OldTokens []string `json:"old_tokens"`
+	} `json:"casks"`
+}
+
+// parseCaskInfoTokens maps each requested name (token or old_token) to the
+// canonical token returned by brew info.
+func parseCaskInfoTokens(out []byte) map[string]string {
+	raw := extractJSONObject(out)
+	if raw == nil {
+		return nil
+	}
+	var doc caskInfoJSON
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return nil
+	}
+	resolved := map[string]string{}
+	for _, c := range doc.Casks {
+		token := brewToken(c.Token)
+		if token == "" {
+			continue
+		}
+		resolved[token] = token
+		for _, o := range c.OldTokens {
+			o = brewToken(o)
+			if o != "" {
+				resolved[o] = token
+			}
+		}
+	}
+	return resolved
+}
+
+func extractJSONObject(out []byte) []byte {
+	text := strings.TrimSpace(string(out))
+	if text == "" {
+		return nil
+	}
+	start := strings.Index(text, "{")
+	end := strings.LastIndex(text, "}")
+	if start < 0 || end < start {
+		return nil
+	}
+	return []byte(text[start : end+1])
+}
+
 type trustJSON struct {
 	Taps []string `json:"taps"`
 }
 
 func parseTrustTapsJSON(out []byte) []string {
-	text := strings.TrimSpace(string(out))
-	if text == "" {
-		return nil
-	}
-	// brew may print progress lines before JSON; take the last {...} block.
-	start := strings.LastIndex(text, "{")
-	end := strings.LastIndex(text, "}")
-	if start < 0 || end < start {
+	raw := extractJSONObject(out)
+	if raw == nil {
 		return nil
 	}
 	var doc trustJSON
-	if err := json.Unmarshal([]byte(text[start:end+1]), &doc); err != nil {
+	if err := json.Unmarshal(raw, &doc); err != nil {
 		return nil
 	}
 	if len(doc.Taps) == 0 {

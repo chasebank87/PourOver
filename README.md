@@ -89,7 +89,9 @@ pourover upgrade --skip-self-update
 
 `upgrade` upgrades packages Homebrew reports as outdated. `apply` only installs
 missing packages (never upgrades; brew install is run with `HOMEBREW_NO_INSTALL_UPGRADE`).
-Auto-updating casks (Chrome, Omnissa, …) are skipped when the app on disk is
+If config still uses a retired cask name (e.g. `windsurf` → `devin-desktop`), plan/apply
+shows `cask renamed: …` and asks you to update `packages.lua` — it will not keep
+re-installing the old token. Auto-updating casks are skipped when the app on disk is
 already current even if Caskroom metadata is stale — use `brew upgrade --cask --greedy` for those.
 `pour` is an install-time symlink to `pourover` (same CLI).
 

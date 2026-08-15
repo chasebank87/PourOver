@@ -13,6 +13,7 @@ const (
 	ActionCaskInstall    ActionType = "cask_install"
 	ActionCaskRemove     ActionType = "cask_remove"
 	ActionCaskUpgrade    ActionType = "cask_upgrade"
+	ActionCaskRename     ActionType = "cask_rename" // advise: Name is old token, Value is new token
 	ActionLinkCreate     ActionType = "link_create"
 	ActionLinkUpdate     ActionType = "link_update"
 	ActionDefaultsWrite  ActionType = "defaults_write"

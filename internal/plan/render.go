@@ -53,6 +53,8 @@ func formatActionLine(a Action) string {
 		return fmt.Sprintf("remove cask %s", a.Name)
 	case ActionCaskUpgrade:
 		return fmt.Sprintf("upgrade cask %s", a.Name)
+	case ActionCaskRename:
+		return fmt.Sprintf("cask renamed: %s → %s (update packages.lua)", a.Name, a.Value)
 	case ActionLinkCreate:
 		return fmt.Sprintf("link create %s <- %s", a.Name, a.Source)
 	case ActionLinkUpdate:
