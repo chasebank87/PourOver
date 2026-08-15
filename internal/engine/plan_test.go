@@ -143,12 +143,13 @@ func TestBuildPlan_ManagedAndUnlink(t *testing.T) {
 	}
 
 	runner := &stubBrewRunner{}
-	p, err := BuildPlan(context.Background(), configPath, runner)
+	stateDir := filepath.Join(root, "state")
+	p, err := BuildPlanWith(context.Background(), configPath, runner, discovery.NewExecDefaultsRunner(), nil, stateDir)
 	if err != nil {
 		t.Fatalf("BuildPlan: %v", err)
 	}
-	if names := plan.ActionNames(p, plan.ActionManagedCopy); len(names) != 1 || names[0] != "~/.config/foo.conf" {
-		t.Fatalf("managed copies = %v", names)
+	if names := plan.ActionNames(p, plan.ActionManagedCopy); len(names) != 1 || names[0] != managedTarget {
+		t.Fatalf("managed copies = %v, want [%s]", names, managedTarget)
 	}
 	if names := plan.ActionNames(p, plan.ActionFileUnlink); len(names) != 1 || names[0] != "~/.old-dotfile" {
 		t.Fatalf("unlinks = %v", names)
@@ -176,7 +177,7 @@ func TestBuildPlan_FilePruneFromLock(t *testing.T) {
 	manifest := config.Manifest{
 		Policy: config.Policy{UninstallMode: config.UninstallModeSafe, FilesMode: config.FilesModeSafe},
 	}
-	if err := state.PersistApplyState(stateDir, manifest, plan.Plan{}, time.Now().UTC(), []string{extra}); err != nil {
+	if err := state.PersistApplyState(stateDir, manifest, plan.Plan{}, time.Now().UTC(), []string{extra}, ""); err != nil {
 		t.Fatal(err)
 	}
 
@@ -221,7 +222,7 @@ func TestBuildPlan_FilePruneFromLock(t *testing.T) {
 
 	// empty owned lock → no prune
 	emptyState := filepath.Join(root, "empty-state")
-	if err := state.PersistApplyState(emptyState, manifest, plan.Plan{}, time.Now().UTC(), nil); err != nil {
+	if err := state.PersistApplyState(emptyState, manifest, plan.Plan{}, time.Now().UTC(), nil, ""); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(configPath, []byte(lua), 0o644); err != nil {
@@ -427,7 +428,9 @@ func TestBuildPlan_Templates(t *testing.T) {
 	}
 
 	runner := &stubBrewRunner{}
-	p, err := BuildPlan(context.Background(), configPath, runner)
+	stateDir := filepath.Join(root, "state")
+	target := filepath.Join(home, ".foo")
+	p, err := BuildPlanWith(context.Background(), configPath, runner, discovery.NewExecDefaultsRunner(), nil, stateDir)
 	if err != nil {
 		t.Fatalf("BuildPlan: %v", err)
 	}
@@ -438,17 +441,17 @@ func TestBuildPlan_Templates(t *testing.T) {
 			tmplActs = append(tmplActs, a)
 		}
 	}
-	if len(tmplActs) != 1 || tmplActs[0].Name != "~/.foo" {
-		t.Fatalf("template writes = %#v", tmplActs)
+	if len(tmplActs) != 1 || tmplActs[0].Name != target {
+		t.Fatalf("template writes = %#v, want name %s", tmplActs, target)
 	}
 	if tmplActs[0].Value == "" || tmplActs[0].Source != "config/foo.tmpl" {
 		t.Fatalf("action = %#v", tmplActs[0])
 	}
 
-	if err := os.WriteFile(filepath.Join(home, ".foo"), []byte("static\n"), 0o644); err != nil {
+	if err := os.WriteFile(target, []byte("static\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	p, err = BuildPlan(context.Background(), configPath, runner)
+	p, err = BuildPlanWith(context.Background(), configPath, runner, discovery.NewExecDefaultsRunner(), nil, stateDir)
 	if err != nil {
 		t.Fatalf("BuildPlan same: %v", err)
 	}
@@ -456,14 +459,14 @@ func TestBuildPlan_Templates(t *testing.T) {
 		t.Fatalf("same content should be noop, got %v", names)
 	}
 
-	if err := os.WriteFile(filepath.Join(home, ".foo"), []byte("old\n"), 0o644); err != nil {
+	if err := os.WriteFile(target, []byte("old\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	p, err = BuildPlan(context.Background(), configPath, runner)
+	p, err = BuildPlanWith(context.Background(), configPath, runner, discovery.NewExecDefaultsRunner(), nil, stateDir)
 	if err != nil {
 		t.Fatalf("BuildPlan differ: %v", err)
 	}
-	if names := plan.ActionNames(p, plan.ActionTemplateWrite); len(names) != 1 {
-		t.Fatalf("differ template writes = %v", names)
+	if names := plan.ActionNames(p, plan.ActionTemplateWrite); len(names) != 1 || names[0] != target {
+		t.Fatalf("differ should rewrite, got %v", names)
 	}
 }

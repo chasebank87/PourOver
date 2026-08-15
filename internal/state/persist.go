@@ -20,6 +20,7 @@ import (
 type Lock struct {
 	ManifestHash string   `json:"manifest_hash"`
 	AppliedAt    string   `json:"applied_at"`
+	GenerationID string   `json:"generation_id,omitempty"`
 	OwnedFiles   []string `json:"owned_files,omitempty"` // absolute target paths PourOver manages
 }
 
@@ -54,7 +55,8 @@ func LoadLock(stateDir string) (Lock, error) {
 
 // PersistApplyState writes lock.json and last-plan.json under stateDir.
 // owned is the updated absolute path set callers computed (may be nil/empty).
-func PersistApplyState(stateDir string, manifest config.Manifest, p plan.Plan, appliedAt time.Time, owned []string) error {
+// generationID may be empty for older callers.
+func PersistApplyState(stateDir string, manifest config.Manifest, p plan.Plan, appliedAt time.Time, owned []string, generationID string) error {
 	hash, err := ManifestHash(manifest)
 	if err != nil {
 		return err
@@ -62,6 +64,7 @@ func PersistApplyState(stateDir string, manifest config.Manifest, p plan.Plan, a
 	lock := Lock{
 		ManifestHash: hash,
 		AppliedAt:    appliedAt.UTC().Format(time.RFC3339),
+		GenerationID: generationID,
 		OwnedFiles:   owned,
 	}
 	if err := WriteJSONAtomic(paths.LockFile(stateDir), lock); err != nil {

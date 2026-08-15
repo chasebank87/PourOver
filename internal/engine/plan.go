@@ -6,16 +6,25 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/chasebank87/PourOver/internal/config"
 	"github.com/chasebank87/PourOver/internal/discovery"
+	"github.com/chasebank87/PourOver/internal/generation"
 	"github.com/chasebank87/PourOver/internal/pam"
 	"github.com/chasebank87/PourOver/internal/paths"
 	"github.com/chasebank87/PourOver/internal/plan"
 	"github.com/chasebank87/PourOver/internal/policy"
 	"github.com/chasebank87/PourOver/internal/state"
-	tmpl "github.com/chasebank87/PourOver/internal/template"
 )
+
+// PlanResult is a reconcile plan plus the generation it was built from.
+type PlanResult struct {
+	Plan         plan.Plan
+	Manifest     config.Manifest
+	GenerationID string
+	Generation   generation.Manifest
+}
 
 // BuildPlan loads config at configPath, discovers current state via runner, and
 // returns the merged reconcile plan. Defaults discovery uses the system
@@ -23,7 +32,11 @@ import (
 // paths.DefaultStateDir for owned-file prune. MAS discovery uses
 // discovery.NewExecMasRunner when packages.mas is configured.
 func BuildPlan(ctx context.Context, configPath string, runner discovery.Runner) (plan.Plan, error) {
-	return BuildPlanWith(ctx, configPath, runner, discovery.NewExecDefaultsRunner(), nil, "")
+	res, err := BuildPlanResult(ctx, configPath, runner, discovery.NewExecDefaultsRunner(), nil, "", time.Now())
+	if err != nil {
+		return plan.Plan{}, err
+	}
+	return res.Plan, nil
 }
 
 // BuildPlanWith is like BuildPlan but accepts explicit DefaultsRunner and
@@ -34,27 +47,74 @@ func BuildPlan(ctx context.Context, configPath string, runner discovery.Runner) 
 // When DiscoverMas fails because mas is not on PATH, planning continues with
 // an empty MasState so the implied formula_install mas can bootstrap.
 func BuildPlanWith(ctx context.Context, configPath string, runner discovery.Runner, defaultsRunner discovery.DefaultsRunner, masRunner discovery.MasRunner, stateDir string) (plan.Plan, error) {
+	res, err := BuildPlanResult(ctx, configPath, runner, defaultsRunner, masRunner, stateDir, time.Now())
+	if err != nil {
+		return plan.Plan{}, err
+	}
+	return res.Plan, nil
+}
+
+// BuildGeneration evaluates Lua and writes a new activation generation (no live writes).
+func BuildGeneration(configPath, stateDir string, at time.Time) (generation.BuildResult, config.Manifest, error) {
 	manifest, err := config.LoadManifest(configPath)
 	if err != nil {
-		return plan.Plan{}, fmt.Errorf("load config: %w", err)
+		return generation.BuildResult{}, config.Manifest{}, fmt.Errorf("load config: %w", err)
 	}
+	if stateDir == "" {
+		stateDir, err = paths.DefaultStateDir()
+		if err != nil {
+			return generation.BuildResult{}, config.Manifest{}, fmt.Errorf("state directory: %w", err)
+		}
+	}
+	if at.IsZero() {
+		at = time.Now()
+	}
+	res, err := generation.Build(stateDir, filepath.Dir(configPath), manifest, at)
+	if err != nil {
+		return generation.BuildResult{}, config.Manifest{}, err
+	}
+	return res, manifest, nil
+}
+
+// BuildPlanResult builds a generation then plans live state against it.
+func BuildPlanResult(ctx context.Context, configPath string, runner discovery.Runner, defaultsRunner discovery.DefaultsRunner, masRunner discovery.MasRunner, stateDir string, at time.Time) (PlanResult, error) {
+	manifest, err := config.LoadManifest(configPath)
+	if err != nil {
+		return PlanResult{}, fmt.Errorf("load config: %w", err)
+	}
+
+	if stateDir == "" {
+		stateDir, err = paths.DefaultStateDir()
+		if err != nil {
+			return PlanResult{}, fmt.Errorf("state directory: %w", err)
+		}
+	}
+	if at.IsZero() {
+		at = time.Now()
+	}
+	configDir := filepath.Dir(configPath)
+	genRes, err := generation.Build(stateDir, configDir, manifest, at)
+	if err != nil {
+		return PlanResult{}, fmt.Errorf("build generation: %w", err)
+	}
+	gen := genRes.Manifest
 
 	brewState, err := discovery.DiscoverBrew(ctx, runner)
 	if err != nil {
-		return plan.Plan{}, fmt.Errorf("discover brew: %w", err)
+		return PlanResult{}, fmt.Errorf("discover brew: %w", err)
 	}
-	pamCfg := manifest.MacOS.Security.PAM.SudoLocal
-	packages := plan.ExpandPAMFormulae(manifest.Packages, pamCfg)
+	pamCfg := gen.MacOS.Security.PAM.SudoLocal
+	packages := plan.ExpandPAMFormulae(gen.Packages, pamCfg)
 	packages = plan.ExpandMasFormulae(packages)
 	deps, err := discovery.FormulaDependencyClosure(ctx, runner, packages.Formulae)
 	if err != nil {
-		return plan.Plan{}, fmt.Errorf("formula deps: %w", err)
+		return PlanResult{}, fmt.Errorf("formula deps: %w", err)
 	}
 	brewState.ProtectedFormulae = deps
 	brewPlan := plan.BuildBrewPlan(packages, brewState)
 	brewPlan, err = plan.AdviseCaskRenames(ctx, runner, brewPlan, brewState.Casks)
 	if err != nil {
-		return plan.Plan{}, fmt.Errorf("detect cask renames: %w", err)
+		return PlanResult{}, fmt.Errorf("detect cask renames: %w", err)
 	}
 
 	var masPlan plan.Plan
@@ -64,12 +124,10 @@ func BuildPlanWith(ctx context.Context, configPath string, runner discovery.Runn
 		}
 		masState, err := discovery.DiscoverMas(ctx, masRunner)
 		if err != nil {
-			// Bootstrap: mas formula may not be installed yet. Treat missing
-			// binary as empty state so formula_install mas + mas_install remain.
 			if discovery.IsMasNotFound(err) {
 				masState = discovery.MasState{}
 			} else {
-				return plan.Plan{}, fmt.Errorf("discover mas: %w", err)
+				return PlanResult{}, fmt.Errorf("discover mas: %w", err)
 			}
 		}
 		masPlan = plan.BuildMasPlan(packages, masState)
@@ -77,73 +135,50 @@ func BuildPlanWith(ctx context.Context, configPath string, runner discovery.Runn
 
 	pamPlan, err := buildPAMPlan(ctx, runner, pamCfg, plan.DefaultPAMSudoLocalPath, plan.DefaultPAMSudoPath)
 	if err != nil {
-		return plan.Plan{}, fmt.Errorf("plan pam: %w", err)
+		return PlanResult{}, fmt.Errorf("plan pam: %w", err)
 	}
 
-	desired := config.FlattenDefaults(manifest.MacOS.Defaults)
+	desired := config.FlattenDefaults(gen.MacOS.Defaults)
 	statuses, err := discovery.DiscoverDefaults(ctx, defaultsRunner, desired)
 	if err != nil {
-		return plan.Plan{}, fmt.Errorf("discover macos defaults: %w", err)
+		return PlanResult{}, fmt.Errorf("discover macos defaults: %w", err)
 	}
 	defaultsPlan := plan.BuildDefaultsPlan(statuses)
 
-	configDir := filepath.Dir(configPath)
-	replaceMode := policy.ResolveFileReplaceFromManifest(manifest)
-	linkStatuses, err := discovery.DiscoverFileLinks(manifest.Files.Links, configDir)
+	replaceMode := policy.ResolveFileReplace(string(gen.Policy.FileReplace))
+	genStatuses, err := generation.DiscoverFiles(gen.Files)
 	if err != nil {
-		return plan.Plan{}, fmt.Errorf("discover files: %w", err)
+		return PlanResult{}, fmt.Errorf("discover generation files: %w", err)
 	}
-	filePlan, err := plan.BuildFilePlan(linkStatuses, replaceMode)
+	filePlan, err := plan.BuildGenerationFilePlan(genStatuses, replaceMode)
 	if err != nil {
-		return plan.Plan{}, err
-	}
-
-	managedStatuses, err := discovery.DiscoverManagedFiles(manifest.Files.Managed, configDir)
-	if err != nil {
-		return plan.Plan{}, fmt.Errorf("discover managed files: %w", err)
-	}
-	managedPlan, err := plan.BuildManagedPlan(managedStatuses, replaceMode)
-	if err != nil {
-		return plan.Plan{}, err
+		return PlanResult{}, err
 	}
 
-	tmplCtx, err := tmpl.DefaultContext()
+	unlinkStatuses, err := discovery.DiscoverUnlinkPaths(gen.Unlink, configDir)
 	if err != nil {
-		return plan.Plan{}, fmt.Errorf("template context: %w", err)
-	}
-	templateStatuses, err := discovery.DiscoverTemplateFiles(manifest.Files.Templates, configDir, tmplCtx)
-	if err != nil {
-		return plan.Plan{}, fmt.Errorf("discover templates: %w", err)
-	}
-	templatePlan, err := plan.BuildTemplatePlan(templateStatuses, replaceMode)
-	if err != nil {
-		return plan.Plan{}, err
-	}
-
-	unlinkStatuses, err := discovery.DiscoverUnlinkPaths(manifest.Files.Unlink, configDir)
-	if err != nil {
-		return plan.Plan{}, fmt.Errorf("discover unlink paths: %w", err)
+		return PlanResult{}, fmt.Errorf("discover unlink paths: %w", err)
 	}
 	unlinkPlan, err := plan.BuildUnlinkPlan(unlinkStatuses)
 	if err != nil {
-		return plan.Plan{}, err
+		return PlanResult{}, err
 	}
 
-	if stateDir == "" {
-		stateDir, err = paths.DefaultStateDir()
-		if err != nil {
-			return plan.Plan{}, fmt.Errorf("state directory: %w", err)
-		}
-	}
 	lock, err := state.LoadLock(stateDir)
 	if err != nil {
-		return plan.Plan{}, fmt.Errorf("load lock: %w", err)
+		return PlanResult{}, fmt.Errorf("load lock: %w", err)
 	}
-	filesMode := policy.ResolveFilesModeFromManifest(manifest)
-	prunePlan := plan.BuildFilePrunePlan(lock.OwnedFiles, declaredFileTargets(manifest), filesMode)
+	filesMode := policy.ResolveFilesMode(string(gen.Policy.FilesMode))
+	prunePlan := plan.BuildFilePrunePlan(lock.OwnedFiles, generation.DeclaredTargets(gen), filesMode)
 
-	// brew → mas → pam → macos defaults → file links → managed copies → templates → unlinks → prune
-	return plan.MergePlans(brewPlan, masPlan, pamPlan, defaultsPlan, filePlan, managedPlan, templatePlan, unlinkPlan, prunePlan), nil
+	// brew → mas → pam → macos defaults → generation files → unlinks → prune
+	merged := plan.MergePlans(brewPlan, masPlan, pamPlan, defaultsPlan, filePlan, unlinkPlan, prunePlan)
+	return PlanResult{
+		Plan:         merged,
+		Manifest:     manifest,
+		GenerationID: gen.ID,
+		Generation:   gen,
+	}, nil
 }
 
 func buildPAMPlan(ctx context.Context, runner discovery.Runner, cfg config.SudoLocalPAM, sudoLocalPath, sudoPath string) (plan.Plan, error) {
@@ -210,22 +245,4 @@ func readOptionalFile(path string) ([]byte, bool, error) {
 		return nil, false, err
 	}
 	return data, true, nil
-}
-
-// declaredFileTargets returns paths that should not be pruned: current links,
-// managed, and template targets, plus explicit unlink paths (those get file_unlink instead).
-func declaredFileTargets(m config.Manifest) []string {
-	n := len(m.Files.Links) + len(m.Files.Managed) + len(m.Files.Templates) + len(m.Files.Unlink)
-	out := make([]string, 0, n)
-	for _, link := range m.Files.Links {
-		out = append(out, link.Target)
-	}
-	for _, file := range m.Files.Managed {
-		out = append(out, file.Target)
-	}
-	for _, file := range m.Files.Templates {
-		out = append(out, file.Target)
-	}
-	out = append(out, m.Files.Unlink...)
-	return out
 }

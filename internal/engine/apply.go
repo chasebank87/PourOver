@@ -111,10 +111,11 @@ func Apply(ctx context.Context, runner discovery.Runner, p plan.Plan, opts Apply
 
 	phase("links")
 	fileOpts := exec.FileApplyOptions{
-		ConfigDir:   configDir,
-		StateDir:    opts.StateDir,
-		FileReplace: opts.FileReplace,
-		Now:         opts.Now,
+		ConfigDir:    configDir,
+		StateDir:     opts.StateDir,
+		GenerationID: opts.GenerationID,
+		FileReplace:  opts.FileReplace,
+		Now:          opts.Now,
 	}
 	linked, err := exec.ApplyFileLinks(p, fileOpts, progress)
 	if err != nil {

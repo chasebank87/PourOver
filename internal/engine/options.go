@@ -28,6 +28,7 @@ type ApplyOptions struct {
 	Stdout      io.Writer          // optional; brew/mas log sink
 	Stderr      io.Writer
 	Now         func() time.Time // optional; timestamps for file backups
+	GenerationID string // activation generation for file blob payloads
 	// MasRunner executes mas CLI mutations (nil → NewExecMasRunner).
 	MasRunner discovery.MasRunner
 	// PAMSudoLocalPath / PAMSudoPath override /etc/pam.d paths (tests inject temp dirs).

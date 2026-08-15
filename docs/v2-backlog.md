@@ -75,7 +75,8 @@ Ideas and scope **explicitly deferred from v1**. When we cut v1, anything not do
 | Item | Deferred from | Notes |
 |------|---------------|-------|
 | Linux / non-macOS support | Design v1 non-goals | **macOS-only forever** — not a deferred port |
-| Full Nix-like store / build graph | Design v1 non-goals | Declarative reconcile only |
+| Full Nix-like store / build graph | Design v1 non-goals | Still out of scope. **v0.3** ships an activation **generation** + content-addressed **file** blobs (evaluate → activate copies), not `/nix/store` or Homebrew substitution. |
+| Generation rollback TUI | activation-generation | History on disk (`generations/` + `current`); no one-click rollback UI yet |
 
 ## macOS defaults (follow-ups)
 
@@ -97,13 +98,13 @@ Ideas and scope **explicitly deferred from v1**. When we cut v1, anything not do
 
 See **D3** in micro-steps. v1 file behavior:
 
-- **`files.links` only** (symlinks)
+- **`files.links`** — declarations; v0.3+ activate as regular-file copies from the generation store (not live symlinks)
 - Source paths relative to the directory containing `pourover.lua`
-- Targets support `~` expansion; compare canonical absolute paths
-- No automatic unlink of undeclared symlinks
-- Existing non-symlink at target → **error** in plan (no force)
-- Source must exist at plan time
-- Plan/apply order: brew actions, then macOS defaults, then file link actions
+- Targets support `~` expansion; generation stores absolute targets
+- No automatic unlink of undeclared paths without ownership/prune
+- Unexpected target types → **error** in plan unless `file_replace=backup`
+- Source must exist at build/plan time
+- Plan/apply order: brew → mas → pam → defaults → generation files → unlink → prune
 
 ---
 

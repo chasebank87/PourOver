@@ -77,8 +77,8 @@ func NewRootCommand() *cobra.Command {
 		Short: "Declarative macOS environment manager",
 		Long: `PourOver is a declarative macOS environment manager.
 
-It reconciles Homebrew packages, dotfiles, and config files from a
-declarative config (~/.pourover/) with one command: pourover apply.`,
+It reconciles Homebrew packages, Mac App Store apps, defaults, and
+dotfiles from ~/.pourover via an activation generation: pourover apply.`,
 		Version:       version.String(),
 		SilenceErrors: true,
 	}
@@ -87,6 +87,7 @@ declarative config (~/.pourover/) with one command: pourover apply.`,
 		commands.NewInitCmd(),
 		commands.NewImportCmd(),
 		commands.NewConfigCmd(),
+		commands.NewBuildCmd(),
 		commands.NewPlanCmd(),
 		commands.NewApplyCmd(),
 		commands.NewUpgradeCmd(),

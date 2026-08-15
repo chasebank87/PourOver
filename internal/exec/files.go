@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/chasebank87/PourOver/internal/config"
+	"github.com/chasebank87/PourOver/internal/generation"
 	"github.com/chasebank87/PourOver/internal/plan"
 	tmpl "github.com/chasebank87/PourOver/internal/template"
 )
@@ -43,10 +44,11 @@ func UpdateLink(targetPath, sourcePath string) error {
 
 // FileApplyOptions configures file link/copy apply with optional backup-on-replace.
 type FileApplyOptions struct {
-	ConfigDir   string
-	StateDir    string
-	FileReplace config.FileReplaceMode
-	Now         func() time.Time
+	ConfigDir    string
+	StateDir     string
+	GenerationID string // when set, link/managed/template payloads come from generation blobs
+	FileReplace  config.FileReplaceMode
+	Now          func() time.Time
 }
 
 func (o FileApplyOptions) clock() time.Time {
@@ -57,15 +59,11 @@ func (o FileApplyOptions) clock() time.Time {
 }
 
 // ApplyFileLinks runs link_create, link_update, and link_replace actions.
-// Source paths are resolved relative to configDir; target paths expand ~.
-// link_replace backs up an existing target under StateDir/backups/files/ then creates the link.
-// Per-link failures are collected so later links still run (same soft-fail model as brew).
+// When GenerationID is set, writes regular files from generation blobs (Value = hash).
+// Otherwise copies from ConfigDir sources. Never creates symlinks.
+// Existing symlinks at the target are replaced with regular files.
+// link_replace / backup mode moves unexpected targets aside first.
 func ApplyFileLinks(p plan.Plan, opts FileApplyOptions, progress Progress) (int, error) {
-	configDir, err := filepath.Abs(opts.ConfigDir)
-	if err != nil {
-		return 0, fmt.Errorf("config directory: %w", err)
-	}
-
 	n := 0
 	var errs []error
 	for _, a := range p.Actions {
@@ -77,12 +75,6 @@ func ApplyFileLinks(p plan.Plan, opts FileApplyOptions, progress Progress) (int,
 
 		report(progress, a)
 
-		sourcePath, err := resolveLinkSource(a.Source, configDir)
-		if err != nil {
-			reportFailure(progress, err)
-			errs = append(errs, err)
-			continue
-		}
 		targetPath, err := resolveLinkTarget(a.Name)
 		if err != nil {
 			reportFailure(progress, err)
@@ -90,15 +82,21 @@ func ApplyFileLinks(p plan.Plan, opts FileApplyOptions, progress Progress) (int,
 			continue
 		}
 
-		switch a.Type {
-		case plan.ActionLinkCreate:
-			err = CreateLink(targetPath, sourcePath)
-		case plan.ActionLinkUpdate:
-			err = UpdateLink(targetPath, sourcePath)
-		case plan.ActionLinkReplace:
-			err = replaceLinkWithBackup(targetPath, sourcePath, opts.StateDir, opts.clock())
-		}
+		data, mode, err := loadFilePayload(a, opts)
 		if err != nil {
+			reportFailure(progress, err)
+			errs = append(errs, err)
+			continue
+		}
+
+		backupFirst := opts.FileReplace == config.FileReplaceBackup ||
+			a.Type == plan.ActionLinkReplace ||
+			a.Kind == "backup"
+		if err := writeManagedBytes(targetPath, data, mode, ManagedCopyOptions{
+			StateDir:    opts.StateDir,
+			BackupFirst: backupFirst,
+			Now:         opts.clock(),
+		}, "link activate"); err != nil {
 			reportFailure(progress, err)
 			errs = append(errs, err)
 			continue
@@ -108,15 +106,42 @@ func ApplyFileLinks(p plan.Plan, opts FileApplyOptions, progress Progress) (int,
 	return n, errors.Join(errs...)
 }
 
-func replaceLinkWithBackup(targetPath, sourcePath, stateDir string, at time.Time) error {
-	if _, err := os.Lstat(targetPath); err == nil {
-		if _, err := BackupAside(stateDir, targetPath, at); err != nil {
-			return fmt.Errorf("link replace %s: %w", targetPath, err)
+func loadFilePayload(a plan.Action, opts FileApplyOptions) ([]byte, os.FileMode, error) {
+	mode := parseFileMode(a.Kind)
+	if opts.GenerationID != "" && a.Value != "" {
+		data, err := generation.ReadBlob(opts.StateDir, opts.GenerationID, a.Value)
+		if err != nil {
+			return nil, 0, err
 		}
-	} else if !os.IsNotExist(err) {
-		return fmt.Errorf("link replace %s: %w", targetPath, err)
+		return data, mode, nil
 	}
-	return CreateLink(targetPath, sourcePath)
+	configDir, err := filepath.Abs(opts.ConfigDir)
+	if err != nil {
+		return nil, 0, fmt.Errorf("config directory: %w", err)
+	}
+	sourcePath, err := resolveLinkSource(a.Source, configDir)
+	if err != nil {
+		return nil, 0, err
+	}
+	data, err := os.ReadFile(sourcePath)
+	if err != nil {
+		return nil, 0, fmt.Errorf("read source %s: %w", a.Source, err)
+	}
+	if info, err := os.Stat(sourcePath); err == nil {
+		mode = info.Mode().Perm()
+	}
+	return data, mode, nil
+}
+
+func parseFileMode(kind string) os.FileMode {
+	if kind == "" || kind == "backup" {
+		return 0o644
+	}
+	var m uint32
+	if _, err := fmt.Sscanf(kind, "%o", &m); err != nil {
+		return 0o644
+	}
+	return os.FileMode(m).Perm()
 }
 
 // BackupAside moves path aside under stateDir/backups/files/<timestamp>/<escaped-path>.
@@ -198,15 +223,11 @@ func expandHomePath(path string) (string, error) {
 }
 
 // ApplyManagedCopies runs managed_copy actions with atomic writes.
-// Source paths are resolved relative to configDir; target paths expand ~.
+// When GenerationID is set, payloads come from generation blobs (Value = hash).
+// Otherwise sources are resolved relative to configDir. Targets expand ~.
 // When FileReplace is backup, unexpected target types (e.g. directories) are moved aside first.
 // Per-file failures are collected so later copies still run.
 func ApplyManagedCopies(p plan.Plan, opts FileApplyOptions, progress Progress) (int, error) {
-	configDir, err := filepath.Abs(opts.ConfigDir)
-	if err != nil {
-		return 0, fmt.Errorf("config directory: %w", err)
-	}
-
 	n := 0
 	var errs []error
 	for _, a := range p.Actions {
@@ -215,12 +236,6 @@ func ApplyManagedCopies(p plan.Plan, opts FileApplyOptions, progress Progress) (
 		}
 		report(progress, a)
 
-		sourcePath, err := resolveLinkSource(a.Source, configDir)
-		if err != nil {
-			reportFailure(progress, err)
-			errs = append(errs, err)
-			continue
-		}
 		targetPath, err := resolveLinkTarget(a.Name)
 		if err != nil {
 			reportFailure(progress, err)
@@ -228,12 +243,19 @@ func ApplyManagedCopies(p plan.Plan, opts FileApplyOptions, progress Progress) (
 			continue
 		}
 
+		data, mode, err := loadFilePayload(a, opts)
+		if err != nil {
+			reportFailure(progress, err)
+			errs = append(errs, err)
+			continue
+		}
+
 		backupFirst := opts.FileReplace == config.FileReplaceBackup || a.Kind == "backup"
-		if err := ManagedCopy(sourcePath, targetPath, ManagedCopyOptions{
+		if err := writeManagedBytes(targetPath, data, mode, ManagedCopyOptions{
 			StateDir:    opts.StateDir,
 			BackupFirst: backupFirst,
 			Now:         opts.clock(),
-		}); err != nil {
+		}, "managed copy"); err != nil {
 			reportFailure(progress, err)
 			errs = append(errs, err)
 			continue
@@ -274,20 +296,11 @@ func ManagedCopy(sourcePath, targetPath string, opts ...ManagedCopyOptions) erro
 	return writeManagedBytes(targetPath, data, mode, o, "managed copy")
 }
 
-// ApplyTemplateWrites runs template_write actions: re-render at apply time and
-// write atomically (same temp+rename / backup path as managed copies).
-// Action.Value is ignored (it holds a plan-time unified diff). Soft-fails per file.
+// ApplyTemplateWrites runs template_write actions.
+// When GenerationID is set, writes the pre-rendered generation blob (Value = hash).
+// Otherwise re-renders from ConfigDir sources at apply time.
+// Soft-fails per file.
 func ApplyTemplateWrites(p plan.Plan, opts FileApplyOptions, progress Progress) (int, error) {
-	configDir, err := filepath.Abs(opts.ConfigDir)
-	if err != nil {
-		return 0, fmt.Errorf("config directory: %w", err)
-	}
-
-	ctx, err := tmpl.DefaultContext()
-	if err != nil {
-		return 0, fmt.Errorf("template context: %w", err)
-	}
-
 	n := 0
 	var errs []error
 	for _, a := range p.Actions {
@@ -296,12 +309,6 @@ func ApplyTemplateWrites(p plan.Plan, opts FileApplyOptions, progress Progress) 
 		}
 		report(progress, a)
 
-		sourcePath, err := resolveLinkSource(a.Source, configDir)
-		if err != nil {
-			reportFailure(progress, err)
-			errs = append(errs, err)
-			continue
-		}
 		targetPath, err := resolveLinkTarget(a.Name)
 		if err != nil {
 			reportFailure(progress, err)
@@ -309,23 +316,53 @@ func ApplyTemplateWrites(p plan.Plan, opts FileApplyOptions, progress Progress) 
 			continue
 		}
 
-		src, err := os.ReadFile(sourcePath)
-		if err != nil {
-			err = fmt.Errorf("template write %s: read source: %w", targetPath, err)
-			reportFailure(progress, err)
-			errs = append(errs, err)
-			continue
-		}
-		rendered, err := tmpl.Render(string(src), ctx)
-		if err != nil {
-			err = fmt.Errorf("template write %s: %w", targetPath, err)
-			reportFailure(progress, err)
-			errs = append(errs, err)
-			continue
+		var data []byte
+		var mode os.FileMode = 0o644
+		if opts.GenerationID != "" && a.Value != "" {
+			data, mode, err = loadFilePayload(a, opts)
+			if err != nil {
+				reportFailure(progress, err)
+				errs = append(errs, err)
+				continue
+			}
+		} else {
+			configDir, err := filepath.Abs(opts.ConfigDir)
+			if err != nil {
+				reportFailure(progress, err)
+				errs = append(errs, err)
+				continue
+			}
+			sourcePath, err := resolveLinkSource(a.Source, configDir)
+			if err != nil {
+				reportFailure(progress, err)
+				errs = append(errs, err)
+				continue
+			}
+			ctx, err := tmpl.DefaultContext()
+			if err != nil {
+				reportFailure(progress, err)
+				errs = append(errs, err)
+				continue
+			}
+			src, err := os.ReadFile(sourcePath)
+			if err != nil {
+				err = fmt.Errorf("template write %s: read source: %w", targetPath, err)
+				reportFailure(progress, err)
+				errs = append(errs, err)
+				continue
+			}
+			rendered, err := tmpl.Render(string(src), ctx)
+			if err != nil {
+				err = fmt.Errorf("template write %s: %w", targetPath, err)
+				reportFailure(progress, err)
+				errs = append(errs, err)
+				continue
+			}
+			data = []byte(rendered)
 		}
 
 		backupFirst := opts.FileReplace == config.FileReplaceBackup || a.Kind == "backup"
-		if err := writeManagedBytes(targetPath, []byte(rendered), 0o644, ManagedCopyOptions{
+		if err := writeManagedBytes(targetPath, data, mode, ManagedCopyOptions{
 			StateDir:    opts.StateDir,
 			BackupFirst: backupFirst,
 			Now:         opts.clock(),
@@ -369,6 +406,10 @@ func writeManagedBytes(targetPath string, data []byte, mode os.FileMode, o Manag
 				}
 			} else if err := os.Remove(targetPath); err != nil {
 				return fmt.Errorf("%s %s: remove symlink: %w", op, targetPath, err)
+			}
+		} else if o.BackupFirst {
+			if _, err := BackupAside(o.StateDir, targetPath, o.Now); err != nil {
+				return fmt.Errorf("%s %s: %w", op, targetPath, err)
 			}
 		}
 	} else if !os.IsNotExist(err) {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/chasebank87/PourOver/internal/config"
 	"github.com/chasebank87/PourOver/internal/discovery"
+	"github.com/chasebank87/PourOver/internal/generation"
 )
 
 // BuildFilePlan computes link create/update/replace actions from discovered link status.
@@ -56,6 +57,70 @@ func linkAction(typ ActionType, st discovery.FileLinkStatus) Action {
 		Name:   st.Link.Target,
 		Source: st.Link.Source,
 	}
+}
+
+// BuildGenerationFilePlan emits file actions from generation blob vs live status.
+// Value holds the content hash so apply can read the generation blob.
+// Links use link_*; managed use managed_copy; templates use template_write.
+// Symlink targets appear as Differ and become update/create writes (not symlinks).
+func BuildGenerationFilePlan(statuses []generation.FileStatus, replaceMode config.FileReplaceMode) (Plan, error) {
+	var actions []Action
+	for _, st := range statuses {
+		switch st.Kind {
+		case generation.FileStatusSame:
+			continue
+		case generation.FileStatusMissing, generation.FileStatusDiffer:
+			actions = append(actions, genFileAction(st, false))
+		case generation.FileStatusBlocked:
+			if replaceMode == config.FileReplaceBackup {
+				a := genFileAction(st, true)
+				actions = append(actions, a)
+				continue
+			}
+			return Plan{}, fmt.Errorf(
+				"target %q exists and is not a replaceable file (source %q)",
+				st.Entry.Target, st.Entry.Source,
+			)
+		default:
+			return Plan{}, fmt.Errorf("unknown generation file status %q for target %q", st.Kind, st.Entry.Target)
+		}
+	}
+	sort.Slice(actions, func(i, j int) bool {
+		if actions[i].Type != actions[j].Type {
+			return actions[i].Type < actions[j].Type
+		}
+		return actions[i].Name < actions[j].Name
+	})
+	return Plan{Actions: actions}, nil
+}
+
+func genFileAction(st generation.FileStatus, backup bool) Action {
+	e := st.Entry
+	a := Action{
+		Name:   e.Target,
+		Source: e.Source,
+		Value:  e.Hash,
+		Kind:   e.Mode,
+	}
+	if backup {
+		a.Kind = "backup"
+	}
+	switch e.Kind {
+	case generation.FileKindManaged:
+		a.Type = ActionManagedCopy
+	case generation.FileKindTemplate:
+		a.Type = ActionTemplateWrite
+	default:
+		switch st.Kind {
+		case generation.FileStatusMissing:
+			a.Type = ActionLinkCreate
+		case generation.FileStatusBlocked:
+			a.Type = ActionLinkReplace
+		default:
+			a.Type = ActionLinkUpdate
+		}
+	}
+	return a
 }
 
 // BuildManagedPlan computes managed_copy actions from discovered managed status.

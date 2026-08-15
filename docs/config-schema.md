@@ -71,13 +71,14 @@ Each entry:
 
 **Behavior:**
 
-- Plan/apply only creates or updates symlinks for declared links.
-- `source` must exist when planning.
-- If `target` exists and is not a symlink → plan error unless `policy.file_replace = "backup"` (or `"force"`), which emits `link_replace` and moves the target aside under `state/backups/files/` before linking.
+- Plan/apply materializes **regular files** at `target` from generation blobs (content copied from `source` at build time). Directory sources expand to a tree of files under `target`.
+- Editing files under `~/.pourover` is **not** live — run `pourover build` or `pourover apply` to refresh.
+- Existing PourOver **symlinks** at the target are replaced with regular files on apply.
+- If `target` is an unexpected type (e.g. directory) → plan error unless `policy.file_replace = "backup"` (or `"force"`), which moves the target aside under `state/backups/files/` before writing.
 - Undeclared **owned** paths may be pruned when `policy.files_mode` is `safe` or `strict` (see below). Use `files.unlink` for explicit removals.
 - Typical layout: sources under `~/.pourover/config/...`, targets under `~/.config/...`.
 
-`pourover import --files` copies existing home/`~/.config` paths into the config tree, writes `files.links`, and retargets live paths to symlinks (use `--force` if links are already declared).
+`pourover import --files` copies existing home/`~/.config` paths into the config tree and writes `files.links` (use `--force` if links are already declared). After apply, live paths are regular files activated from the generation, not symlinks.
 
 ### `files.managed` (V2 Phase 3)
 
@@ -177,10 +178,10 @@ policy = {
 
 ### `policy.file_replace`
 
-Controls what happens when a `files.links` target already exists as a regular file (or other non-symlink), or when a `files.managed` / `files.templates` target is an unexpected type (e.g. a directory).
+Controls what happens when a declared file target is an unexpected type (e.g. a directory blocking a regular-file write).
 
-- **error** (default) — plan fails with a blocked-target error (v1 behavior for links)
-- **backup** — move the existing target aside under the state directory, then create the link or write the managed file
+- **error** (default) — plan fails with a blocked-target error
+- **backup** — move the existing target aside under the state directory, then write the file
 - **force** — accepted synonym for `backup`
 
 Backup destination:

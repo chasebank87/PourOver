@@ -2,7 +2,7 @@
 
 Declarative Homebrew, Mac App Store, and dotfile management for macOS.
 
-PourOver loads `~/.pourover/pourover.lua`, plans the diff against your machine, and applies Homebrew packages (including taps with optional `trusted` flags), Mac App Store apps (`packages.mas` via the `mas` CLI), macOS `defaults`, optional Touch ID / Watch sudo PAM (`macos.security.pam.sudo_local`), and symlink file links.
+PourOver loads `~/.pourover/pourover.lua`, builds an **activation generation** (frozen packages + file contents), plans the diff against your machine, and applies Homebrew packages (including taps with optional `trusted` flags), Mac App Store apps (`packages.mas` via the `mas` CLI), macOS `defaults`, optional Touch ID / Watch sudo PAM (`macos.security.pam.sudo_local`), and declared files as **regular file copies** (not live symlinks).
 
 **macOS only, forever.** Linux and other platforms are out of scope.
 
@@ -63,6 +63,7 @@ New machine:
 ```bash
 pourover init
 pourover doctor
+pourover build      # optional: freeze config into a generation only
 pourover plan
 pourover apply --dry-run
 pourover apply
@@ -78,6 +79,7 @@ pourover plan
 pourover apply
 ```
 
+**Activation model:** `pourover apply` builds a generation under Application Support, then activates it. Editing sources under `~/.pourover` is **not** live — declared `files.links` are copied to targets as regular files (legacy symlinks are replaced on apply). This is evaluate-then-activate (nix-darwin inspired), not a full Nix store.
 `init` scaffolds `~/.pourover/` (`pourover.lua`, `packages.lua`, example `config/`). Use `--force` to overwrite.
 
 `apply --dry-run` matches `plan`. Use `apply --yes` to skip uninstall confirmation prompts (CI).
@@ -201,8 +203,10 @@ Re-import without `--force` only adds newly discovered packages, taps, App Store
 
 `policy.file_replace`:
 
-- **error** (default) — plan fails when a link target exists as a regular file (or managed/template target is an unexpected type such as a directory)
-- **backup** — move the existing target aside under `<stateDir>/backups/files/<timestamp>/<escaped-path>`, then link, copy, or write a template (`force` is an accepted alias)
+- **error** (default) — plan fails when a declared file target is an unexpected type (e.g. a directory)
+- **backup** — move the existing target aside under `<stateDir>/backups/files/<timestamp>/<escaped-path>`, then write a regular file (`force` is an accepted alias)
+
+`files.links` declare managed paths whose contents are frozen into the activation generation and written as **regular files** on apply (not symlinks). Editing `~/.pourover` sources is not live until the next `build`/`apply`.
 
 `policy.files_mode` (PourOver-owned undeclared file targets from `lock.json` `owned_files`):
 
@@ -222,7 +226,9 @@ Packages declared under `formulae` or `casks` count as declared for either type 
 | State | `~/Library/Application Support/PourOver/state/` |
 | iCloud mirror | `~/Library/Mobile Documents/com~apple~CloudDocs/PourOver/` |
 
-State artifacts: `lock.json` (includes `owned_files`), `last-plan.json`, `history/`, `snapshots/`, `backups/files/` (file replace backups).
+State artifacts: `lock.json` (includes `owned_files` and `generation_id`), `current` (active generation id), `generations/<id>/` (manifest + content-addressed file blobs), `last-plan.json`, `history/`, `snapshots/`, `backups/files/` (file replace backups).
+
+This is an **activation generation / file store**, not a Nix `/nix/store` or flake lock — Homebrew remains the package engine.
 
 Enable iCloud state mirroring:
 

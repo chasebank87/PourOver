@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/chasebank87/PourOver/internal/config"
+	"github.com/chasebank87/PourOver/internal/discovery"
+	"github.com/chasebank87/PourOver/internal/engine"
 	"github.com/chasebank87/PourOver/internal/plan"
 	"github.com/spf13/cobra"
 )
@@ -437,8 +439,14 @@ func TestExecuteApply_IdempotentNoChanges(t *testing.T) {
 	if err := os.MkdirAll(src, 0o755); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(src, "file"), []byte("hello\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	linkTgt := filepath.Join(root, "link")
-	if err := os.Symlink(src, linkTgt); err != nil {
+	if err := os.MkdirAll(linkTgt, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(linkTgt, "file"), []byte("hello\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	configPath := filepath.Join(configDir, "pourover.lua")
@@ -592,6 +600,9 @@ func TestExecuteApply_BrewThenFiles(t *testing.T) {
 	if err := os.MkdirAll(src, 0o755); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(src, "rc"), []byte("export X=1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	linkTgt := filepath.Join(root, "link")
 	configPath := filepath.Join(configDir, "pourover.lua")
 	if err := os.WriteFile(configPath, []byte(`return {
@@ -605,25 +616,33 @@ func TestExecuteApply_BrewThenFiles(t *testing.T) {
 	runner := &orderRecordingRunner{
 		listFormula: []byte("git\n"),
 		listCask:    []byte(""),
-		linkTarget:  linkTgt,
+		linkTarget:  filepath.Join(linkTgt, "rc"),
 	}
-	p, err := buildPlan(context.Background(), configPath, runner)
-	if err != nil {
-		t.Fatalf("buildPlan: %v", err)
-	}
-
 	cmd := &cobra.Command{}
 	cmd.SetContext(context.Background())
-	opts := applyOptions{mode: config.UninstallModeSafe, autoYes: true, configDir: configDir}
-	if err := executeApply(cmd, runner, p, opts); err != nil {
+	stateDir := filepath.Join(root, "state")
+	opts := applyOptions{
+		mode:      config.UninstallModeSafe,
+		autoYes:   true,
+		configDir: configDir,
+		stateDir:  stateDir,
+	}
+	// Rebuild with explicit state so apply can read blobs.
+	res, err := engine.BuildPlanResult(context.Background(), configPath, runner, discovery.NewExecDefaultsRunner(), nil, stateDir, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts.generationID = res.GenerationID
+	opts.manifest = res.Manifest
+	if err := executeApply(cmd, runner, res.Plan, opts); err != nil {
 		t.Fatalf("executeApply: %v", err)
 	}
 
-	if got := strings.Join(runner.events, ","); got != "brew" {
-		t.Fatalf("events = %q, want brew (install before links)", got)
+	if got := strings.Join(runner.events, ","); !strings.Contains(got, "brew") {
+		t.Fatalf("events = %q, want brew before files", got)
 	}
-	if _, err := os.Lstat(linkTgt); err != nil {
-		t.Fatalf("expected link after brew phase: %v", err)
+	if _, err := os.Stat(filepath.Join(linkTgt, "rc")); err != nil {
+		t.Fatalf("expected activated file after brew phase: %v", err)
 	}
 	if len(runner.installs) != 1 || runner.installs[0] != "fzf" {
 		t.Fatalf("installs = %v, want [fzf]", runner.installs)

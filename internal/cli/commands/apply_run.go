@@ -20,14 +20,15 @@ import (
 )
 
 type applyOptions struct {
-	mode       config.UninstallMode
-	autoYes    bool
-	quiet      bool
-	configPath string
-	configDir  string
-	stateDir   string
-	manifest   config.Manifest
-	now        func() time.Time
+	mode         config.UninstallMode
+	autoYes      bool
+	quiet        bool
+	configPath   string
+	configDir    string
+	stateDir     string
+	manifest     config.Manifest
+	generationID string
+	now          func() time.Time
 }
 
 func runApply(cmd *cobra.Command, dryRun, autoYes, quiet bool) error {
@@ -48,44 +49,42 @@ func runApply(cmd *cobra.Command, dryRun, autoYes, quiet bool) error {
 	}
 
 	runner := discovery.NewExecRunner()
-	p, err := buildPlan(cmd.Context(), configPath, runner)
+	stateDir, err := paths.DefaultStateDir()
+	if err != nil {
+		return err
+	}
+	res, err := engine.BuildPlanResult(cmd.Context(), configPath, runner, discovery.NewExecDefaultsRunner(), nil, stateDir, time.Now())
 	if err != nil {
 		return err
 	}
 
 	if dryRun {
-		return printPlan(p, asJSON)
+		return printPlan(res.Plan, asJSON)
 	}
 
-	manifest, err := config.LoadManifest(configPath)
-	if err != nil {
-		return fmt.Errorf("load config: %w", err)
-	}
-	stateDir, err := paths.DefaultStateDir()
-	if err != nil {
-		return err
-	}
 	opts := applyOptions{
-		mode:       policy.ResolveModeFromManifest(manifest),
-		autoYes:    autoYes,
-		quiet:      quiet,
-		configPath: configPath,
-		configDir:  filepath.Dir(configPath),
-		stateDir:   stateDir,
-		manifest:   manifest,
-		now:        time.Now,
+		mode:         policy.ResolveModeFromManifest(res.Manifest),
+		autoYes:      autoYes,
+		quiet:        quiet,
+		configPath:   configPath,
+		configDir:    filepath.Dir(configPath),
+		stateDir:     stateDir,
+		manifest:     res.Manifest,
+		generationID: res.GenerationID,
+		now:          time.Now,
 	}
-	return executeApply(cmd, runner, p, opts)
+	return executeApply(cmd, runner, res.Plan, opts)
 }
 
 func executeApply(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, opts applyOptions) error {
 	result, applyErr := runApplyActions(cmd, runner, p, opts)
 	if err := engine.FinalizeApply(engine.FinalizeOptions{
-		StateDir:    opts.stateDir,
-		ConfigDir:   opts.configDir,
-		Manifest:    opts.manifest,
-		PrunedPaths: result.PrunedPaths,
-		Now:         opts.now,
+		StateDir:     opts.stateDir,
+		ConfigDir:    opts.configDir,
+		Manifest:     opts.manifest,
+		GenerationID: opts.generationID,
+		PrunedPaths:  result.PrunedPaths,
+		Now:          opts.now,
 	}, p, applyErr); err != nil {
 		return err
 	}
@@ -122,19 +121,20 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 	}
 
 	engineOpts := engine.ApplyOptions{
-		ConfigPath:  opts.configPath,
-		ConfigDir:   opts.configDir,
-		StateDir:    opts.stateDir,
-		Mode:        opts.mode,
-		FileReplace: policy.ResolveFileReplaceFromManifest(opts.manifest),
-		FilesMode:   policy.ResolveFilesModeFromManifest(opts.manifest),
-		AutoYes:     opts.autoYes,
-		Quiet:       opts.quiet,
-		Progress:    progress,
-		Confirm:     stdinConfirmer{in: cmd.InOrStdin(), out: out},
-		Stdout:      brewOut,
-		Stderr:      brewOut,
-		Now:         opts.now,
+		ConfigPath:   opts.configPath,
+		ConfigDir:    opts.configDir,
+		StateDir:     opts.stateDir,
+		GenerationID: opts.generationID,
+		Mode:         opts.mode,
+		FileReplace:  policy.ResolveFileReplaceFromManifest(opts.manifest),
+		FilesMode:    policy.ResolveFilesModeFromManifest(opts.manifest),
+		AutoYes:      opts.autoYes,
+		Quiet:        opts.quiet,
+		Progress:     progress,
+		Confirm:      stdinConfirmer{in: cmd.InOrStdin(), out: out},
+		Stdout:       brewOut,
+		Stderr:       brewOut,
+		Now:          opts.now,
 	}
 	if session != nil && total > 0 {
 		engineOpts.OnPhase = session.SetPhase

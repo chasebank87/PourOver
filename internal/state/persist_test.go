@@ -48,7 +48,7 @@ func TestPersistApplyState_WritesLockAndLastPlan(t *testing.T) {
 	}}
 	appliedAt := time.Date(2026, 5, 18, 12, 0, 0, 0, time.UTC)
 
-	if err := PersistApplyState(dir, manifest, p, appliedAt, nil); err != nil {
+	if err := PersistApplyState(dir, manifest, p, appliedAt, nil, ""); err != nil {
 		t.Fatalf("PersistApplyState: %v", err)
 	}
 
@@ -143,7 +143,7 @@ func TestPersistApplyState_OwnedFilesRoundTrip(t *testing.T) {
 	appliedAt := time.Date(2026, 8, 15, 1, 0, 0, 0, time.UTC)
 	owned := []string{"/tmp/pourover-a", "/tmp/pourover-b"}
 
-	if err := PersistApplyState(dir, manifest, p, appliedAt, owned); err != nil {
+	if err := PersistApplyState(dir, manifest, p, appliedAt, owned, ""); err != nil {
 		t.Fatalf("PersistApplyState: %v", err)
 	}
 

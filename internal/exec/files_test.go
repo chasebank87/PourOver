@@ -64,20 +64,19 @@ func TestApplyFileLinks_CreateAndUpdate(t *testing.T) {
 	configDir := filepath.Join(root, "cfg")
 	srcA := filepath.Join(configDir, "a")
 	srcB := filepath.Join(configDir, "b")
-	if err := os.MkdirAll(srcA, 0o755); err != nil {
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(srcB, 0o755); err != nil {
+	if err := os.WriteFile(srcA, []byte("content-a\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	wrong := filepath.Join(root, "wrong")
-	if err := os.Mkdir(wrong, 0o755); err != nil {
+	if err := os.WriteFile(srcB, []byte("content-b\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
 	createTgt := filepath.Join(root, "create-link")
 	updateTgt := filepath.Join(root, "update-link")
-	if err := os.Symlink(wrong, updateTgt); err != nil {
+	if err := os.Symlink(filepath.Join(root, "wrong"), updateTgt); err != nil {
 		t.Fatal(err)
 	}
 
@@ -95,30 +94,45 @@ func TestApplyFileLinks_CreateAndUpdate(t *testing.T) {
 		t.Fatalf("n=%d, want 2", n)
 	}
 
-	if got, err := os.Readlink(createTgt); err != nil || got != srcA {
-		t.Fatalf("create link = %q err=%v, want %q", got, err, srcA)
+	gotA, err := os.ReadFile(createTgt)
+	if err != nil || string(gotA) != "content-a\n" {
+		t.Fatalf("create file = %q err=%v", gotA, err)
 	}
-	if got, err := os.Readlink(updateTgt); err != nil || got != srcB {
-		t.Fatalf("update link = %q err=%v, want %q", got, err, srcB)
+	info, err := os.Lstat(updateTgt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		t.Fatal("update target should be a regular file, not a symlink")
+	}
+	gotB, err := os.ReadFile(updateTgt)
+	if err != nil || string(gotB) != "content-b\n" {
+		t.Fatalf("update file = %q err=%v", gotB, err)
 	}
 }
 
-func TestApplyFileLinks_FailsIfTargetIsRegularFile(t *testing.T) {
+func TestApplyFileLinks_OverwritesRegularFile(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, "cfg")
-	src := filepath.Join(configDir, "a")
-	if err := os.MkdirAll(src, 0o755); err != nil {
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "a"), []byte("new\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	tgt := filepath.Join(root, "file")
-	if err := os.WriteFile(tgt, []byte("x"), 0o644); err != nil {
+	if err := os.WriteFile(tgt, []byte("old\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	p := plan.Plan{Actions: []plan.Action{
 		{Type: plan.ActionLinkCreate, Name: tgt, Source: "a"},
 	}}
-	if _, err := ApplyFileLinks(p, FileApplyOptions{ConfigDir: configDir}, nil); err == nil {
-		t.Fatal("expected error for regular file target")
+	if _, err := ApplyFileLinks(p, FileApplyOptions{ConfigDir: configDir}, nil); err != nil {
+		t.Fatalf("ApplyFileLinks: %v", err)
+	}
+	got, err := os.ReadFile(tgt)
+	if err != nil || string(got) != "new\n" {
+		t.Fatalf("got %q err=%v", got, err)
 	}
 }
 
@@ -141,32 +155,31 @@ func TestCreateLink_CreatesParentDirs(t *testing.T) {
 func TestApplyFileLinks_ContinuesAfterFailure(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, "cfg")
-	srcOK := filepath.Join(configDir, "ok")
-	srcBad := filepath.Join(configDir, "bad")
-	if err := os.MkdirAll(srcOK, 0o755); err != nil {
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(srcBad, 0o755); err != nil {
+	if err := os.WriteFile(filepath.Join(configDir, "ok"), []byte("ok\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	blocked := filepath.Join(root, "blocked")
-	if err := os.WriteFile(blocked, []byte("x"), 0o644); err != nil {
+	dirBlocked := filepath.Join(root, "blocked-dir")
+	if err := os.Mkdir(dirBlocked, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	okTgt := filepath.Join(root, "missing-parent", "zshrc")
 	p := plan.Plan{Actions: []plan.Action{
-		{Type: plan.ActionLinkCreate, Name: blocked, Source: "bad"},
+		{Type: plan.ActionLinkCreate, Name: dirBlocked, Source: "ok"},
 		{Type: plan.ActionLinkCreate, Name: okTgt, Source: "ok"},
 	}}
 	n, err := ApplyFileLinks(p, FileApplyOptions{ConfigDir: configDir}, nil)
 	if err == nil {
-		t.Fatal("expected error from blocked target")
+		t.Fatal("expected error for directory target")
 	}
 	if n != 1 {
-		t.Fatalf("n=%d, want 1 successful link after failure", n)
+		t.Fatalf("n=%d, want 1", n)
 	}
-	if got, err := os.Readlink(okTgt); err != nil || got != srcOK {
-		t.Fatalf("ok link = %q err=%v, want %q", got, err, srcOK)
+	got, err := os.ReadFile(okTgt)
+	if err != nil || string(got) != "ok\n" {
+		t.Fatalf("ok target = %q err=%v", got, err)
 	}
 }
 
@@ -370,7 +383,7 @@ func TestApplyFileUnlinks_RefusesDirectory(t *testing.T) {
 	}
 }
 
-func TestApplyFileLinks_ReplaceBacksUpThenLinks(t *testing.T) {
+func TestApplyFileLinks_ReplaceBacksUpThenWrites(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, "cfg")
 	stateDir := filepath.Join(root, "state")
@@ -405,9 +418,16 @@ func TestApplyFileLinks_ReplaceBacksUpThenLinks(t *testing.T) {
 		t.Fatalf("n=%d, want 1", n)
 	}
 
-	got, err := os.Readlink(tgt)
-	if err != nil || got != src {
-		t.Fatalf("Readlink = %q err=%v, want %q", got, err, src)
+	got, err := os.ReadFile(tgt)
+	if err != nil || string(got) != "export NEW=1\n" {
+		t.Fatalf("target = %q err=%v", got, err)
+	}
+	info, err := os.Lstat(tgt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		t.Fatal("target should be a regular file")
 	}
 
 	backup := filepath.Join(stateDir, "backups", "files", "20260815T053000Z", EscapeBackupPath(tgt))

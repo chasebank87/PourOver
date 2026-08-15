@@ -128,7 +128,7 @@ func TestFinalizeApply_PersistsOwnedFilesFromPlan(t *testing.T) {
 		Policy:   config.Policy{UninstallMode: config.UninstallModeSafe},
 	}
 	prevOwned := []string{filepath.Join(home, ".old"), filepath.Join(home, ".gone")}
-	if err := state.PersistApplyState(dir, manifest, plan.Plan{}, time.Date(2026, 8, 14, 0, 0, 0, 0, time.UTC), prevOwned); err != nil {
+	if err := state.PersistApplyState(dir, manifest, plan.Plan{}, time.Date(2026, 8, 14, 0, 0, 0, 0, time.UTC), prevOwned, ""); err != nil {
 		t.Fatal(err)
 	}
 
@@ -175,7 +175,7 @@ func TestFinalizeApply_KeepsOwnedWhenPruneDeclined(t *testing.T) {
 		Policy:   config.Policy{UninstallMode: config.UninstallModeSafe, FilesMode: config.FilesModeSafe},
 	}
 	prevOwned := []string{keep, candidate}
-	if err := state.PersistApplyState(dir, manifest, plan.Plan{}, time.Date(2026, 8, 14, 0, 0, 0, 0, time.UTC), prevOwned); err != nil {
+	if err := state.PersistApplyState(dir, manifest, plan.Plan{}, time.Date(2026, 8, 14, 0, 0, 0, 0, time.UTC), prevOwned, ""); err != nil {
 		t.Fatal(err)
 	}
 
@@ -223,7 +223,7 @@ func TestFinalizeApply_RemovesOnlyActuallyPrunedPaths(t *testing.T) {
 		Policy:   config.Policy{UninstallMode: config.UninstallModeSafe, FilesMode: config.FilesModeSafe},
 	}
 	prevOwned := []string{kept, pruned}
-	if err := state.PersistApplyState(dir, manifest, plan.Plan{}, time.Date(2026, 8, 14, 0, 0, 0, 0, time.UTC), prevOwned); err != nil {
+	if err := state.PersistApplyState(dir, manifest, plan.Plan{}, time.Date(2026, 8, 14, 0, 0, 0, 0, time.UTC), prevOwned, ""); err != nil {
 		t.Fatal(err)
 	}
 
