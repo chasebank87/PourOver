@@ -74,11 +74,11 @@ func PersistApplyState(stateDir string, manifest config.Manifest, p plan.Plan, a
 }
 
 // ComputeOwnedFiles updates the previous owned set from plan file actions.
-// link_create / link_update / link_replace / managed_copy add absolute targets;
-// file_unlink removes them. file_prune is not applied here — callers must pass
-// actually pruned absolute paths to RemoveOwnedPaths after a successful apply.
-// configDir is reserved for resolving relative paths in later phases; targets
-// must already be absolute or ~/….
+// link_create / link_update / link_replace / managed_copy / template_write add
+// absolute targets; file_unlink removes them. file_prune is not applied here —
+// callers must pass actually pruned absolute paths to RemoveOwnedPaths after a
+// successful apply. configDir is reserved for resolving relative paths in later
+// phases; targets must already be absolute or ~/….
 func ComputeOwnedFiles(prev []string, p plan.Plan, configDir string) ([]string, error) {
 	_ = configDir
 	set := make(map[string]struct{}, len(prev)+len(p.Actions))
@@ -90,7 +90,7 @@ func ComputeOwnedFiles(prev []string, p plan.Plan, configDir string) ([]string, 
 	}
 	for _, a := range p.Actions {
 		switch a.Type {
-		case plan.ActionLinkCreate, plan.ActionLinkUpdate, plan.ActionLinkReplace, plan.ActionManagedCopy:
+		case plan.ActionLinkCreate, plan.ActionLinkUpdate, plan.ActionLinkReplace, plan.ActionManagedCopy, plan.ActionTemplateWrite:
 			abs, err := absOwnedTarget(a.Name)
 			if err != nil {
 				return nil, err

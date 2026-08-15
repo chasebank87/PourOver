@@ -170,6 +170,7 @@ func TestComputeOwnedFiles_AddsCreatesRemovesUnlinks(t *testing.T) {
 		{Type: plan.ActionLinkCreate, Name: "~/.newlink", Source: "config/new"},
 		{Type: plan.ActionLinkUpdate, Name: "~/.keep", Source: "config/keep"},
 		{Type: plan.ActionManagedCopy, Name: "~/.managed", Source: "config/managed"},
+		{Type: plan.ActionTemplateWrite, Name: "~/.templated", Source: "config/templated.tmpl"},
 		{Type: plan.ActionLinkReplace, Name: "~/.replaced", Source: "config/replaced"},
 		{Type: plan.ActionFileUnlink, Name: "~/.gone"},
 		{Type: plan.ActionFilePrune, Name: "~/.pruned"}, // plan-only; does not drop ownership
@@ -186,6 +187,7 @@ func TestComputeOwnedFiles_AddsCreatesRemovesUnlinks(t *testing.T) {
 		filepath.Join(home, ".newlink"),
 		filepath.Join(home, ".pruned"),
 		filepath.Join(home, ".replaced"),
+		filepath.Join(home, ".templated"),
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("owned = %#v, want %#v", got, want)

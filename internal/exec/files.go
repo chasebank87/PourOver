@@ -10,6 +10,7 @@ import (
 
 	"github.com/chasebank87/PourOver/internal/config"
 	"github.com/chasebank87/PourOver/internal/plan"
+	tmpl "github.com/chasebank87/PourOver/internal/template"
 )
 
 // CreateLink creates a symlink at targetPath pointing to sourcePath.
@@ -270,35 +271,113 @@ func ManagedCopy(sourcePath, targetPath string, opts ...ManagedCopyOptions) erro
 	if info, err := os.Stat(sourcePath); err == nil {
 		mode = info.Mode().Perm()
 	}
+	return writeManagedBytes(targetPath, data, mode, o, "managed copy")
+}
+
+// ApplyTemplateWrites runs template_write actions: re-render at apply time and
+// write atomically (same temp+rename / backup path as managed copies).
+// Action.Value is ignored (it holds a plan-time unified diff). Soft-fails per file.
+func ApplyTemplateWrites(p plan.Plan, opts FileApplyOptions, progress Progress) (int, error) {
+	configDir, err := filepath.Abs(opts.ConfigDir)
+	if err != nil {
+		return 0, fmt.Errorf("config directory: %w", err)
+	}
+
+	ctx, err := tmpl.DefaultContext()
+	if err != nil {
+		return 0, fmt.Errorf("template context: %w", err)
+	}
+
+	n := 0
+	var errs []error
+	for _, a := range p.Actions {
+		if a.Type != plan.ActionTemplateWrite {
+			continue
+		}
+		report(progress, a)
+
+		sourcePath, err := resolveLinkSource(a.Source, configDir)
+		if err != nil {
+			reportFailure(progress, err)
+			errs = append(errs, err)
+			continue
+		}
+		targetPath, err := resolveLinkTarget(a.Name)
+		if err != nil {
+			reportFailure(progress, err)
+			errs = append(errs, err)
+			continue
+		}
+
+		src, err := os.ReadFile(sourcePath)
+		if err != nil {
+			err = fmt.Errorf("template write %s: read source: %w", targetPath, err)
+			reportFailure(progress, err)
+			errs = append(errs, err)
+			continue
+		}
+		rendered, err := tmpl.Render(string(src), ctx)
+		if err != nil {
+			err = fmt.Errorf("template write %s: %w", targetPath, err)
+			reportFailure(progress, err)
+			errs = append(errs, err)
+			continue
+		}
+
+		backupFirst := opts.FileReplace == config.FileReplaceBackup || a.Kind == "backup"
+		if err := writeManagedBytes(targetPath, []byte(rendered), 0o644, ManagedCopyOptions{
+			StateDir:    opts.StateDir,
+			BackupFirst: backupFirst,
+			Now:         opts.clock(),
+		}, "template write"); err != nil {
+			reportFailure(progress, err)
+			errs = append(errs, err)
+			continue
+		}
+		n++
+	}
+	return n, errors.Join(errs...)
+}
+
+// writeManagedBytes prepares the target (backup/remove as needed) and writes
+// data atomically via temp file + rename. op is used in error messages
+// (e.g. "managed copy" or "template write").
+func writeManagedBytes(targetPath string, data []byte, mode os.FileMode, o ManagedCopyOptions, op string) error {
+	if o.Now.IsZero() {
+		o.Now = time.Now()
+	}
+	if mode == 0 {
+		mode = 0o644
+	}
 
 	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
-		return fmt.Errorf("managed copy %s: parent dir: %w", targetPath, err)
+		return fmt.Errorf("%s %s: parent dir: %w", op, targetPath, err)
 	}
 
 	if info, err := os.Lstat(targetPath); err == nil {
 		if info.IsDir() {
 			if !o.BackupFirst {
-				return fmt.Errorf("managed copy %s: target is a directory", targetPath)
+				return fmt.Errorf("%s %s: target is a directory", op, targetPath)
 			}
 			if _, err := BackupAside(o.StateDir, targetPath, o.Now); err != nil {
-				return fmt.Errorf("managed copy %s: %w", targetPath, err)
+				return fmt.Errorf("%s %s: %w", op, targetPath, err)
 			}
 		} else if info.Mode()&os.ModeSymlink != 0 {
 			if o.BackupFirst {
 				if _, err := BackupAside(o.StateDir, targetPath, o.Now); err != nil {
-					return fmt.Errorf("managed copy %s: %w", targetPath, err)
+					return fmt.Errorf("%s %s: %w", op, targetPath, err)
 				}
 			} else if err := os.Remove(targetPath); err != nil {
-				return fmt.Errorf("managed copy %s: remove symlink: %w", targetPath, err)
+				return fmt.Errorf("%s %s: remove symlink: %w", op, targetPath, err)
 			}
 		}
 	} else if !os.IsNotExist(err) {
-		return fmt.Errorf("managed copy %s: %w", targetPath, err)
+		return fmt.Errorf("%s %s: %w", op, targetPath, err)
 	}
 
 	tmp, err := os.CreateTemp(filepath.Dir(targetPath), ".pourover-managed-*")
 	if err != nil {
-		return fmt.Errorf("managed copy %s: create temp: %w", targetPath, err)
+		return fmt.Errorf("%s %s: create temp: %w", op, targetPath, err)
 	}
 	tmpName := tmp.Name()
 	cleanup := true
@@ -310,17 +389,17 @@ func ManagedCopy(sourcePath, targetPath string, opts ...ManagedCopyOptions) erro
 
 	if err := tmp.Chmod(mode); err != nil {
 		_ = tmp.Close()
-		return fmt.Errorf("managed copy %s: chmod temp: %w", targetPath, err)
+		return fmt.Errorf("%s %s: chmod temp: %w", op, targetPath, err)
 	}
 	if _, err := tmp.Write(data); err != nil {
 		_ = tmp.Close()
-		return fmt.Errorf("managed copy %s: write temp: %w", targetPath, err)
+		return fmt.Errorf("%s %s: write temp: %w", op, targetPath, err)
 	}
 	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("managed copy %s: close temp: %w", targetPath, err)
+		return fmt.Errorf("%s %s: close temp: %w", op, targetPath, err)
 	}
 	if err := os.Rename(tmpName, targetPath); err != nil {
-		return fmt.Errorf("managed copy %s: rename: %w", targetPath, err)
+		return fmt.Errorf("%s %s: rename: %w", op, targetPath, err)
 	}
 	cleanup = false
 	return nil

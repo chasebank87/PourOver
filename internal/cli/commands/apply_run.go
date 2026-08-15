@@ -143,7 +143,7 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 	result, err := engine.Apply(cmd.Context(), runner, p, engineOpts)
 
 	n := result.Taps + result.Formulae + result.Casks + result.Removed + result.Defaults +
-		result.Linked + result.Managed + result.Unlinked + result.Pruned
+		result.Linked + result.Managed + result.Templates + result.Unlinked + result.Pruned
 
 	if session != nil {
 		session.Finish(ui.Summary{
@@ -153,8 +153,9 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 			Removed:  result.Removed,
 			Defaults: result.Defaults,
 			Linked:   result.Linked,
-			Managed:  result.Managed,
-			Unlinked: result.Unlinked,
+			Managed:   result.Managed,
+			Templates: result.Templates,
+			Unlinked:  result.Unlinked,
 			Pruned:   result.Pruned,
 			Renames:  result.Renames,
 			Skipped:  result.Skipped,
@@ -183,6 +184,9 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 		}
 		if result.Managed > 0 {
 			fmt.Fprintf(out, "Copied %d managed file(s).\n", result.Managed)
+		}
+		if result.Templates > 0 {
+			fmt.Fprintf(out, "Wrote %d template file(s).\n", result.Templates)
 		}
 		if result.Unlinked > 0 {
 			fmt.Fprintf(out, "Unlinked %d file(s).\n", result.Unlinked)

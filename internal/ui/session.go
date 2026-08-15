@@ -16,8 +16,9 @@ type Summary struct {
 	Upgraded int
 	Defaults int
 	Linked   int
-	Managed  int
-	Unlinked int
+	Managed   int
+	Templates int
+	Unlinked  int
 	Pruned   int
 	Skipped  int
 	Renames  int
@@ -131,8 +132,8 @@ func (s *Session) Finish(sum Summary) {
 	}
 
 	if sum.Failures == 0 && sum.Taps == 0 && sum.Formulae == 0 && sum.Casks == 0 && sum.Removed == 0 &&
-		sum.Upgraded == 0 && sum.Defaults == 0 && sum.Linked == 0 && sum.Managed == 0 && sum.Unlinked == 0 &&
-		sum.Pruned == 0 && sum.Skipped == 0 && sum.Renames == 0 {
+		sum.Upgraded == 0 && sum.Defaults == 0 && sum.Linked == 0 && sum.Managed == 0 && sum.Templates == 0 &&
+		sum.Unlinked == 0 && sum.Pruned == 0 && sum.Skipped == 0 && sum.Renames == 0 {
 		fmt.Fprintln(s.out, styleMuted.Render("☕ No changes."))
 		return
 	}
@@ -160,6 +161,9 @@ func (s *Session) Finish(sum Summary) {
 	}
 	if sum.Managed > 0 {
 		fmt.Fprintln(s.out, styleOK.Render(fmt.Sprintf("☕ Copied %d managed file(s).", sum.Managed)))
+	}
+	if sum.Templates > 0 {
+		fmt.Fprintln(s.out, styleOK.Render(fmt.Sprintf("☕ Wrote %d template file(s).", sum.Templates)))
 	}
 	if sum.Unlinked > 0 {
 		fmt.Fprintln(s.out, styleOK.Render(fmt.Sprintf("☕ Unlinked %d file(s).", sum.Unlinked)))

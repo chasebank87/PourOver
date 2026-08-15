@@ -14,9 +14,9 @@ import (
 )
 
 // Apply runs the reconcile mutation loop for taps, formulae, casks, removes,
-// defaults, file links, managed copies, unlinks, and owned-file prunes. It does
-// not create UI sessions or print summaries; frontends pass Progress / Confirmer
-// / writers via opts.
+// defaults, file links, managed copies, templates, unlinks, and owned-file
+// prunes. It does not create UI sessions or print summaries; frontends pass
+// Progress / Confirmer / writers via opts.
 func Apply(ctx context.Context, runner discovery.Runner, p plan.Plan, opts ApplyOptions) (ApplyResult, error) {
 	renames := exec.CaskRenameActions(p)
 	skipped := exec.UnsupportedApplyActions(p)
@@ -106,6 +106,12 @@ func Apply(ctx context.Context, runner discovery.Runner, p plan.Plan, opts Apply
 		errs = append(errs, err)
 	}
 
+	phase("templates")
+	templates, err := exec.ApplyTemplateWrites(p, fileOpts, progress)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
 	phase("unlink")
 	unlinked, err := exec.ApplyFileUnlinks(p, progress)
 	if err != nil {
@@ -125,6 +131,7 @@ func Apply(ctx context.Context, runner discovery.Runner, p plan.Plan, opts Apply
 	result.Defaults = written
 	result.Linked = linked
 	result.Managed = managed
+	result.Templates = templates
 	result.Unlinked = unlinked
 	result.Pruned = len(prunedPaths)
 	result.PrunedPaths = prunedPaths

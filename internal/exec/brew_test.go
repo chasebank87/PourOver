@@ -273,11 +273,11 @@ func TestUnsupportedApplyActions(t *testing.T) {
 		{Type: plan.ActionTemplateWrite, Name: "/tmp/t", Source: "config/t.tmpl"},
 	}}
 	skipped := UnsupportedApplyActions(p)
-	if len(skipped) != 2 {
-		t.Fatalf("skipped = %+v, want formula_upgrade and template_write", skipped)
+	if len(skipped) != 1 {
+		t.Fatalf("skipped = %+v, want only formula_upgrade", skipped)
 	}
-	if skipped[0].Type != plan.ActionFormulaUpgrade || skipped[1].Type != plan.ActionTemplateWrite {
-		t.Fatalf("skipped = %+v, want formula_upgrade then template_write", skipped)
+	if skipped[0].Type != plan.ActionFormulaUpgrade {
+		t.Fatalf("skipped = %+v, want formula_upgrade", skipped)
 	}
 }
 

@@ -1,6 +1,7 @@
 package exec
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/chasebank87/PourOver/internal/config"
 	"github.com/chasebank87/PourOver/internal/plan"
+	tmpl "github.com/chasebank87/PourOver/internal/template"
 )
 
 func TestCreateLink_CreatesSymlink(t *testing.T) {
@@ -608,4 +610,156 @@ func TestApplyFilePrunes_ByMode(t *testing.T) {
 			t.Fatalf("removed=%v prompted=%v, want no work", removed, prompted)
 		}
 	})
+}
+
+
+func TestApplyTemplateWrites_CreatesAndUpdates(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "cfg")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	src := filepath.Join(configDir, "host.tmpl")
+	if err := os.WriteFile(src, []byte("host={{.Hostname}}\nuser={{.User}}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, err := tmpl.DefaultContext()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := fmt.Sprintf("host=%s\nuser=%s\n", ctx.Hostname, ctx.User)
+
+	createTgt := filepath.Join(root, "home", "nested", "out.conf")
+	updateTgt := filepath.Join(root, "home", "update.conf")
+	if err := os.MkdirAll(filepath.Dir(updateTgt), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(updateTgt, []byte("stale\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionFormulaInstall, Name: "fzf"},
+		{Type: plan.ActionTemplateWrite, Name: createTgt, Source: "host.tmpl", Value: "--- ignore me\n"},
+		{Type: plan.ActionTemplateWrite, Name: updateTgt, Source: "host.tmpl", Value: "diff junk"},
+	}}
+	n, err := ApplyTemplateWrites(p, FileApplyOptions{ConfigDir: configDir}, nil)
+	if err != nil {
+		t.Fatalf("ApplyTemplateWrites: %v", err)
+	}
+	if n != 2 {
+		t.Fatalf("n=%d, want 2", n)
+	}
+	for _, tgt := range []string{createTgt, updateTgt} {
+		got, err := os.ReadFile(tgt)
+		if err != nil || string(got) != want {
+			t.Fatalf("%s = %q err=%v, want %q", tgt, got, err, want)
+		}
+	}
+}
+
+func TestApplyTemplateWrites_IgnoresActionValueDiff(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "cfg")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	src := filepath.Join(configDir, "plain.tmpl")
+	if err := os.WriteFile(src, []byte("rendered-live\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	tgt := filepath.Join(root, "out.txt")
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionTemplateWrite, Name: tgt, Source: "plain.tmpl", Value: "this-is-a-diff-not-content"},
+	}}
+	if _, err := ApplyTemplateWrites(p, FileApplyOptions{ConfigDir: configDir}, nil); err != nil {
+		t.Fatalf("ApplyTemplateWrites: %v", err)
+	}
+	got, err := os.ReadFile(tgt)
+	if err != nil || string(got) != "rendered-live\n" {
+		t.Fatalf("got %q err=%v", got, err)
+	}
+}
+
+func TestApplyTemplateWrites_ContinuesAfterFailure(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "cfg")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	src := filepath.Join(configDir, "ok.tmpl")
+	if err := os.WriteFile(src, []byte("ok\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dirTgt := filepath.Join(root, "isdir")
+	if err := os.Mkdir(dirTgt, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	okTgt := filepath.Join(root, "ok.txt")
+
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionTemplateWrite, Name: dirTgt, Source: "ok.tmpl"},
+		{Type: plan.ActionTemplateWrite, Name: okTgt, Source: "ok.tmpl"},
+	}}
+	n, err := ApplyTemplateWrites(p, FileApplyOptions{ConfigDir: configDir}, nil)
+	if err == nil {
+		t.Fatal("expected error for directory target")
+	}
+	if n != 1 {
+		t.Fatalf("n=%d, want 1 successful write after failure", n)
+	}
+	if got, err := os.ReadFile(okTgt); err != nil || string(got) != "ok\n" {
+		t.Fatalf("ok = %q err=%v", got, err)
+	}
+}
+
+func TestApplyTemplateWrites_BackupUnexpectedDirectory(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "cfg")
+	stateDir := filepath.Join(root, "state")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	src := filepath.Join(configDir, "foo.tmpl")
+	if err := os.WriteFile(src, []byte("from-template\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	tgt := filepath.Join(root, "home", "foo.conf")
+	if err := os.MkdirAll(tgt, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	marker := filepath.Join(tgt, "was-dir.txt")
+	if err := os.WriteFile(marker, []byte("inside\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	at := time.Date(2026, 8, 15, 7, 0, 0, 0, time.UTC)
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionTemplateWrite, Name: tgt, Source: "foo.tmpl", Kind: "backup"},
+	}}
+	n, err := ApplyTemplateWrites(p, FileApplyOptions{
+		ConfigDir:   configDir,
+		StateDir:    stateDir,
+		FileReplace: config.FileReplaceBackup,
+		Now:         func() time.Time { return at },
+	}, nil)
+	if err != nil {
+		t.Fatalf("ApplyTemplateWrites: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("n=%d, want 1", n)
+	}
+	got, err := os.ReadFile(tgt)
+	if err != nil || string(got) != "from-template\n" {
+		t.Fatalf("target = %q err=%v", got, err)
+	}
+	backup := filepath.Join(stateDir, "backups", "files", "20260815T070000Z", EscapeBackupPath(tgt))
+	info, err := os.Stat(backup)
+	if err != nil || !info.IsDir() {
+		t.Fatalf("backup dir = %#v err=%v", info, err)
+	}
+	if data, err := os.ReadFile(filepath.Join(backup, "was-dir.txt")); err != nil || string(data) != "inside\n" {
+		t.Fatalf("backed-up contents = %q err=%v", data, err)
+	}
 }

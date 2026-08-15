@@ -409,6 +409,7 @@ func formatApplySummary(r engine.ApplyResult) string {
 	add(r.Defaults, "default", "defaults")
 	add(r.Linked, "link", "links")
 	add(r.Managed, "managed copy", "managed copies")
+	add(r.Templates, "template", "templates")
 	add(r.Unlinked, "unlink", "unlinks")
 	add(r.Pruned, "prune", "prunes")
 	add(r.Renames, "rename note", "rename notes")
