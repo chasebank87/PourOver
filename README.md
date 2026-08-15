@@ -22,7 +22,7 @@ Auto-launch does **not** run when:
 - stdin/stdout are not a TTY (pipes, scripts)
 - `CI=true` (CI / non-interactive automation)
 
-The TUI is **complete control** for Phase 2: Plan, Apply, Upgrade, Doctor (with opt-in fixes), History, Backup/Restore, Import, Config (iCloud + git), and Self-update. **Phase 3 file essentials** landed: `files.managed`, `files.unlink`, and `policy.file_replace` (backup-on-replace). **Phase 4 ownership/prune** landed: `lock.json` `owned_files` and `policy.files_mode` (safe confirm / strict / non_destructive). Next is Phase 5 templates.
+The TUI is **complete control** for Phase 2: Plan, Apply, Upgrade, Doctor (with opt-in fixes), History, Backup/Restore, Import, Config (iCloud + git), and Self-update. **Phase 3–5 file surface** landed: `files.managed`, `files.unlink`, `files.templates` (sandboxed render + atomic write), `policy.file_replace` (backup-on-replace), and Phase 4 ownership/prune (`lock.json` `owned_files`, `policy.files_mode`). **V2 implementation is complete**; remaining backlog items (web dashboard, multi-host, etc.) stay deferred.
 
 ## Install
 
@@ -156,8 +156,8 @@ Re-import without `--force` only adds newly discovered packages, taps, and file 
 
 `policy.file_replace`:
 
-- **error** (default) — plan fails when a link target exists as a regular file (or managed target is an unexpected type such as a directory)
-- **backup** — move the existing target aside under `<stateDir>/backups/files/<timestamp>/<escaped-path>`, then link or copy (`force` is an accepted alias)
+- **error** (default) — plan fails when a link target exists as a regular file (or managed/template target is an unexpected type such as a directory)
+- **backup** — move the existing target aside under `<stateDir>/backups/files/<timestamp>/<escaped-path>`, then link, copy, or write a template (`force` is an accepted alias)
 
 `policy.files_mode` (PourOver-owned undeclared file targets from `lock.json` `owned_files`):
 

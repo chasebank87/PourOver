@@ -55,7 +55,7 @@ prune file ~/.config/old
 
 `managed_copy` and `file_unlink` appear in the plan when discovered; apply copies atomically and unlinks with directory safeguards. Managed copies against unexpected target types (e.g. directories) require `file_replace = "backup"` and are labeled `(backup)` in text output.
 
-`template_write` appears when a `files.templates` target is missing or its content differs from the sandboxed render of the source. Text output is one line; JSON `value` holds a unified diff (truncated around 4KB when very long). Apply for templates lands in a later V2 step — plan may list them as unsupported until then. Blocked template targets follow the same `file_replace` backup/error rules as managed copies.
+`template_write` appears when a `files.templates` target is missing or its content differs from the sandboxed render of the source. Text output is one line; JSON `value` holds a unified diff (truncated around 4KB when very long). Apply re-renders the source at write time (ignores `value`) and writes atomically like managed copies. Blocked template targets follow the same `file_replace` backup/error rules as managed copies.
 
 `file_prune` appears for PourOver-owned paths (from `lock.json`) that are no longer declared under links/managed/templates when `policy.files_mode` is `safe` or `strict`. `non_destructive` never plans prune. Apply prompts once in `safe` (skipped if declined), removes without prompting in `strict`, and soft-fails per path.
 

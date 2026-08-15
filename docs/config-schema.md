@@ -141,7 +141,7 @@ files = {
 
 ### `policy.files_mode`
 
-Controls pruning of **PourOver-owned** file targets that are no longer declared under `files.links` or `files.managed`. Ownership comes from `lock.json` `owned_files` (empty for old locks → no prune). Paths listed in `files.unlink` get `file_unlink` instead and are not also pruned.
+Controls pruning of **PourOver-owned** file targets that are no longer declared under `files.links`, `files.managed`, or `files.templates`. Ownership comes from `lock.json` `owned_files` (empty for old locks → no prune). Paths listed in `files.unlink` get `file_unlink` instead and are not also pruned.
 
 - **safe** (default) — plan emits `file_prune`; apply prompts once before removing
 - **strict** — plan emits `file_prune`; apply removes without prompting
@@ -156,7 +156,7 @@ policy = {
 
 ### `policy.file_replace`
 
-Controls what happens when a `files.links` target already exists as a regular file (or other non-symlink), or when a `files.managed` target is an unexpected type (e.g. a directory).
+Controls what happens when a `files.links` target already exists as a regular file (or other non-symlink), or when a `files.managed` / `files.templates` target is an unexpected type (e.g. a directory).
 
 - **error** (default) — plan fails with a blocked-target error (v1 behavior for links)
 - **backup** — move the existing target aside under the state directory, then create the link or write the managed file

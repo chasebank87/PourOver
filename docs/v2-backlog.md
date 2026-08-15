@@ -12,7 +12,8 @@ Ideas and scope **explicitly deferred from v1**. When we cut v1, anything not do
 - **Phase 2** (TUI complete control) — done. Backup/Restore, Import, Config (iCloud + git), self-update from TUI, and opt-in doctor fixes (`f` + y/n; never silent).
 - **Phase 3** (file essentials) — done. `files.managed`, `files.unlink`, and `policy.file_replace` (backup-on-replace under `state/backups/files/`).
 - **Phase 4** (ownership & prune) — done. `lock.json` `owned_files`, `policy.files_mode`, and apply-time `file_prune` (safe confirm / strict / non_destructive).
-- **Next:** Phase 5 — templates (`files.templates`).
+- **Phase 5** (templates) — done. `files.templates` sandboxed render, plan unified diffs, atomic apply writes, and ownership tracking.
+- **V2 roadmap complete.** Remaining rows below (web dashboard, multi-host profiles, remote state sync beyond iCloud, nix-darwin launchd/services/programs, strict unknown Lua keys, etc.) stay deferred / out of scope for V2.
 
 ---
 
@@ -21,7 +22,7 @@ Ideas and scope **explicitly deferred from v1**. When we cut v1, anything not do
 | Item | Deferred from | Notes |
 |------|---------------|-------|
 | `files.managed` — copy files to target | D3 (v1 = links only) | **Done (Phase 3)** — atomic copy; `policy.file_replace` for unexpected targets |
-| Template / rendered config files | D3 | e.g. hostname-specific configs; pick a template engine |
+| Template / rendered config files | D3 | **Done (Phase 5)** — `files.templates`; sandboxed `text/template`; plan diffs; atomic apply |
 | Directory-only links mode | M4 discussion | Restrict links to directories only; stricter validation |
 | Auto-unlink / prune undeclared symlinks | M4 discussion | **Done (Phase 4)** — prune PourOver-owned undeclared targets via `owned_files` + `policy.files_mode` |
 | `files.unlink` explicit removal list | M4 discussion | **Done (Phase 3)** — safe unlink of files/symlinks; directories refused |
