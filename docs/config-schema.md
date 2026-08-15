@@ -66,11 +66,11 @@ Each entry:
 | `source` | yes | string | Path relative to the config directory, or absolute |
 | `target` | yes | string | Destination path on disk (`~` expanded) |
 
-Copies (or later templates) `source` to `target` for apps that reject symlinks. Empty `source`/`target` (after trim) fail validation. Plan/apply for managed copies ships in later Phase 3 tasks.
+Copies (or later templates) `source` to `target` for apps that reject symlinks. Empty `source`/`target` (after trim) fail validation. Plan emits `managed_copy` when the target is missing or content differs; apply ships in Task 3.3.
 
 ### `files.unlink` (V2 Phase 3)
 
-Array of target path strings to remove when safe (`~` expanded). Each entry must be non-empty after trim. Plan/apply with ownership/safety checks ships in later Phase 3 tasks.
+Array of target path strings to remove when safe (`~` expanded). Each entry must be non-empty after trim. Plan emits `file_unlink` for existing symlinks or regular files (directories are refused). Apply ships in Task 3.3.
 
 Example:
 

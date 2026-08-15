@@ -52,6 +52,24 @@ func BuildPlanWith(ctx context.Context, configPath string, runner discovery.Runn
 		return plan.Plan{}, err
 	}
 
-	// brew → macos defaults → file links
-	return plan.MergePlans(brewPlan, defaultsPlan, filePlan), nil
+	managedStatuses, err := discovery.DiscoverManagedFiles(manifest.Files.Managed, configDir)
+	if err != nil {
+		return plan.Plan{}, fmt.Errorf("discover managed files: %w", err)
+	}
+	managedPlan, err := plan.BuildManagedPlan(managedStatuses)
+	if err != nil {
+		return plan.Plan{}, err
+	}
+
+	unlinkStatuses, err := discovery.DiscoverUnlinkPaths(manifest.Files.Unlink, configDir)
+	if err != nil {
+		return plan.Plan{}, fmt.Errorf("discover unlink paths: %w", err)
+	}
+	unlinkPlan, err := plan.BuildUnlinkPlan(unlinkStatuses)
+	if err != nil {
+		return plan.Plan{}, err
+	}
+
+	// brew → macos defaults → file links → managed copies → unlinks
+	return plan.MergePlans(brewPlan, defaultsPlan, filePlan, managedPlan, unlinkPlan), nil
 }

@@ -85,3 +85,57 @@ func TestBuildPlan_FromFixture(t *testing.T) {
 		t.Fatalf("formula installs = %v", names)
 	}
 }
+
+func TestBuildPlan_ManagedAndUnlink(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "cfg")
+	if err := os.MkdirAll(filepath.Join(configDir, "config"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	srcContent := []byte("managed-body\n")
+	if err := os.WriteFile(filepath.Join(configDir, "config", "foo.conf"), srcContent, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	home := filepath.Join(root, "home")
+	if err := os.MkdirAll(home, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+
+	managedTarget := filepath.Join(home, ".config", "foo.conf")
+	if err := os.MkdirAll(filepath.Dir(managedTarget), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	unlinkPath := filepath.Join(home, ".old-dotfile")
+	if err := os.WriteFile(unlinkPath, []byte("remove-me"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	lua := `return {
+  packages = { formulae = {}, casks = {} },
+  files = {
+    managed = {
+      { source = "config/foo.conf", target = "~/.config/foo.conf" },
+    },
+    unlink = { "~/.old-dotfile" },
+  },
+}
+`
+	configPath := filepath.Join(configDir, "pourover.lua")
+	if err := os.WriteFile(configPath, []byte(lua), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	runner := &stubBrewRunner{}
+	p, err := BuildPlan(context.Background(), configPath, runner)
+	if err != nil {
+		t.Fatalf("BuildPlan: %v", err)
+	}
+	if names := plan.ActionNames(p, plan.ActionManagedCopy); len(names) != 1 || names[0] != "~/.config/foo.conf" {
+		t.Fatalf("managed copies = %v", names)
+	}
+	if names := plan.ActionNames(p, plan.ActionFileUnlink); len(names) != 1 || names[0] != "~/.old-dotfile" {
+		t.Fatalf("unlinks = %v", names)
+	}
+}
