@@ -265,7 +265,7 @@ func decodePackages(L *lua.LState, root *lua.LTable, key string) (Packages, erro
 		return Packages{}, nil
 	}
 
-	taps, err := fieldStringSlice(L, tbl, "taps")
+	taps, err := fieldTapSpecs(L, tbl, "taps")
 	if err != nil {
 		return Packages{}, fmt.Errorf("packages.%w", err)
 	}
@@ -569,6 +569,51 @@ func fieldStringSlice(L *lua.LState, tbl *lua.LTable, key string) ([]string, err
 		out = append(out, v.String())
 	}
 	return out, nil
+}
+
+func fieldTapSpecs(L *lua.LState, tbl *lua.LTable, key string) ([]TapSpec, error) {
+	arr, ok, err := fieldTable(L, tbl, key)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, nil
+	}
+
+	var out []TapSpec
+	for i := 1; i <= arr.Len(); i++ {
+		v := L.RawGetInt(arr, i)
+		switch v.Type() {
+		case lua.LTString:
+			out = append(out, TapSpec{Name: v.String(), Trusted: true})
+		case lua.LTTable:
+			tap, err := decodeTapSpec(L, v.(*lua.LTable), key, i)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, tap)
+		default:
+			return nil, fmt.Errorf("%s[%d]: expected string or table, got %s", key, i, v.Type())
+		}
+	}
+	return out, nil
+}
+
+func decodeTapSpec(L *lua.LState, tbl *lua.LTable, field string, index int) (TapSpec, error) {
+	prefix := fmt.Sprintf("%s[%d]", field, index)
+	name, err := requiredString(L, tbl, "name", prefix)
+	if err != nil {
+		return TapSpec{}, err
+	}
+	trusted := true
+	trustedLV := L.GetField(tbl, "trusted")
+	if trustedLV != lua.LNil {
+		if trustedLV.Type() != lua.LTBool {
+			return TapSpec{}, fmt.Errorf("%s.trusted: expected boolean, got %s", prefix, trustedLV.Type())
+		}
+		trusted = lua.LVAsBool(trustedLV)
+	}
+	return TapSpec{Name: name, Trusted: trusted}, nil
 }
 
 func fieldTable(L *lua.LState, tbl *lua.LTable, key string) (*lua.LTable, bool, error) {

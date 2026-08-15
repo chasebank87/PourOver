@@ -27,11 +27,11 @@ func BuildBrewPlan(desired config.Packages, current discovery.BrewState) Plan {
 	currentTaps := sliceSet(current.Taps)
 	trustedTaps := sliceSet(current.TrustedTaps)
 
-	for _, name := range sortedMissingFromSet(desired.Taps, currentTaps) {
+	for _, name := range sortedMissingFromSet(desired.TapNames(), currentTaps) {
 		actions = append(actions, Action{Type: ActionTapAdd, Name: brewToken(name)})
 	}
 	var needTrust []string
-	for _, name := range desired.Taps {
+	for _, name := range desired.TapNames() {
 		token := brewToken(name)
 		if !discovery.NeedsExplicitTrust(token) {
 			continue
@@ -54,7 +54,7 @@ func BuildBrewPlan(desired config.Packages, current discovery.BrewState) Plan {
 	for _, name := range sortedMissingFromSet(desired.Casks, installedAny) {
 		actions = append(actions, Action{Type: ActionCaskInstall, Name: brewToken(name)})
 	}
-	for _, name := range sortedMissingFromSet(current.RemovableTaps(), sliceSet(desired.Taps)) {
+	for _, name := range sortedMissingFromSet(current.RemovableTaps(), sliceSet(desired.TapNames())) {
 		actions = append(actions, Action{Type: ActionTapRemove, Name: brewToken(name)})
 	}
 	for _, name := range sortedMissingFromSet(current.RemovableFormulae(), desiredAny) {

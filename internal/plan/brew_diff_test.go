@@ -27,7 +27,7 @@ func TestBuildBrewPlan_InstallsOnly(t *testing.T) {
 func TestBuildBrewPlan_TapAddBeforeInstalls(t *testing.T) {
 	plan := BuildBrewPlan(
 		config.Packages{
-			Taps:     []string{"homebrew/cask-fonts"},
+			Taps:     []config.TapSpec{{Name: "homebrew/cask-fonts"}},
 			Formulae: []string{"font-hack"},
 		},
 		discovery.BrewState{
@@ -52,7 +52,7 @@ func TestBuildBrewPlan_TapAddBeforeInstalls(t *testing.T) {
 
 func TestBuildBrewPlan_TrustAlreadyTapped(t *testing.T) {
 	plan := BuildBrewPlan(
-		config.Packages{Taps: []string{"nikitabobko/tap"}},
+		config.Packages{Taps: []config.TapSpec{{Name: "nikitabobko/tap"}}},
 		discovery.BrewState{
 			Taps:        []string{"homebrew/core", "nikitabobko/tap"},
 			TrustedTaps: nil,
@@ -68,7 +68,7 @@ func TestBuildBrewPlan_TrustAlreadyTapped(t *testing.T) {
 
 func TestBuildBrewPlan_SkipTrustWhenAlreadyTrusted(t *testing.T) {
 	plan := BuildBrewPlan(
-		config.Packages{Taps: []string{"nikitabobko/tap"}},
+		config.Packages{Taps: []config.TapSpec{{Name: "nikitabobko/tap"}}},
 		discovery.BrewState{
 			Taps:        []string{"nikitabobko/tap"},
 			TrustedTaps: []string{"nikitabobko/tap"},
@@ -124,7 +124,7 @@ func TestBuildBrewPlan_NoChanges(t *testing.T) {
 
 func TestBuildBrewPlan_DeterministicOrder(t *testing.T) {
 	desired := config.Packages{
-		Taps:     []string{"zzz/tap", "aaa/tap"},
+		Taps:     []config.TapSpec{{Name: "zzz/tap"}, {Name: "aaa/tap"}},
 		Formulae: []string{"zebra", "alpha", "mid"},
 		Casks:    []string{"zzz", "aaa"},
 	}

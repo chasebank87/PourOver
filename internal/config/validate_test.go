@@ -85,7 +85,7 @@ func TestValidate_CapitalizedPackageName(t *testing.T) {
 func TestValidate_EmptyTap(t *testing.T) {
 	err := Validate(&Manifest{
 		Policy:   Policy{UninstallMode: UninstallModeSafe},
-		Packages: Packages{Taps: []string{"homebrew/cask-fonts", ""}},
+		Packages: Packages{Taps: []TapSpec{{Name: "homebrew/cask-fonts"}, {Name: ""}}},
 	})
 	if err == nil || !strings.Contains(err.Error(), "packages.taps[2]") {
 		t.Fatalf("Validate() = %v", err)
@@ -124,7 +124,7 @@ func TestValidate_EmptyTemplateFields(t *testing.T) {
 func TestValidate_CapitalizedTap(t *testing.T) {
 	err := Validate(&Manifest{
 		Policy:   Policy{UninstallMode: UninstallModeSafe},
-		Packages: Packages{Taps: []string{"Homebrew/Cask-Fonts"}},
+		Packages: Packages{Taps: []TapSpec{{Name: "Homebrew/Cask-Fonts"}}},
 	})
 	if err == nil || !strings.Contains(err.Error(), "lowercase Homebrew token") {
 		t.Fatalf("Validate() = %v", err)

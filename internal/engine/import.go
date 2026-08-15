@@ -78,7 +78,7 @@ func Import(ctx context.Context, runner discovery.Runner, opts ImportOptions) (I
 			policy = m.Policy
 			backupCfg = m.Backup
 			existingLinks = append([]config.FileLink(nil), m.Files.Links...)
-			existingTaps = append([]string(nil), m.Packages.Taps...)
+			existingTaps = append([]string(nil), m.Packages.TapNames()...)
 			existingFormulae = append([]string(nil), m.Packages.Formulae...)
 			existingCasks = append([]string(nil), m.Packages.Casks...)
 		}

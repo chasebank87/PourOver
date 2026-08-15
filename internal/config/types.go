@@ -51,11 +51,26 @@ type SettingValue struct {
 	Array  []string    `json:"array,omitempty"`
 }
 
+// TapSpec is a Homebrew tap with an optional trust flag (default trusted).
+type TapSpec struct {
+	Name    string `json:"name"`
+	Trusted bool   `json:"trusted"` // default true when decoded from Lua string/table
+}
+
 // Packages lists Homebrew taps, formulae, and casks to reconcile.
 type Packages struct {
-	Taps     []string `json:"taps,omitempty"`
-	Formulae []string `json:"formulae,omitempty"`
-	Casks    []string `json:"casks,omitempty"`
+	Taps     []TapSpec `json:"taps,omitempty"`
+	Formulae []string  `json:"formulae,omitempty"`
+	Casks    []string  `json:"casks,omitempty"`
+}
+
+// TapNames returns the tap repository names in declaration order.
+func (p Packages) TapNames() []string {
+	names := make([]string, len(p.Taps))
+	for i, tap := range p.Taps {
+		names[i] = tap.Name
+	}
+	return names
 }
 
 // Files declares dotfiles and other paths to reconcile on disk.

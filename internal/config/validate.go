@@ -11,8 +11,8 @@ func Validate(m *Manifest) error {
 
 	errs = append(errs, validatePolicy(m.Policy)...)
 
-	for i, name := range m.Packages.Taps {
-		if err := validatePackageName(name, fmt.Sprintf("packages.taps[%d]", i+1)); err != nil {
+	for i, tap := range m.Packages.Taps {
+		if err := validatePackageName(tap.Name, fmt.Sprintf("packages.taps[%d]", i+1)); err != nil {
 			errs = append(errs, err)
 		}
 	}
