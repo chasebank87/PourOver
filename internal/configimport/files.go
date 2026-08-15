@@ -34,6 +34,9 @@ func DefaultHomeCandidates(home string) []FileCandidate {
 	if err == nil {
 		for _, e := range entries {
 			name := e.Name()
+			if SkipImportName(name) {
+				continue
+			}
 			out = append(out, FileCandidate{
 				TargetPath: filepath.Join(configRoot, name),
 				TargetDecl: "~/.config/" + name,
@@ -42,6 +45,17 @@ func DefaultHomeCandidates(home string) []FileCandidate {
 		}
 	}
 	return out
+}
+
+// SkipImportName reports whether a ~/.config entry name should not be imported
+// (Finder metadata, accidental "~" dirs, etc.).
+func SkipImportName(name string) bool {
+	switch name {
+	case ".DS_Store", "~":
+		return true
+	default:
+		return false
+	}
 }
 
 // ExistingImportable filters candidates to those that currently exist on disk.

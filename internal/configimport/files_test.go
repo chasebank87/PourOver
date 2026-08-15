@@ -234,3 +234,42 @@ func TestFormatRootLua(t *testing.T) {
 		}
 	}
 }
+
+func TestDefaultHomeCandidates_SkipsJunkNames(t *testing.T) {
+	home := t.TempDir()
+	configRoot := filepath.Join(home, ".config")
+	if err := os.MkdirAll(configRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"nvim", ".DS_Store", "~", "ghostty"} {
+		path := filepath.Join(configRoot, name)
+		if name == "nvim" || name == "ghostty" {
+			if err := os.Mkdir(path, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			continue
+		}
+		if err := os.WriteFile(path, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cands := DefaultHomeCandidates(home)
+	for _, c := range cands {
+		base := filepath.Base(c.TargetPath)
+		if base == ".DS_Store" || base == "~" {
+			t.Fatalf("unexpected junk candidate: %+v", c)
+		}
+	}
+	var sawNvim, sawGhostty bool
+	for _, c := range cands {
+		if c.TargetDecl == "~/.config/nvim" {
+			sawNvim = true
+		}
+		if c.TargetDecl == "~/.config/ghostty" {
+			sawGhostty = true
+		}
+	}
+	if !sawNvim || !sawGhostty {
+		t.Fatalf("expected real config apps, got %+v", cands)
+	}
+}
