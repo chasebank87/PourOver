@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -230,4 +231,21 @@ func TestDiscoverMasOutdated_RunnerError(t *testing.T) {
 
 func TestExecMasRunner_ImplementsMasRunner(t *testing.T) {
 	var _ MasRunner = (*ExecMasRunner)(nil)
+}
+
+func TestIsMasNotFound(t *testing.T) {
+	missing := &exec.Error{Name: "mas", Err: exec.ErrNotFound}
+	wrapped := fmt.Errorf("list mas apps: %w", missing)
+	if !IsMasNotFound(wrapped) {
+		t.Fatalf("IsMasNotFound(%v) = false, want true", wrapped)
+	}
+	if !IsMasNotFound(exec.ErrNotFound) {
+		t.Fatal("IsMasNotFound(exec.ErrNotFound) = false, want true")
+	}
+	if IsMasNotFound(fmt.Errorf("mas list: exit status 1")) {
+		t.Fatal("IsMasNotFound(exit status) = true, want false")
+	}
+	if IsMasNotFound(nil) {
+		t.Fatal("IsMasNotFound(nil) = true, want false")
+	}
 }

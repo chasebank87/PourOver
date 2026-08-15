@@ -3,6 +3,7 @@ package discovery
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -151,6 +152,12 @@ func DiscoverMas(ctx context.Context, r MasRunner) (MasState, error) {
 	return MasState{
 		Apps: parseMasList(out),
 	}, nil
+}
+
+// IsMasNotFound reports whether err indicates the mas executable is missing
+// from PATH (LookPath / exec.ErrNotFound), including wrapped errors from Run.
+func IsMasNotFound(err error) bool {
+	return errors.Is(err, exec.ErrNotFound)
 }
 
 // DiscoverMasOutdated lists outdated Mac App Store app IDs via `mas outdated`.

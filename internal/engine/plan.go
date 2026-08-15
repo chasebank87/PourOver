@@ -31,6 +31,8 @@ func BuildPlan(ctx context.Context, configPath string, runner discovery.Runner) 
 // When stateDir is empty, paths.DefaultStateDir is used for LoadLock / prune.
 // When masRunner is nil and packages.mas is configured, NewExecMasRunner is used.
 // When packages.mas is not configured, DiscoverMas is skipped.
+// When DiscoverMas fails because mas is not on PATH, planning continues with
+// an empty MasState so the implied formula_install mas can bootstrap.
 func BuildPlanWith(ctx context.Context, configPath string, runner discovery.Runner, defaultsRunner discovery.DefaultsRunner, masRunner discovery.MasRunner, stateDir string) (plan.Plan, error) {
 	manifest, err := config.LoadManifest(configPath)
 	if err != nil {
@@ -62,7 +64,13 @@ func BuildPlanWith(ctx context.Context, configPath string, runner discovery.Runn
 		}
 		masState, err := discovery.DiscoverMas(ctx, masRunner)
 		if err != nil {
-			return plan.Plan{}, fmt.Errorf("discover mas: %w", err)
+			// Bootstrap: mas formula may not be installed yet. Treat missing
+			// binary as empty state so formula_install mas + mas_install remain.
+			if discovery.IsMasNotFound(err) {
+				masState = discovery.MasState{}
+			} else {
+				return plan.Plan{}, fmt.Errorf("discover mas: %w", err)
+			}
 		}
 		masPlan = plan.BuildMasPlan(packages, masState)
 	}
