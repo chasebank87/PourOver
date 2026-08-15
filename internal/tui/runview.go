@@ -186,6 +186,9 @@ func runApplyFlow(
 		OnPhase: func(phase string) {
 			send(phaseMsg{phase: phase})
 		},
+		BeforeAuth: func() {
+			send(progressLineMsg{line: "authentication required — enter your password if prompted"})
+		},
 	})
 	finalErr := engine.FinalizeApply(engine.FinalizeOptions{
 		StateDir:    stateDir,

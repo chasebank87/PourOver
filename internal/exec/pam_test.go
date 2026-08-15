@@ -168,3 +168,31 @@ func TestPrepareSudoInstall_StagesFileNotDevStdin(t *testing.T) {
 		t.Fatalf("cleanup left staged file %s: %v", staged, err)
 	}
 }
+
+func TestWriteElevatedFile_CallsBeforeAuthForEtc(t *testing.T) {
+	orig := elevatedWrite
+	elevatedWrite = func(ctx context.Context, path string, data []byte, mode os.FileMode) error {
+		return nil
+	}
+	t.Cleanup(func() { elevatedWrite = orig })
+
+	called := false
+	if err := writeElevatedFile(context.Background(), "/etc/pam.d/sudo_local", []byte("x\n"), 0o644, func() {
+		called = true
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !called {
+		t.Fatal("BeforeAuth was not called before elevated /etc write")
+	}
+
+	called = false
+	if err := writeElevatedFile(context.Background(), filepath.Join(t.TempDir(), "sudo_local"), []byte("x\n"), 0o644, func() {
+		called = true
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if called {
+		t.Fatal("BeforeAuth must not run for non-/etc paths")
+	}
+}

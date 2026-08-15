@@ -30,4 +30,7 @@ type ApplyOptions struct {
 	// PAMSudoLocalPath / PAMSudoPath override /etc/pam.d paths (tests inject temp dirs).
 	PAMSudoLocalPath string
 	PAMSudoPath      string
+	// BeforeAuth parks fancy UI / prints a hint before sudo prompts on /dev/tty
+	// (PAM elevation does not stream through Stdout, so Session.Write never runs).
+	BeforeAuth func()
 }

@@ -115,6 +115,16 @@ func (s *Session) Write(p []byte) (int, error) {
 	return s.out.Write(p)
 }
 
+// PrepareAuth parks the live progress line and prints the auth hint so a
+// subsequent sudo Password: prompt on /dev/tty is not glued onto the bar.
+// Brew mutations get this via Write; PAM/system elevation must call it first.
+func (s *Session) PrepareAuth() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.parkStatusLocked()
+	fmt.Fprint(s.out, styleAccentPrompt.Render("☕ authentication required — enter your password if prompted\n"))
+}
+
 // Finish parks the status line and prints a colored summary.
 func (s *Session) Finish(sum Summary) {
 	s.mu.Lock()

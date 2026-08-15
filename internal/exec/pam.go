@@ -19,9 +19,12 @@ import (
 //
 // Writing under /etc requires elevation: ApplyPAM shells out to sudo when the
 // target path is under /etc. Unit tests inject temp dirs and never invoke sudo.
+// BeforeAuth, when set, runs immediately before sudo so fancy progress UI can
+// park the live status line (sudo Password: goes to /dev/tty, not Session.Write).
 type PAMApplyOptions struct {
 	SudoLocalPath string
 	SudoPath      string
+	BeforeAuth    func()
 }
 
 func (o PAMApplyOptions) sudoLocalPath(actionName string) string {
@@ -62,12 +65,12 @@ func ApplyPAM(ctx context.Context, p plan.Plan, opts PAMApplyOptions, progress P
 		var err error
 		switch a.Type {
 		case plan.ActionPAMSudoLocalWrite:
-			err = writeSudoLocal(ctx, opts.sudoLocalPath(a.Name), a.Value)
+			err = writeSudoLocal(ctx, opts.sudoLocalPath(a.Name), a.Value, opts.BeforeAuth)
 		case plan.ActionPAMSudoLocalRemove:
 			// Prefer stub over delete: keep include-safe empty managed file.
-			err = writeSudoLocal(ctx, opts.sudoLocalPath(a.Name), pam.DisabledSudoLocal)
+			err = writeSudoLocal(ctx, opts.sudoLocalPath(a.Name), pam.DisabledSudoLocal, opts.BeforeAuth)
 		case plan.ActionPAMSudoInclude:
-			err = ensureSudoLocalInclude(ctx, opts.sudoPath(a.Name))
+			err = ensureSudoLocalInclude(ctx, opts.sudoPath(a.Name), opts.BeforeAuth)
 		}
 		if err != nil {
 			reportFailure(progress, err)
@@ -79,17 +82,17 @@ func ApplyPAM(ctx context.Context, p plan.Plan, opts PAMApplyOptions, progress P
 	return n, errors.Join(errs...)
 }
 
-func writeSudoLocal(ctx context.Context, path, body string) error {
+func writeSudoLocal(ctx context.Context, path, body string, beforeAuth func()) error {
 	if err := validatePAMModulePaths(body); err != nil {
 		return err
 	}
-	if err := backupUnmanagedSudoLocal(ctx, path); err != nil {
+	if err := backupUnmanagedSudoLocal(ctx, path, beforeAuth); err != nil {
 		return err
 	}
-	return writeElevatedFile(ctx, path, []byte(body), 0o644)
+	return writeElevatedFile(ctx, path, []byte(body), 0o644, beforeAuth)
 }
 
-func ensureSudoLocalInclude(ctx context.Context, path string) error {
+func ensureSudoLocalInclude(ctx context.Context, path string, beforeAuth func()) error {
 	current, err := os.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("pam sudo include read %s: %w", path, err)
@@ -98,7 +101,7 @@ func ensureSudoLocalInclude(ctx context.Context, path string) error {
 		return nil
 	}
 	updated := insertSudoLocalInclude(current)
-	return writeElevatedFile(ctx, path, updated, 0o644)
+	return writeElevatedFile(ctx, path, updated, 0o644, beforeAuth)
 }
 
 func insertSudoLocalInclude(content []byte) []byte {
@@ -124,7 +127,7 @@ func insertSudoLocalInclude(content []byte) []byte {
 	return []byte(strings.Join(out, "\n"))
 }
 
-func backupUnmanagedSudoLocal(ctx context.Context, path string) error {
+func backupUnmanagedSudoLocal(ctx context.Context, path string, beforeAuth func()) error {
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
 		return nil
@@ -136,7 +139,7 @@ func backupUnmanagedSudoLocal(ctx context.Context, path string) error {
 		return nil
 	}
 	bak := path + ".pourover.bak"
-	if err := writeElevatedFile(ctx, bak, data, 0o644); err != nil {
+	if err := writeElevatedFile(ctx, bak, data, 0o644, beforeAuth); err != nil {
 		return fmt.Errorf("pam sudo_local backup %s: %w", bak, err)
 	}
 	return nil
@@ -174,9 +177,12 @@ func validatePAMModulePaths(body string) error {
 	return nil
 }
 
-func writeElevatedFile(ctx context.Context, path string, data []byte, mode os.FileMode) error {
+func writeElevatedFile(ctx context.Context, path string, data []byte, mode os.FileMode, beforeAuth func()) error {
 	if needsElevation(path) {
-		return sudoWriteFile(ctx, path, data, mode)
+		if beforeAuth != nil {
+			beforeAuth()
+		}
+		return elevatedWrite(ctx, path, data, mode)
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("pam write %s: parent dir: %w", path, err)
@@ -191,6 +197,9 @@ func needsElevation(path string) bool {
 	clean := filepath.Clean(path)
 	return clean == "/etc" || strings.HasPrefix(clean, "/etc/")
 }
+
+// elevatedWrite is sudoWriteFile in production; tests may stub it.
+var elevatedWrite = sudoWriteFile
 
 func sudoWriteFile(ctx context.Context, path string, data []byte, mode os.FileMode) error {
 	args, cleanup, err := prepareSudoInstall(data, mode, path)

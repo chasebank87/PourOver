@@ -138,6 +138,7 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 	}
 	if session != nil && total > 0 {
 		engineOpts.OnPhase = session.SetPhase
+		engineOpts.BeforeAuth = session.PrepareAuth
 	}
 
 	result, err := engine.Apply(cmd.Context(), runner, p, engineOpts)

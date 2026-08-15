@@ -105,6 +105,31 @@ func TestSession_WriteAuthPromptHint(t *testing.T) {
 	}
 }
 
+func TestSession_PrepareAuth_ParksLiveStatus(t *testing.T) {
+	ForcePlain()
+	var buf bytes.Buffer
+	s := NewSession(&buf, "apply")
+	s.Start(1)
+	s.Step("pam write /etc/pam.d/sudo_local")
+	before := buf.String()
+	if !strings.Contains(before, "pam write") {
+		t.Fatalf("missing step: %q", before)
+	}
+	s.PrepareAuth()
+	got := buf.String()[len(before):]
+	if !strings.Contains(got, "authentication required") {
+		t.Fatalf("missing auth hint after PrepareAuth: %q", got)
+	}
+	// After park, a following Password: must not sit on the bar line.
+	if _, err := buf.WriteString("Password:\n"); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+	if strings.Contains(out, "sudo_localPassword:") {
+		t.Fatalf("Password glued to progress label: %q", out)
+	}
+}
+
 func TestSession_SingleLiveStatusLine(t *testing.T) {
 	ForcePlain()
 	var buf bytes.Buffer

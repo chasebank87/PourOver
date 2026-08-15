@@ -75,6 +75,7 @@ func Apply(ctx context.Context, runner discovery.Runner, p plan.Plan, opts Apply
 	pamOpts := exec.PAMApplyOptions{
 		SudoLocalPath: opts.PAMSudoLocalPath,
 		SudoPath:      opts.PAMSudoPath,
+		BeforeAuth:    opts.BeforeAuth,
 	}
 	pamN, err := exec.ApplyPAM(ctx, p, pamOpts, progress)
 	if err != nil {
