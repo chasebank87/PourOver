@@ -34,3 +34,6 @@
 # PourOver local state (when testing in-repo)
 .pourover-state/
 **/state/test/
+
+# Git worktrees
+.worktrees/
