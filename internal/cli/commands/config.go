@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/chasebank87/PourOver/internal/backup"
 	"github.com/chasebank87/PourOver/internal/config"
 	"github.com/chasebank87/PourOver/internal/configgit"
+	"github.com/chasebank87/PourOver/internal/engine"
 	"github.com/chasebank87/PourOver/internal/paths"
 	"github.com/spf13/cobra"
 )
@@ -69,23 +69,13 @@ func runConfigICloudEnable(cmd *cobra.Command, icloudPath string, setPath bool) 
 	if err != nil {
 		return err
 	}
-	if err := requireConfigFile(configPath); err != nil {
-		return err
-	}
-	if err := config.PatchICloudFile(configPath, true, icloudPath, setPath); err != nil {
-		return err
-	}
-	manifest, err := config.LoadManifest(configPath)
-	if err != nil {
-		return err
-	}
-	path, enabled, err := backup.ResolveICloudDir(manifest)
+	st, err := engine.EnableICloud(configPath, icloudPath, setPath)
 	if err != nil {
 		return err
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "iCloud mirror enabled in %s\n", configPath)
-	if enabled {
-		fmt.Fprintf(cmd.OutOrStdout(), "Mirror path: %s\n", path)
+	if st.ICloudAvailable {
+		fmt.Fprintf(cmd.OutOrStdout(), "Mirror path: %s\n", st.ICloudPath)
 	} else {
 		fmt.Fprintln(cmd.OutOrStdout(), "Mirror path currently unavailable (is iCloud Drive signed in?)")
 	}
@@ -98,10 +88,7 @@ func runConfigICloudDisable(cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
-	if err := requireConfigFile(configPath); err != nil {
-		return err
-	}
-	if err := config.PatchICloudFile(configPath, false, "", false); err != nil {
+	if err := engine.DisableICloud(configPath); err != nil {
 		return err
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "iCloud mirror disabled in %s\n", configPath)
@@ -264,60 +251,32 @@ func newConfigPullCmd() *cobra.Command {
 }
 
 func runConfigPush(cmd *cobra.Command) error {
-	configPath, cfgDir, err := resolveConfigPath(cmd)
+	configPath, _, err := resolveConfigPath(cmd)
 	if err != nil {
 		return err
 	}
-	if err := requireConfigFile(configPath); err != nil {
-		return err
-	}
-	if !configgit.IsRepo(cfgDir) {
-		return fmt.Errorf("%s is not a git repo (run `pourover config git setup <url>`)", cfgDir)
-	}
-	manifest, err := config.LoadManifest(configPath)
+	result, err := engine.PushConfig(configPath)
 	if err != nil {
 		return err
 	}
-	branch := manifest.Backup.Git.Branch
-	if branch == "" {
-		branch = "main"
-	}
-	pushed, err := configgit.CommitAndPushIfDirty(cfgDir, branch, time.Now())
-	if err != nil {
-		return err
-	}
-	if !pushed {
+	if !result.Pushed {
 		fmt.Fprintln(cmd.OutOrStdout(), "Nothing to push (already synced).")
 		return nil
 	}
-	remote, _ := configgit.RemoteURL(cfgDir)
-	if remote == "" {
-		remote = cfgDir
-	}
-	fmt.Fprintf(cmd.OutOrStdout(), "Pushed config changes to %s\n", remote)
+	fmt.Fprintf(cmd.OutOrStdout(), "Pushed config changes to %s\n", result.Remote)
 	return nil
 }
 
 func runConfigPull(cmd *cobra.Command) error {
-	configPath, cfgDir, err := resolveConfigPath(cmd)
+	configPath, _, err := resolveConfigPath(cmd)
 	if err != nil {
 		return err
 	}
-	if err := requireConfigFile(configPath); err != nil {
+	if err := engine.PullConfig(configPath); err != nil {
 		return err
 	}
-	if !configgit.IsRepo(cfgDir) {
-		return fmt.Errorf("%s is not a git repo (run `pourover config git setup <url>`)", cfgDir)
-	}
-	manifest, err := config.LoadManifest(configPath)
+	_, cfgDir, err := resolveConfigPath(cmd)
 	if err != nil {
-		return err
-	}
-	branch := manifest.Backup.Git.Branch
-	if branch == "" {
-		branch = "main"
-	}
-	if err := configgit.Pull(cfgDir, branch); err != nil {
 		return err
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "Pulled config updates into %s\n", cfgDir)

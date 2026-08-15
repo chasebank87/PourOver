@@ -265,6 +265,9 @@ func (m HomeModel) activate() (tea.Model, tea.Cmd) {
 	case menuImport:
 		im := NewImportModel(m.configPath, m)
 		return im, im.Init()
+	case menuConfig:
+		cm := NewConfigModel(m.configPath, m)
+		return cm, cm.Init()
 	default:
 		m.stub = stubTitle(item)
 		return m, nil
