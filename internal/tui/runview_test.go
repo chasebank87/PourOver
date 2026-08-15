@@ -208,3 +208,63 @@ func TestPlanUpdate_AStartsApplyRun(t *testing.T) {
 		t.Fatal("expected Init command for apply run")
 	}
 }
+
+
+func TestRunUpdate_QWhileRunningIgnored(t *testing.T) {
+	m := RunModel{kind: RunApply, done: false}
+
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	if _, ok := next.(RunModel); !ok {
+		t.Fatalf("got %T, want RunModel", next)
+	}
+	if cmd != nil {
+		msg := cmd()
+		if _, ok := msg.(tea.QuitMsg); ok {
+			t.Fatal("q must not quit while running")
+		}
+	}
+}
+
+func TestRunUpdate_CtrlCWhileRunningIgnored(t *testing.T) {
+	m := RunModel{kind: RunApply, done: false}
+
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	if _, ok := next.(RunModel); !ok {
+		t.Fatalf("got %T, want RunModel", next)
+	}
+	if cmd != nil {
+		msg := cmd()
+		if _, ok := msg.(tea.QuitMsg); ok {
+			t.Fatal("ctrl+c must not quit while running")
+		}
+	}
+}
+
+func TestRunUpdate_QWhenDoneQuits(t *testing.T) {
+	m := RunModel{kind: RunApply, done: true}
+
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	if cmd == nil {
+		t.Fatal("expected quit command when done")
+	}
+	if _, ok := cmd().(tea.QuitMsg); !ok {
+		t.Fatal("expected tea.QuitMsg")
+	}
+}
+
+func TestLogWriter_SplitsLines(t *testing.T) {
+	var lines []string
+	w := &logWriter{send: func(line string) { lines = append(lines, line) }}
+	if _, err := w.Write([]byte("hello ")); err != nil {
+		t.Fatal(err)
+	}
+	if len(lines) != 0 {
+		t.Fatalf("partial line flushed early: %v", lines)
+	}
+	if _, err := w.Write([]byte("world\nmore\n")); err != nil {
+		t.Fatal(err)
+	}
+	if len(lines) != 2 || lines[0] != "hello world" || lines[1] != "more" {
+		t.Fatalf("lines = %#v", lines)
+	}
+}

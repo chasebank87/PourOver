@@ -1,15 +1,19 @@
 package tui
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/chasebank87/PourOver/internal/config"
 	"github.com/chasebank87/PourOver/internal/discovery"
 	"github.com/chasebank87/PourOver/internal/engine"
+	"github.com/chasebank87/PourOver/internal/paths"
 	"github.com/chasebank87/PourOver/internal/policy"
 )
 
@@ -24,17 +28,18 @@ const (
 const maxRunLogLines = 200
 
 // RunModel shows phase + scrolling progress for Apply or Upgrade.
-// Cancel mid-run is not implemented in 1.5 (esc only returns home when done).
+// Cancel mid-run is not implemented (esc/q/ctrl+c ignored until done).
+// Config auto-push after apply is skipped in TUI (Phase 2 config screens).
 type RunModel struct {
 	kind       RunKind
 	configPath string
 	home       HomeModel
 
-	phase  string
-	lines  []string
-	done   bool
+	phase   string
+	lines   []string
+	done    bool
 	summary string
-	err    string
+	err     string
 
 	confirm   ConfirmModel
 	confirmer *AsyncConfirmer
@@ -97,6 +102,32 @@ func startRunCmd(m RunModel) tea.Cmd {
 	}
 }
 
+// logWriter streams brew stdout/stderr into the run log as line messages.
+type logWriter struct {
+	send func(string)
+	mu   sync.Mutex
+	buf  bytes.Buffer
+}
+
+func (w *logWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.buf.Write(p)
+	for {
+		data := w.buf.Bytes()
+		i := bytes.IndexByte(data, '\n')
+		if i < 0 {
+			break
+		}
+		line := string(bytes.TrimRight(data[:i], "\r"))
+		w.buf.Next(i + 1)
+		if line != "" && w.send != nil {
+			w.send(line)
+		}
+	}
+	return len(p), nil
+}
+
 func runEngine(m RunModel) {
 	ctx := context.Background()
 	runner := discovery.NewExecRunner()
@@ -106,46 +137,141 @@ func runEngine(m RunModel) {
 	sendDone := func(summary string, err error) {
 		m.events <- runDoneMsg{summary: summary, err: err}
 	}
-
-	progress := engine.Progress(func(line string) {
+	sendLine := func(line string) {
 		send(progressLineMsg{line: line})
-	})
+	}
+
+	progress := engine.Progress(sendLine)
+	brewLog := &logWriter{send: sendLine}
 
 	switch m.kind {
 	case RunUpgrade:
-		p, err := engine.BuildUpgradePlan(ctx, m.configPath, runner)
-		if err != nil {
-			sendDone("", err)
-			return
-		}
-		send(phaseMsg{phase: "upgrade"})
-		result, err := engine.UpgradePackages(ctx, runner, p, engine.UpgradeOptions{
-			Progress: progress,
-		})
-		sendDone(formatUpgradeSummary(result), err)
-	default: // Apply
-		p, err := engine.BuildPlan(ctx, m.configPath, runner)
-		if err != nil {
-			sendDone("", err)
-			return
-		}
-		mode := config.UninstallModeSafe
-		if manifest, err := config.LoadManifest(m.configPath); err == nil {
-			mode = policy.ResolveModeFromManifest(manifest)
-		}
-		result, err := engine.Apply(ctx, runner, p, engine.ApplyOptions{
-			ConfigPath: m.configPath,
-			ConfigDir:  filepath.Dir(m.configPath),
-			Mode:       mode,
-			AutoYes:    false,
-			Progress:   progress,
-			Confirm:    m.confirmer,
-			OnPhase: func(phase string) {
-				send(phaseMsg{phase: phase})
-			},
-		})
-		sendDone(formatApplySummary(result), err)
+		runUpgradeFlow(ctx, m, runner, progress, brewLog, send, sendDone)
+	default:
+		runApplyFlow(ctx, m, runner, progress, brewLog, send, sendDone)
 	}
+}
+
+func runApplyFlow(
+	ctx context.Context,
+	m RunModel,
+	runner discovery.Runner,
+	progress engine.Progress,
+	brewLog *logWriter,
+	send func(tea.Msg),
+	sendDone func(string, error),
+) {
+	p, err := engine.BuildPlan(ctx, m.configPath, runner)
+	if err != nil {
+		sendDone("", err)
+		return
+	}
+	manifest, mode, stateDir, prepErr := prepareFinalize(m.configPath)
+	if prepErr != nil {
+		sendDone("", prepErr)
+		return
+	}
+	result, applyErr := engine.Apply(ctx, runner, p, engine.ApplyOptions{
+		ConfigPath: m.configPath,
+		ConfigDir:  filepath.Dir(m.configPath),
+		Mode:       mode,
+		AutoYes:    false,
+		Progress:   progress,
+		Confirm:    m.confirmer,
+		Stdout:     brewLog,
+		Stderr:     brewLog,
+		OnPhase: func(phase string) {
+			send(phaseMsg{phase: phase})
+		},
+	})
+	finalErr := engine.FinalizeApply(engine.FinalizeOptions{
+		StateDir: stateDir,
+		Manifest: manifest,
+	}, p, applyErr)
+	// Skip maybeAutoPushConfig in TUI (Phase 2 config screens).
+	sendDone(formatApplySummary(result), finalErr)
+}
+
+func runUpgradeFlow(
+	ctx context.Context,
+	m RunModel,
+	runner discovery.Runner,
+	progress engine.Progress,
+	brewLog *logWriter,
+	send func(tea.Msg),
+	sendDone func(string, error),
+) {
+	upPlan, err := engine.BuildUpgradePlan(ctx, m.configPath, runner)
+	if err != nil {
+		sendDone("", err)
+		return
+	}
+	send(phaseMsg{phase: "upgrade"})
+	upResult, upErr := engine.UpgradePackages(ctx, runner, upPlan, engine.UpgradeOptions{
+		Progress: progress,
+		Stdout:   brewLog,
+		Stderr:   brewLog,
+	})
+
+	applyPlan, err := engine.BuildPlan(ctx, m.configPath, runner)
+	if err != nil {
+		sendDone(formatUpgradeSummary(upResult), errors.Join(upErr, err))
+		return
+	}
+	manifest, mode, stateDir, prepErr := prepareFinalize(m.configPath)
+	if prepErr != nil {
+		sendDone(formatUpgradeSummary(upResult), errors.Join(upErr, prepErr))
+		return
+	}
+	send(phaseMsg{phase: "apply"})
+	applyResult, applyErr := engine.Apply(ctx, runner, applyPlan, engine.ApplyOptions{
+		ConfigPath: m.configPath,
+		ConfigDir:  filepath.Dir(m.configPath),
+		Mode:       mode,
+		AutoYes:    false,
+		Progress:   progress,
+		Confirm:    m.confirmer,
+		Stdout:     brewLog,
+		Stderr:     brewLog,
+		OnPhase: func(phase string) {
+			send(phaseMsg{phase: phase})
+		},
+	})
+	finalErr := engine.FinalizeApply(engine.FinalizeOptions{
+		StateDir: stateDir,
+		Manifest: manifest,
+	}, applyPlan, applyErr)
+	// Skip maybeAutoPushConfig in TUI (Phase 2 config screens).
+	summary := joinSummaries(formatUpgradeSummary(upResult), formatApplySummary(applyResult))
+	sendDone(summary, errors.Join(upErr, finalErr))
+}
+
+func prepareFinalize(configPath string) (config.Manifest, config.UninstallMode, string, error) {
+	manifest, err := config.LoadManifest(configPath)
+	if err != nil {
+		return config.Manifest{}, "", "", fmt.Errorf("load config: %w", err)
+	}
+	mode := policy.ResolveModeFromManifest(manifest)
+	stateDir, err := paths.DefaultStateDir()
+	if err != nil {
+		return manifest, mode, "", err
+	}
+	return manifest, mode, stateDir, nil
+}
+
+func joinSummaries(parts ...string) string {
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" || p == "No changes." || p == "No upgrades." {
+			continue
+		}
+		out = append(out, strings.TrimPrefix(p, "Done: "))
+	}
+	if len(out) == 0 {
+		return "No changes."
+	}
+	return "Done: " + strings.Join(out, "; ")
 }
 
 func (m RunModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -195,7 +321,7 @@ func (m RunModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.done {
 				return m, tea.Quit
 			}
-			return m, tea.Quit
+			return m, nil
 		case "esc":
 			if m.done {
 				return m.home, nil
@@ -284,8 +410,7 @@ func formatApplySummary(r engine.ApplyResult) string {
 func formatUpgradeSummary(r engine.UpgradeResult) string {
 	parts := []string{}
 	if r.Upgraded > 0 {
-		label := "upgraded"
-		parts = append(parts, fmt.Sprintf("%d %s", r.Upgraded, label))
+		parts = append(parts, fmt.Sprintf("%d upgraded", r.Upgraded))
 	}
 	if r.Failures > 0 {
 		label := "failure"

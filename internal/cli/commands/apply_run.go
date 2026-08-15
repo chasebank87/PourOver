@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chasebank87/PourOver/internal/backup"
 	"github.com/chasebank87/PourOver/internal/config"
 	"github.com/chasebank87/PourOver/internal/discovery"
 	"github.com/chasebank87/PourOver/internal/engine"
@@ -16,7 +15,6 @@ import (
 	"github.com/chasebank87/PourOver/internal/paths"
 	"github.com/chasebank87/PourOver/internal/plan"
 	"github.com/chasebank87/PourOver/internal/policy"
-	"github.com/chasebank87/PourOver/internal/state"
 	"github.com/chasebank87/PourOver/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -82,13 +80,11 @@ func runApply(cmd *cobra.Command, dryRun, autoYes, quiet bool) error {
 
 func executeApply(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, opts applyOptions) error {
 	applyErr := runApplyActions(cmd, runner, p, opts)
-	if histErr := appendApplyHistory(opts, p, applyErr); histErr != nil && applyErr == nil {
-		return histErr
-	}
-	if applyErr != nil {
-		return applyErr
-	}
-	if err := persistApplyState(opts, p); err != nil {
+	if err := engine.FinalizeApply(engine.FinalizeOptions{
+		StateDir: opts.stateDir,
+		Manifest: opts.manifest,
+		Now:      opts.now,
+	}, p, applyErr); err != nil {
 		return err
 	}
 	maybeAutoPushConfig(cmd, opts.configPath, opts.manifest)
@@ -236,42 +232,3 @@ func brewRunnerWithProgress(runner discovery.Runner, out io.Writer, quiet bool) 
 	return runner
 }
 
-func appendApplyHistory(opts applyOptions, p plan.Plan, applyErr error) error {
-	if opts.stateDir == "" {
-		return nil
-	}
-	now := time.Now
-	if opts.now != nil {
-		now = opts.now
-	}
-	at := now()
-	hash, err := state.ManifestHash(opts.manifest)
-	if err != nil {
-		return fmt.Errorf("history manifest hash: %w", err)
-	}
-	entry := state.NewHistoryEntry(p, hash, at, applyErr)
-	if _, err := state.AppendHistory(opts.stateDir, entry, at); err != nil {
-		return fmt.Errorf("persist history: %w", err)
-	}
-	return nil
-}
-
-func persistApplyState(opts applyOptions, p plan.Plan) error {
-	if opts.stateDir == "" {
-		return nil
-	}
-	now := time.Now
-	if opts.now != nil {
-		now = opts.now
-	}
-	at := now()
-	if err := state.PersistApplyState(opts.stateDir, opts.manifest, p, at); err != nil {
-		return fmt.Errorf("persist state: %w", err)
-	}
-	result, err := backup.SnapshotAndMirror(opts.stateDir, opts.manifest, at)
-	if err != nil {
-		return fmt.Errorf("snapshot/mirror: %w", err)
-	}
-	_ = result
-	return nil
-}
