@@ -44,6 +44,9 @@ func (s *stubBrewRunner) Run(ctx context.Context, args ...string) ([]byte, error
 	if isBrewListArgs(args, "--cask") {
 		return []byte(s.casks), nil
 	}
+	if len(args) >= 2 && args[0] == "deps" && args[1] == "--union" {
+		return []byte(""), nil
+	}
 	if len(args) == 3 && args[0] == "outdated" && args[1] == "--formula" && args[2] == "-q" {
 		if s.outdatedSet {
 			return []byte(s.outdatedFormulae), nil

@@ -35,6 +35,9 @@ func (r *recordingRunner) Run(ctx context.Context, args ...string) ([]byte, erro
 	if isBrewListArgs(args, "--cask") {
 		return []byte(""), nil
 	}
+	if len(args) >= 2 && args[0] == "deps" && args[1] == "--union" {
+		return []byte(""), nil
+	}
 	return nil, fmt.Errorf("unexpected brew args: %v", args)
 }
 
@@ -85,8 +88,8 @@ func TestApplyDryRun_NoBrewMutations(t *testing.T) {
 			t.Fatalf("brew mutation during dry-run path: %v", args)
 		}
 	}
-	if len(runner.calls) != 5 {
-		t.Fatalf("brew calls = %d, want 5 discovery calls (tap + trust + lists)", len(runner.calls))
+	if len(runner.calls) != 6 {
+		t.Fatalf("brew calls = %d, want 6 discovery calls (tap + trust + lists + deps --union)", len(runner.calls))
 	}
 }
 
@@ -196,6 +199,9 @@ func (r *installRecordingRunner) Run(ctx context.Context, args ...string) ([]byt
 	}
 	if isBrewListArgs(args, "--cask") {
 		return r.listCask, nil
+	}
+	if len(args) >= 2 && args[0] == "deps" && args[1] == "--union" {
+		return []byte(""), nil
 	}
 	if len(args) == 2 && args[0] == "install" {
 		r.installs = append(r.installs, args[1])
@@ -570,6 +576,9 @@ func (r *failingInstallRunner) Run(ctx context.Context, args ...string) ([]byte,
 	if isBrewListArgs(args, "--cask") {
 		return r.listCask, nil
 	}
+	if len(args) >= 2 && args[0] == "deps" && args[1] == "--union" {
+		return []byte(""), nil
+	}
 	if len(args) >= 1 && args[0] == "install" {
 		return nil, fmt.Errorf("brew install failed")
 	}
@@ -645,6 +654,9 @@ func (r *orderRecordingRunner) Run(ctx context.Context, args ...string) ([]byte,
 	}
 	if isBrewListArgs(args, "--cask") {
 		return r.listCask, nil
+	}
+	if len(args) >= 2 && args[0] == "deps" && args[1] == "--union" {
+		return []byte(""), nil
 	}
 	if len(args) == 2 && args[0] == "install" {
 		if _, err := os.Lstat(r.linkTarget); err == nil {
