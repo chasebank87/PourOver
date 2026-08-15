@@ -287,10 +287,14 @@ func runConfigPush(cmd *cobra.Command) error {
 		return err
 	}
 	if !pushed {
-		fmt.Fprintln(cmd.OutOrStdout(), "Nothing to push (working tree clean).")
+		fmt.Fprintln(cmd.OutOrStdout(), "Nothing to push (already synced).")
 		return nil
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "Pushed config changes to %s\n", cfgDir)
+	remote, _ := configgit.RemoteURL(cfgDir)
+	if remote == "" {
+		remote = cfgDir
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "Pushed config changes to %s\n", remote)
 	return nil
 }
 
