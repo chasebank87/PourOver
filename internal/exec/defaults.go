@@ -64,8 +64,17 @@ func runHostCmd(ctx context.Context, timeout time.Duration, name string, args ..
 	return out, nil
 }
 
+// DefaultsApplyOptions configures defaults_write apply (elevation for system domains).
+type DefaultsApplyOptions struct {
+	// BeforeAuth parks fancy UI / prints a hint before sudo Password: on /dev/tty.
+	BeforeAuth func()
+	// Timeout for elevated sudo defaults (0 → discovery.DefaultDefaultsTimeout).
+	Timeout time.Duration
+}
+
 // ApplyDefaultsWrites runs defaults_write actions then restarts affected UI apps.
-func ApplyDefaultsWrites(ctx context.Context, applier DefaultsApplier, p plan.Plan, progress Progress) (int, error) {
+// Domains under /Library/Preferences are written via `sudo defaults` (admin).
+func ApplyDefaultsWrites(ctx context.Context, applier DefaultsApplier, p plan.Plan, opts DefaultsApplyOptions, progress Progress) (int, error) {
 	n := 0
 	domains := map[string]struct{}{}
 	for _, a := range p.Actions {
@@ -77,10 +86,11 @@ func ApplyDefaultsWrites(ctx context.Context, applier DefaultsApplier, p plan.Pl
 		if err != nil {
 			return n, err
 		}
-		if _, err := applier.Defaults(ctx, args...); err != nil {
-			if strings.HasPrefix(a.Domain, "/Library/Preferences") {
-				return n, fmt.Errorf("writing system preference %s %s requires admin privileges: %w", a.Domain, a.Key, err)
+		if isSystemDefaultsDomain(a.Domain) {
+			if err := elevatedDefaultsWrite(ctx, opts.Timeout, args, opts.BeforeAuth); err != nil {
+				return n, fmt.Errorf("writing system preference %s %s: %w", a.Domain, a.Key, err)
 			}
+		} else if _, err := applier.Defaults(ctx, args...); err != nil {
 			return n, err
 		}
 		domains[a.Domain] = struct{}{}
@@ -93,6 +103,35 @@ func ApplyDefaultsWrites(ctx context.Context, applier DefaultsApplier, p plan.Pl
 		_ = applier.Killall(ctx, proc) // process may not be running
 	}
 	return n, nil
+}
+
+func isSystemDefaultsDomain(domain string) bool {
+	return strings.HasPrefix(domain, "/Library/Preferences")
+}
+
+// elevatedDefaultsWrite is sudoDefaultsWrite in production; tests may stub it.
+var elevatedDefaultsWrite = sudoDefaultsWrite
+
+func sudoDefaultsWrite(ctx context.Context, timeout time.Duration, args []string, beforeAuth func()) error {
+	if beforeAuth != nil {
+		beforeAuth()
+	}
+	if timeout == 0 {
+		timeout = discovery.DefaultDefaultsTimeout
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "sudo", append([]string{"defaults"}, args...)...)
+	cmd.Stdin = os.Stdin
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		msg := strings.TrimSpace(string(out))
+		if msg != "" {
+			return fmt.Errorf("sudo defaults %s: %w: %s", strings.Join(args, " "), err, msg)
+		}
+		return fmt.Errorf("sudo defaults %s: %w", strings.Join(args, " "), err)
+	}
+	return nil
 }
 
 func defaultsWriteArgs(a plan.Action) ([]string, error) {

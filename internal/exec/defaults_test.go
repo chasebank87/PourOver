@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/chasebank87/PourOver/internal/config"
 	"github.com/chasebank87/PourOver/internal/plan"
@@ -32,7 +33,7 @@ func TestApplyDefaultsWrites(t *testing.T) {
 		{Type: plan.ActionDefaultsWrite, Domain: config.DomainFinder, Key: "ShowPathbar", Value: "true", Kind: "bool"},
 		{Type: plan.ActionFormulaInstall, Name: "git"},
 	}}
-	n, err := ApplyDefaultsWrites(context.Background(), rec, p, nil)
+	n, err := ApplyDefaultsWrites(context.Background(), rec, p, DefaultsApplyOptions{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +93,7 @@ func TestApplyDefaultsWrites_ScreencaptureKillall(t *testing.T) {
 	p := plan.Plan{Actions: []plan.Action{
 		{Type: plan.ActionDefaultsWrite, Domain: "com.apple.screencapture", Key: "type", Value: "png", Kind: "string"},
 	}}
-	if _, err := ApplyDefaultsWrites(context.Background(), rec, p, nil); err != nil {
+	if _, err := ApplyDefaultsWrites(context.Background(), rec, p, DefaultsApplyOptions{}, nil); err != nil {
 		t.Fatal(err)
 	}
 	joined := strings.Join(rec.killall, ",")
@@ -105,30 +106,66 @@ func TestApplyDefaultsWrites_UnsupportedKind(t *testing.T) {
 	rec := &recordingDefaults{}
 	_, err := ApplyDefaultsWrites(context.Background(), rec, plan.Plan{Actions: []plan.Action{{
 		Type: plan.ActionDefaultsWrite, Domain: "x", Key: "y", Value: "z", Kind: "blob",
-	}}}, nil)
+	}}}, DefaultsApplyOptions{}, nil)
 	if err == nil || !strings.Contains(err.Error(), "unsupported kind") {
 		t.Fatalf("err=%v", err)
 	}
 }
 
-type failingDefaults struct{ err error }
+func TestApplyDefaultsWrites_SystemDomainUsesSudo(t *testing.T) {
+	rec := &recordingDefaults{}
+	var gotArgs []string
+	authCalls := 0
+	orig := elevatedDefaultsWrite
+	elevatedDefaultsWrite = func(ctx context.Context, timeout time.Duration, args []string, beforeAuth func()) error {
+		if beforeAuth != nil {
+			beforeAuth()
+		}
+		gotArgs = append([]string{}, args...)
+		return nil
+	}
+	t.Cleanup(func() { elevatedDefaultsWrite = orig })
 
-func (f *failingDefaults) Defaults(ctx context.Context, args ...string) ([]byte, error) {
-	return nil, f.err
+	n, err := ApplyDefaultsWrites(context.Background(), rec, plan.Plan{Actions: []plan.Action{{
+		Type:   plan.ActionDefaultsWrite,
+		Domain: "/Library/Preferences/com.apple.loginwindow",
+		Key:    "LoginwindowText",
+		Value:  "hello",
+		Kind:   "string",
+	}}}, DefaultsApplyOptions{BeforeAuth: func() { authCalls++ }}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("n=%d", n)
+	}
+	if len(rec.writes) != 0 {
+		t.Fatalf("user defaults applier should not run for system domain; writes=%v", rec.writes)
+	}
+	want := "write /Library/Preferences/com.apple.loginwindow LoginwindowText -string hello"
+	if got := strings.Join(gotArgs, " "); got != want {
+		t.Fatalf("elevated args=%q, want %q", got, want)
+	}
+	if authCalls != 1 {
+		t.Fatalf("BeforeAuth calls=%d, want 1", authCalls)
+	}
 }
 
-func (f *failingDefaults) Killall(ctx context.Context, process string) error { return nil }
+func TestApplyDefaultsWrites_SystemDomainElevatedError(t *testing.T) {
+	orig := elevatedDefaultsWrite
+	elevatedDefaultsWrite = func(ctx context.Context, timeout time.Duration, args []string, beforeAuth func()) error {
+		return fmt.Errorf("sudo denied")
+	}
+	t.Cleanup(func() { elevatedDefaultsWrite = orig })
 
-func TestApplyDefaultsWrites_SystemDomainNeedsAdmin(t *testing.T) {
-	rec := &failingDefaults{err: fmt.Errorf("permission denied")}
-	_, err := ApplyDefaultsWrites(context.Background(), rec, plan.Plan{Actions: []plan.Action{{
+	_, err := ApplyDefaultsWrites(context.Background(), &recordingDefaults{}, plan.Plan{Actions: []plan.Action{{
 		Type:   plan.ActionDefaultsWrite,
 		Domain: "/Library/Preferences/com.apple.loginwindow",
 		Key:    "GuestEnabled",
 		Value:  "false",
 		Kind:   "bool",
-	}}}, nil)
-	if err == nil || !strings.Contains(err.Error(), "requires admin privileges") {
+	}}}, DefaultsApplyOptions{}, nil)
+	if err == nil || !strings.Contains(err.Error(), "writing system preference") || !strings.Contains(err.Error(), "sudo denied") {
 		t.Fatalf("err=%v", err)
 	}
 }

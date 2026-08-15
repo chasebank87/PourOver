@@ -258,7 +258,7 @@ macos = {
 }
 ```
 
-`loginwindow` / `smb` / `SoftwareUpdate` write machine plists (admin on apply). Wallpaper and Finder sidebar Favorites are not applied. Dock `persistent-apps` / `persistent-others` accept path arrays (nix-darwin-style tiles).
+`loginwindow` / `smb` / `SoftwareUpdate` write machine plists under `/Library/Preferences` via `sudo defaults` on apply. Wallpaper and Finder sidebar Favorites are not applied. Dock `persistent-apps` / `persistent-others` accept path arrays (nix-darwin-style tiles).
 
 ### `macos.security.pam.sudo_local`
 

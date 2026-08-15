@@ -102,7 +102,7 @@ pourover import macos --force    # replace curated sections with the snapshot
 pourover import macos --dry-run  # preview without writing
 ```
 
-`import macos` writes `macos.lua` and wires `require("macos")` into `pourover.lua`. System-scope keys (`loginwindow`, `smb`, `SoftwareUpdate`) need admin on apply. Expand coverage by editing `internal/config/macos_catalog.yaml`. Search:
+`import macos` writes `macos.lua` and wires `require("macos")` into `pourover.lua`. System-scope keys (`loginwindow`, `smb`, `SoftwareUpdate`) write under `/Library/Preferences` via `sudo defaults` on apply (same auth path as PAM `/etc` writes). Expand coverage by editing `internal/config/macos_catalog.yaml`. Search:
 
 - [docs/macos-defaults.md](docs/macos-defaults.md) — every supported `system.defaults` key and Lua syntax
 - [docs/nix-darwin-options.md](docs/nix-darwin-options.md) — full [MyNixOS nix-darwin](https://mynixos.com/nix-darwin/options) option tree and PourOver status

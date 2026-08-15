@@ -102,7 +102,9 @@ func Apply(ctx context.Context, runner discovery.Runner, p plan.Plan, opts Apply
 	}
 
 	phase("defaults")
-	written, err := exec.ApplyDefaultsWrites(ctx, exec.NewExecDefaultsApplier(), p, progress)
+	written, err := exec.ApplyDefaultsWrites(ctx, exec.NewExecDefaultsApplier(), p, exec.DefaultsApplyOptions{
+		BeforeAuth: opts.BeforeAuth,
+	}, progress)
 	if err != nil {
 		errs = append(errs, err)
 	}
