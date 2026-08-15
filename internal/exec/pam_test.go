@@ -1,0 +1,127 @@
+package exec
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/chasebank87/PourOver/internal/pam"
+	"github.com/chasebank87/PourOver/internal/plan"
+)
+
+func TestApplyPAM_WriteAndRemove(t *testing.T) {
+	root := t.TempDir()
+	sudoLocal := filepath.Join(root, "sudo_local")
+	sudoPath := filepath.Join(root, "sudo")
+	if err := os.WriteFile(sudoPath, []byte("# sudo\nauth required pam_opendirectory.so\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	body := pam.ManagedMarker + "\nauth sufficient pam_tid.so\n"
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionPAMSudoLocalWrite, Name: sudoLocal, Value: body},
+		{Type: plan.ActionPAMSudoInclude, Name: sudoPath},
+	}}
+
+	n, err := ApplyPAM(context.Background(), p, PAMApplyOptions{
+		SudoLocalPath: sudoLocal,
+		SudoPath:      sudoPath,
+	}, nil)
+	if err != nil {
+		t.Fatalf("ApplyPAM write: %v", err)
+	}
+	if n != 2 {
+		t.Fatalf("n = %d, want 2", n)
+	}
+	got, err := os.ReadFile(sudoLocal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != body {
+		t.Fatalf("sudo_local = %q, want %q", got, body)
+	}
+	sudoGot, err := os.ReadFile(sudoPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !pam.HasSudoLocalInclude(sudoGot) {
+		t.Fatalf("sudo missing include:\n%s", sudoGot)
+	}
+
+	removePlan := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionPAMSudoLocalRemove, Name: sudoLocal},
+	}}
+	n, err = ApplyPAM(context.Background(), removePlan, PAMApplyOptions{
+		SudoLocalPath: sudoLocal,
+		SudoPath:      sudoPath,
+	}, nil)
+	if err != nil {
+		t.Fatalf("ApplyPAM remove: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("remove n = %d, want 1", n)
+	}
+	if _, err := os.Stat(sudoLocal); !os.IsNotExist(err) {
+		t.Fatalf("sudo_local still present: %v", err)
+	}
+}
+
+func TestApplyPAM_BackupUnmanagedOnWrite(t *testing.T) {
+	root := t.TempDir()
+	sudoLocal := filepath.Join(root, "sudo_local")
+	old := []byte("auth sufficient pam_tid.so\n")
+	if err := os.WriteFile(sudoLocal, old, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	body := pam.ManagedMarker + "\nauth sufficient pam_tid.so\n"
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionPAMSudoLocalWrite, Name: sudoLocal, Value: body},
+	}}
+	if _, err := ApplyPAM(context.Background(), p, PAMApplyOptions{SudoLocalPath: sudoLocal}, nil); err != nil {
+		t.Fatalf("ApplyPAM: %v", err)
+	}
+	bak := sudoLocal + ".pourover.bak"
+	got, err := os.ReadFile(bak)
+	if err != nil {
+		t.Fatalf("backup: %v", err)
+	}
+	if string(got) != string(old) {
+		t.Fatalf("backup = %q, want %q", got, old)
+	}
+}
+
+func TestApplyPAM_MissingSOPathErrors(t *testing.T) {
+	root := t.TempDir()
+	sudoLocal := filepath.Join(root, "sudo_local")
+	missing := filepath.Join(root, "missing", "pam_reattach.so")
+	body := pam.ManagedMarker + "\nauth optional " + missing + "\n"
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionPAMSudoLocalWrite, Name: sudoLocal, Value: body},
+	}}
+	_, err := ApplyPAM(context.Background(), p, PAMApplyOptions{SudoLocalPath: sudoLocal}, nil)
+	if err == nil {
+		t.Fatal("want error when .so path missing")
+	}
+	if !strings.Contains(err.Error(), missing) && !strings.Contains(err.Error(), ".so") {
+		t.Fatalf("error = %v, want mention of missing module", err)
+	}
+	if _, err := os.Stat(sudoLocal); !os.IsNotExist(err) {
+		t.Fatal("sudo_local should not be written when .so missing")
+	}
+}
+
+func TestApplyPAM_EmptySOPathErrors(t *testing.T) {
+	root := t.TempDir()
+	sudoLocal := filepath.Join(root, "sudo_local")
+	// Render-like line with empty module path (trailing space after optional).
+	body := pam.ManagedMarker + "\nauth optional \n"
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionPAMSudoLocalWrite, Name: sudoLocal, Value: body},
+	}}
+	_, err := ApplyPAM(context.Background(), p, PAMApplyOptions{SudoLocalPath: sudoLocal}, nil)
+	if err == nil {
+		t.Fatal("want error for empty .so path")
+	}
+}

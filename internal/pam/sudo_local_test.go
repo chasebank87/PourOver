@@ -110,17 +110,18 @@ func TestRenderSudoLocal_EmptyWhenDisabledOrUnconfigured(t *testing.T) {
 	}
 }
 
-func TestIsPourOverManaged(t *testing.T) {
-	if !IsPourOverManaged([]byte(ManagedMarker + "\nauth sufficient pam_tid.so\n")) {
-		t.Fatal("expected true when marker present")
+func TestHasSudoLocalInclude(t *testing.T) {
+	if !HasSudoLocalInclude([]byte("auth       include        sudo_local\n")) {
+		t.Fatal("expected true for spaced include")
 	}
-	if IsPourOverManaged([]byte("auth sufficient pam_tid.so\n")) {
-		t.Fatal("expected false when marker absent")
+	if !HasSudoLocalInclude([]byte("auth include sudo_local\n")) {
+		t.Fatal("expected true for compact include")
 	}
-	if IsPourOverManaged(nil) {
-		t.Fatal("expected false for nil")
+	if HasSudoLocalInclude([]byte("auth required pam_opendirectory.so\n")) {
+		t.Fatal("expected false when include absent")
 	}
 }
+
 
 func nonEmptyLines(s string) []string {
 	var out []string

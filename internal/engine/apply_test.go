@@ -15,7 +15,7 @@ func TestApply_NoChanges(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
-	if result.Taps != 0 || result.Formulae != 0 || result.Casks != 0 ||
+	if result.Taps != 0 || result.Formulae != 0 || result.Casks != 0 || result.PAM != 0 ||
 		result.Removed != 0 || result.Defaults != 0 || result.Linked != 0 ||
 		result.Managed != 0 || result.Templates != 0 || result.Unlinked != 0 || result.Pruned != 0 ||
 		result.Renames != 0 || result.Skipped != 0 || result.Failures != 0 {

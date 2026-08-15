@@ -77,6 +77,12 @@ func formatActionLine(a Action) string {
 		return fmt.Sprintf("prune file %s", a.Name)
 	case ActionDefaultsWrite:
 		return fmt.Sprintf("defaults write %s %s = %s", a.Domain, a.Key, a.Value)
+	case ActionPAMSudoLocalWrite:
+		return fmt.Sprintf("pam write %s", a.Name)
+	case ActionPAMSudoLocalRemove:
+		return fmt.Sprintf("pam remove %s", a.Name)
+	case ActionPAMSudoInclude:
+		return fmt.Sprintf("pam include sudo_local in %s", a.Name)
 	default:
 		return fmt.Sprintf("unknown %s %s", a.Type, a.Name)
 	}

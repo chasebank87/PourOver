@@ -3,10 +3,12 @@ package engine
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/chasebank87/PourOver/internal/config"
 	"github.com/chasebank87/PourOver/internal/discovery"
+	"github.com/chasebank87/PourOver/internal/pam"
 	"github.com/chasebank87/PourOver/internal/paths"
 	"github.com/chasebank87/PourOver/internal/plan"
 	"github.com/chasebank87/PourOver/internal/policy"
@@ -35,10 +37,17 @@ func BuildPlanWith(ctx context.Context, configPath string, runner discovery.Runn
 	if err != nil {
 		return plan.Plan{}, fmt.Errorf("discover brew: %w", err)
 	}
-	brewPlan := plan.BuildBrewPlan(manifest.Packages, brewState)
+	pamCfg := manifest.MacOS.Security.PAM.SudoLocal
+	packages := plan.ExpandPAMFormulae(manifest.Packages, pamCfg)
+	brewPlan := plan.BuildBrewPlan(packages, brewState)
 	brewPlan, err = plan.AdviseCaskRenames(ctx, runner, brewPlan, brewState.Casks)
 	if err != nil {
 		return plan.Plan{}, fmt.Errorf("detect cask renames: %w", err)
+	}
+
+	pamPlan, err := buildPAMPlan(ctx, runner, pamCfg, plan.DefaultPAMSudoLocalPath, plan.DefaultPAMSudoPath)
+	if err != nil {
+		return plan.Plan{}, fmt.Errorf("plan pam: %w", err)
 	}
 
 	desired := config.FlattenDefaults(manifest.MacOS.Defaults)
@@ -103,8 +112,71 @@ func BuildPlanWith(ctx context.Context, configPath string, runner discovery.Runn
 	filesMode := policy.ResolveFilesModeFromManifest(manifest)
 	prunePlan := plan.BuildFilePrunePlan(lock.OwnedFiles, declaredFileTargets(manifest), filesMode)
 
-	// brew → macos defaults → file links → managed copies → templates → unlinks → prune
-	return plan.MergePlans(brewPlan, defaultsPlan, filePlan, managedPlan, templatePlan, unlinkPlan, prunePlan), nil
+	// brew → pam → macos defaults → file links → managed copies → templates → unlinks → prune
+	return plan.MergePlans(brewPlan, pamPlan, defaultsPlan, filePlan, managedPlan, templatePlan, unlinkPlan, prunePlan), nil
+}
+
+func buildPAMPlan(ctx context.Context, runner discovery.Runner, cfg config.SudoLocalPAM, sudoLocalPath, sudoPath string) (plan.Plan, error) {
+	if !cfg.Configured {
+		return plan.Plan{}, nil
+	}
+
+	reattachPath, watchidPath, err := resolvePAMModulePaths(ctx, runner, cfg)
+	if err != nil {
+		return plan.Plan{}, err
+	}
+
+	sudoLocalContent, sudoLocalExists, err := readOptionalFile(sudoLocalPath)
+	if err != nil {
+		return plan.Plan{}, fmt.Errorf("read %s: %w", sudoLocalPath, err)
+	}
+	sudoContent, _, err := readOptionalFile(sudoPath)
+	if err != nil {
+		return plan.Plan{}, fmt.Errorf("read %s: %w", sudoPath, err)
+	}
+
+	return plan.BuildPAMPlan(plan.PAMDiffInput{
+		Config:           cfg,
+		SudoLocalPath:    sudoLocalPath,
+		SudoPath:         sudoPath,
+		SudoLocalContent: sudoLocalContent,
+		SudoLocalExists:  sudoLocalExists,
+		SudoContent:      sudoContent,
+		ReattachPath:     reattachPath,
+		WatchIDPath:      watchidPath,
+	}), nil
+}
+
+func resolvePAMModulePaths(ctx context.Context, runner discovery.Runner, cfg config.SudoLocalPAM) (reattach, watchid string, err error) {
+	if !cfg.Enable {
+		return "", "", nil
+	}
+	if cfg.Reattach {
+		prefix, err := discovery.BrewPrefix(ctx, runner, "pam-reattach")
+		if err != nil {
+			return "", "", err
+		}
+		reattach = pam.ModulePath(prefix, "pam_reattach.so")
+	}
+	if cfg.WatchIDAuth {
+		prefix, err := discovery.BrewPrefix(ctx, runner, "pam-watchid")
+		if err != nil {
+			return "", "", err
+		}
+		watchid = pam.ModulePath(prefix, "pam_watchid.so")
+	}
+	return reattach, watchid, nil
+}
+
+func readOptionalFile(path string) ([]byte, bool, error) {
+	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	return data, true, nil
 }
 
 // declaredFileTargets returns paths that should not be pruned: current links,

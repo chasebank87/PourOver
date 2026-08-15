@@ -13,7 +13,7 @@ import (
 	"github.com/chasebank87/PourOver/internal/plan"
 )
 
-// Apply runs the reconcile mutation loop for taps, formulae, casks, removes,
+// Apply runs the reconcile mutation loop for taps, formulae, PAM, casks, removes,
 // defaults, file links, managed copies, templates, unlinks, and owned-file
 // prunes. It does not create UI sessions or print summaries; frontends pass
 // Progress / Confirmer / writers via opts.
@@ -70,6 +70,17 @@ func Apply(ctx context.Context, runner discovery.Runner, p plan.Plan, opts Apply
 	if err != nil {
 		errs = append(errs, err)
 	}
+
+	phase("pam")
+	pamOpts := exec.PAMApplyOptions{
+		SudoLocalPath: opts.PAMSudoLocalPath,
+		SudoPath:      opts.PAMSudoPath,
+	}
+	pamN, err := exec.ApplyPAM(ctx, p, pamOpts, progress)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
 	phase("casks")
 	casks, err := exec.ApplyCaskInstalls(ctx, mutRunner, p, progress)
 	if err != nil {
@@ -127,6 +138,7 @@ func Apply(ctx context.Context, runner discovery.Runner, p plan.Plan, opts Apply
 	result.Taps = taps
 	result.Formulae = formulae
 	result.Casks = casks
+	result.PAM = pamN
 	result.Removed = removed
 	result.Defaults = written
 	result.Linked = linked

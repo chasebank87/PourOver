@@ -4,24 +4,27 @@ package plan
 type ActionType string
 
 const (
-	ActionTapAdd         ActionType = "tap_add"
-	ActionTapTrust       ActionType = "tap_trust"
-	ActionTapRemove      ActionType = "tap_remove"
-	ActionFormulaInstall ActionType = "formula_install"
-	ActionFormulaRemove  ActionType = "formula_remove"
-	ActionFormulaUpgrade ActionType = "formula_upgrade"
-	ActionCaskInstall    ActionType = "cask_install"
-	ActionCaskRemove     ActionType = "cask_remove"
-	ActionCaskUpgrade    ActionType = "cask_upgrade"
-	ActionCaskRename     ActionType = "cask_rename" // advise: Name is old token, Value is new token
-	ActionLinkCreate     ActionType = "link_create"
-	ActionLinkUpdate     ActionType = "link_update"
-	ActionLinkReplace    ActionType = "link_replace" // backup existing target, then create link
-	ActionManagedCopy    ActionType = "managed_copy"
-	ActionTemplateWrite  ActionType = "template_write"
-	ActionFileUnlink     ActionType = "file_unlink"
-	ActionFilePrune      ActionType = "file_prune" // owned path no longer declared
-	ActionDefaultsWrite  ActionType = "defaults_write"
+	ActionTapAdd             ActionType = "tap_add"
+	ActionTapTrust           ActionType = "tap_trust"
+	ActionTapRemove          ActionType = "tap_remove"
+	ActionFormulaInstall     ActionType = "formula_install"
+	ActionFormulaRemove      ActionType = "formula_remove"
+	ActionFormulaUpgrade     ActionType = "formula_upgrade"
+	ActionCaskInstall        ActionType = "cask_install"
+	ActionCaskRemove         ActionType = "cask_remove"
+	ActionCaskUpgrade        ActionType = "cask_upgrade"
+	ActionCaskRename         ActionType = "cask_rename" // advise: Name is old token, Value is new token
+	ActionLinkCreate         ActionType = "link_create"
+	ActionLinkUpdate         ActionType = "link_update"
+	ActionLinkReplace        ActionType = "link_replace" // backup existing target, then create link
+	ActionManagedCopy        ActionType = "managed_copy"
+	ActionTemplateWrite      ActionType = "template_write"
+	ActionFileUnlink         ActionType = "file_unlink"
+	ActionFilePrune          ActionType = "file_prune" // owned path no longer declared
+	ActionDefaultsWrite      ActionType = "defaults_write"
+	ActionPAMSudoLocalWrite  ActionType = "pam_sudo_local_write"  // Value = desired sudo_local body
+	ActionPAMSudoLocalRemove ActionType = "pam_sudo_local_remove" // remove managed sudo_local
+	ActionPAMSudoInclude     ActionType = "pam_sudo_include"      // ensure auth include sudo_local in sudo
 )
 
 // Action is one change to apply.

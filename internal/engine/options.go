@@ -27,4 +27,7 @@ type ApplyOptions struct {
 	Stdout      io.Writer          // optional; brew log sink
 	Stderr      io.Writer
 	Now         func() time.Time // optional; timestamps for file backups
+	// PAMSudoLocalPath / PAMSudoPath override /etc/pam.d paths (tests inject temp dirs).
+	PAMSudoLocalPath string
+	PAMSudoPath      string
 }

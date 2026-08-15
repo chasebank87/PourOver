@@ -48,6 +48,21 @@ func IsPourOverManaged(content []byte) bool {
 	return bytes.Contains(content, []byte(ManagedMarker))
 }
 
+// SudoLocalIncludeLine is the auth line inserted into /etc/pam.d/sudo when missing.
+// Spacing matches Apple's stock sudo PAM file.
+const SudoLocalIncludeLine = "auth       include        sudo_local"
+
+// HasSudoLocalInclude reports whether sudo PAM content already includes sudo_local.
+func HasSudoLocalInclude(content []byte) bool {
+	for _, line := range strings.Split(string(content), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) >= 3 && fields[0] == "auth" && fields[1] == "include" && fields[2] == "sudo_local" {
+			return true
+		}
+	}
+	return false
+}
+
 // ModulePath joins a Homebrew (or other) prefix with the conventional PAM .so
 // relative path under lib/pam. prefix may be empty; callers should validate.
 func ModulePath(prefix, module string) string {
