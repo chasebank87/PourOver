@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -48,6 +50,11 @@ type ExecMasRunner struct {
 	Timeout time.Duration
 	// MutationTimeout for install/uninstall/upgrade (default DefaultMasMutationTimeout).
 	MutationTimeout time.Duration
+	// Stdin, when set, is attached to the mas process (default os.Stdin for mutations).
+	Stdin io.Reader
+	// Stdout/Stderr, when set, receive streamed mas output (in addition to capture).
+	Stdout io.Writer
+	Stderr io.Writer
 }
 
 // NewExecMasRunner returns an ExecMasRunner with defaults.
@@ -57,6 +64,14 @@ func NewExecMasRunner() *ExecMasRunner {
 		Timeout:         DefaultMasTimeout,
 		MutationTimeout: DefaultMasMutationTimeout,
 	}
+}
+
+// WithOutput returns a shallow copy that streams mas stdout/stderr.
+func (r *ExecMasRunner) WithOutput(stdout, stderr io.Writer) *ExecMasRunner {
+	cp := *r
+	cp.Stdout = stdout
+	cp.Stderr = stderr
+	return &cp
 }
 
 // Run executes `mas` with the given arguments.
@@ -69,7 +84,8 @@ func (r *ExecMasRunner) Run(ctx context.Context, args ...string) ([]byte, error)
 	if timeout == 0 {
 		timeout = DefaultMasTimeout
 	}
-	if isMasMutation(args) {
+	mutation := isMasMutation(args)
+	if mutation {
 		timeout = r.MutationTimeout
 		if timeout == 0 {
 			timeout = DefaultMasMutationTimeout
@@ -83,6 +99,23 @@ func (r *ExecMasRunner) Run(ctx context.Context, args ...string) ([]byte, error)
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
+
+	if mutation {
+		if r.Stdin != nil {
+			cmd.Stdin = r.Stdin
+		} else {
+			cmd.Stdin = os.Stdin
+		}
+	}
+
+	if mutation && (r.Stdout != nil || r.Stderr != nil) {
+		if r.Stdout != nil {
+			cmd.Stdout = io.MultiWriter(&stdoutBuf, r.Stdout)
+		}
+		if r.Stderr != nil {
+			cmd.Stderr = io.MultiWriter(&stderrBuf, r.Stderr)
+		}
+	}
 
 	err := cmd.Run()
 	out := stdoutBuf.Bytes()

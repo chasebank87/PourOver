@@ -11,7 +11,8 @@ import (
 )
 
 // ConfirmRemoves asks whether to proceed with uninstalling the named packages.
-// names are package names only (no action type prefix).
+// names are package names only (no action type prefix). For mas_remove, names
+// are formatted as "Name (id)".
 type ConfirmRemoves func(names []string) bool
 
 // RemoveFormula runs `brew uninstall <name>`.
@@ -38,17 +39,20 @@ func RemoveTap(ctx context.Context, runner discovery.Runner, name string) error 
 	return nil
 }
 
-// ApplyRemoves runs formula/cask/tap remove actions according to uninstall mode.
+// ApplyRemoves runs formula/cask/tap/mas remove actions according to uninstall mode.
 //
 //   - non_destructive: skip all removes (no prompt)
 //   - strict: remove without prompting
 //   - safe: prompt once via confirm; if declined, skip all removes
 //
 // confirm may be nil when mode is not safe (or when there are no removes).
-func ApplyRemoves(ctx context.Context, runner discovery.Runner, p plan.Plan, mode config.UninstallMode, confirm ConfirmRemoves, progress Progress) (int, error) {
+// masRunner may be nil when there are no mas_remove actions; otherwise nil
+// resolves to discovery.NewExecMasRunner().
+func ApplyRemoves(ctx context.Context, runner discovery.Runner, masRunner discovery.MasRunner, p plan.Plan, mode config.UninstallMode, confirm ConfirmRemoves, progress Progress) (int, error) {
 	var removes []plan.Action
 	for _, a := range p.Actions {
-		if a.Type == plan.ActionFormulaRemove || a.Type == plan.ActionCaskRemove || a.Type == plan.ActionTapRemove {
+		switch a.Type {
+		case plan.ActionFormulaRemove, plan.ActionCaskRemove, plan.ActionTapRemove, plan.ActionMasRemove:
 			removes = append(removes, a)
 		}
 	}
@@ -60,10 +64,7 @@ func ApplyRemoves(ctx context.Context, runner discovery.Runner, p plan.Plan, mod
 	case config.UninstallModeNonDestructive:
 		return 0, nil
 	case config.UninstallModeSafe:
-		names := make([]string, len(removes))
-		for i, a := range removes {
-			names[i] = a.Name
-		}
+		names := removeConfirmNames(removes)
 		if confirm == nil || !confirm(names) {
 			return 0, nil
 		}
@@ -71,13 +72,21 @@ func ApplyRemoves(ctx context.Context, runner discovery.Runner, p plan.Plan, mod
 		// no prompt
 	default:
 		// treat unknown like safe decline if no confirm
-		names := make([]string, len(removes))
-		for i, a := range removes {
-			names[i] = a.Name
-		}
+		names := removeConfirmNames(removes)
 		if confirm == nil || !confirm(names) {
 			return 0, nil
 		}
+	}
+
+	needMas := false
+	for _, a := range removes {
+		if a.Type == plan.ActionMasRemove {
+			needMas = true
+			break
+		}
+	}
+	if needMas && masRunner == nil {
+		masRunner = discovery.NewExecMasRunner()
 	}
 
 	n := 0
@@ -92,6 +101,8 @@ func ApplyRemoves(ctx context.Context, runner discovery.Runner, p plan.Plan, mod
 			err = RemoveCask(ctx, runner, a.Name)
 		case plan.ActionTapRemove:
 			err = RemoveTap(ctx, runner, a.Name)
+		case plan.ActionMasRemove:
+			err = RemoveMas(ctx, masRunner, a.Value)
 		}
 		if err != nil {
 			reportFailure(progress, err)
@@ -101,4 +112,16 @@ func ApplyRemoves(ctx context.Context, runner discovery.Runner, p plan.Plan, mod
 		n++
 	}
 	return n, errors.Join(errs...)
+}
+
+func removeConfirmNames(removes []plan.Action) []string {
+	names := make([]string, len(removes))
+	for i, a := range removes {
+		if a.Type == plan.ActionMasRemove {
+			names[i] = fmt.Sprintf("%s (%s)", a.Name, a.Value)
+			continue
+		}
+		names[i] = a.Name
+	}
+	return names
 }

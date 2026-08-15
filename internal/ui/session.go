@@ -12,6 +12,7 @@ type Summary struct {
 	Taps     int
 	Formulae int
 	Casks    int
+	Mas      int
 	Removed  int
 	Upgraded int
 	Defaults int
@@ -141,7 +142,7 @@ func (s *Session) Finish(sum Summary) {
 		fmt.Fprintln(s.out, styleMuted.Render(strings.Repeat("─", 40)))
 	}
 
-	if sum.Failures == 0 && sum.Taps == 0 && sum.Formulae == 0 && sum.Casks == 0 && sum.Removed == 0 &&
+	if sum.Failures == 0 && sum.Taps == 0 && sum.Formulae == 0 && sum.Casks == 0 && sum.Mas == 0 && sum.Removed == 0 &&
 		sum.Upgraded == 0 && sum.Defaults == 0 && sum.Linked == 0 && sum.Managed == 0 && sum.Templates == 0 &&
 		sum.Unlinked == 0 && sum.Pruned == 0 && sum.Skipped == 0 && sum.Renames == 0 {
 		fmt.Fprintln(s.out, styleMuted.Render("☕ No changes."))
@@ -156,6 +157,9 @@ func (s *Session) Finish(sum Summary) {
 	}
 	if sum.Casks > 0 {
 		fmt.Fprintln(s.out, styleOK.Render(fmt.Sprintf("☕ Installed %d cask(s).", sum.Casks)))
+	}
+	if sum.Mas > 0 {
+		fmt.Fprintln(s.out, styleOK.Render(fmt.Sprintf("☕ Installed %d Mac App Store app(s).", sum.Mas)))
 	}
 	if sum.Upgraded > 0 {
 		fmt.Fprintln(s.out, styleOK.Render(fmt.Sprintf("☕ Upgraded %d package(s).", sum.Upgraded)))

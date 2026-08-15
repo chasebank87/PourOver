@@ -13,10 +13,10 @@ import (
 	"github.com/chasebank87/PourOver/internal/plan"
 )
 
-// Apply runs the reconcile mutation loop for taps, formulae, PAM, casks, removes,
-// defaults, file links, managed copies, templates, unlinks, and owned-file
-// prunes. It does not create UI sessions or print summaries; frontends pass
-// Progress / Confirmer / writers via opts.
+// Apply runs the reconcile mutation loop for taps, formulae, PAM, casks, MAS,
+// removes, defaults, file links, managed copies, templates, unlinks, and
+// owned-file prunes. It does not create UI sessions or print summaries;
+// frontends pass Progress / Confirmer / writers via opts.
 func Apply(ctx context.Context, runner discovery.Runner, p plan.Plan, opts ApplyOptions) (ApplyResult, error) {
 	renames := exec.CaskRenameActions(p)
 	skipped := exec.UnsupportedApplyActions(p)
@@ -39,6 +39,7 @@ func Apply(ctx context.Context, runner discovery.Runner, p plan.Plan, opts Apply
 		brewOut = opts.Stdout
 	}
 	mutRunner := brewRunnerWithProgress(runner, brewOut, opts.Quiet)
+	masRunner := masRunnerWithProgress(opts.MasRunner, brewOut, opts.Quiet)
 
 	failures := 0
 	var progress exec.Progress
@@ -88,8 +89,14 @@ func Apply(ctx context.Context, runner discovery.Runner, p plan.Plan, opts Apply
 		errs = append(errs, err)
 	}
 
+	phase("mas")
+	masN, err := exec.ApplyMasInstalls(ctx, resolveMasRunner(masRunner), p, progress)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
 	phase("removes")
-	removed, err := exec.ApplyRemoves(ctx, mutRunner, p, opts.Mode, confirmRemoves(opts), progress)
+	removed, err := exec.ApplyRemoves(ctx, mutRunner, resolveMasRunner(masRunner), p, opts.Mode, confirmRemoves(opts), progress)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -139,6 +146,7 @@ func Apply(ctx context.Context, runner discovery.Runner, p plan.Plan, opts Apply
 	result.Taps = taps
 	result.Formulae = formulae
 	result.Casks = casks
+	result.Mas = masN
 	result.PAM = pamN
 	result.Removed = removed
 	result.Defaults = written
@@ -183,6 +191,27 @@ func brewRunnerWithProgress(runner discovery.Runner, out io.Writer, quiet bool) 
 		return runner
 	}
 	if er, ok := runner.(*discovery.ExecRunner); ok {
+		styled := discovery.NewBrewStyleWriter(out)
+		return er.WithOutput(styled, styled)
+	}
+	return runner
+}
+
+func resolveMasRunner(runner discovery.MasRunner) discovery.MasRunner {
+	if runner == nil {
+		return discovery.NewExecMasRunner()
+	}
+	return runner
+}
+
+func masRunnerWithProgress(runner discovery.MasRunner, out io.Writer, quiet bool) discovery.MasRunner {
+	if runner == nil {
+		runner = discovery.NewExecMasRunner()
+	}
+	if quiet || out == nil {
+		return runner
+	}
+	if er, ok := runner.(*discovery.ExecMasRunner); ok {
 		styled := discovery.NewBrewStyleWriter(out)
 		return er.WithOutput(styled, styled)
 	}

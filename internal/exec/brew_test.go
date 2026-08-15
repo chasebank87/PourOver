@@ -290,6 +290,8 @@ func TestUnsupportedApplyActions(t *testing.T) {
 		{Type: plan.ActionCaskInstall, Name: "raycast"},
 		{Type: plan.ActionFormulaRemove, Name: "wget"},
 		{Type: plan.ActionCaskRemove, Name: "vlc"},
+		{Type: plan.ActionMasInstall, Name: "Xcode", Value: "497799835"},
+		{Type: plan.ActionMasRemove, Name: "WhatsApp Messenger", Value: "310633997"},
 		{Type: plan.ActionLinkCreate, Name: "/tmp/x", Source: "config/x"},
 		{Type: plan.ActionLinkUpdate, Name: "/tmp/y", Source: "config/y"},
 		{Type: plan.ActionManagedCopy, Name: "/tmp/m", Source: "config/m"},
@@ -297,14 +299,15 @@ func TestUnsupportedApplyActions(t *testing.T) {
 		{Type: plan.ActionFilePrune, Name: "/tmp/p"},
 		{Type: plan.ActionCaskRename, Name: "windsurf", Value: "devin-desktop"},
 		{Type: plan.ActionFormulaUpgrade, Name: "git"},
+		{Type: plan.ActionMasUpgrade, Name: "Keynote", Value: "409183694"},
 		{Type: plan.ActionTemplateWrite, Name: "/tmp/t", Source: "config/t.tmpl"},
 	}}
 	skipped := UnsupportedApplyActions(p)
-	if len(skipped) != 1 {
-		t.Fatalf("skipped = %+v, want only formula_upgrade", skipped)
+	if len(skipped) != 2 {
+		t.Fatalf("skipped = %+v, want formula_upgrade and mas_upgrade", skipped)
 	}
-	if skipped[0].Type != plan.ActionFormulaUpgrade {
-		t.Fatalf("skipped = %+v, want formula_upgrade", skipped)
+	if skipped[0].Type != plan.ActionFormulaUpgrade || skipped[1].Type != plan.ActionMasUpgrade {
+		t.Fatalf("skipped = %+v, want formula_upgrade then mas_upgrade", skipped)
 	}
 }
 

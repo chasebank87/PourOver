@@ -20,15 +20,18 @@ import (
 // BuildPlan loads config at configPath, discovers current state via runner, and
 // returns the merged reconcile plan. Defaults discovery uses the system
 // defaults runner (same as the former CLI buildPlan). State is read from
-// paths.DefaultStateDir for owned-file prune.
+// paths.DefaultStateDir for owned-file prune. MAS discovery uses
+// discovery.NewExecMasRunner when packages.mas is configured.
 func BuildPlan(ctx context.Context, configPath string, runner discovery.Runner) (plan.Plan, error) {
-	return BuildPlanWith(ctx, configPath, runner, discovery.NewExecDefaultsRunner(), "")
+	return BuildPlanWith(ctx, configPath, runner, discovery.NewExecDefaultsRunner(), nil, "")
 }
 
-// BuildPlanWith is like BuildPlan but accepts an explicit DefaultsRunner
-// (useful for tests that stub macOS defaults) and optional stateDir.
+// BuildPlanWith is like BuildPlan but accepts explicit DefaultsRunner and
+// MasRunner (useful for tests) and optional stateDir.
 // When stateDir is empty, paths.DefaultStateDir is used for LoadLock / prune.
-func BuildPlanWith(ctx context.Context, configPath string, runner discovery.Runner, defaultsRunner discovery.DefaultsRunner, stateDir string) (plan.Plan, error) {
+// When masRunner is nil and packages.mas is configured, NewExecMasRunner is used.
+// When packages.mas is not configured, DiscoverMas is skipped.
+func BuildPlanWith(ctx context.Context, configPath string, runner discovery.Runner, defaultsRunner discovery.DefaultsRunner, masRunner discovery.MasRunner, stateDir string) (plan.Plan, error) {
 	manifest, err := config.LoadManifest(configPath)
 	if err != nil {
 		return plan.Plan{}, fmt.Errorf("load config: %w", err)
@@ -40,6 +43,7 @@ func BuildPlanWith(ctx context.Context, configPath string, runner discovery.Runn
 	}
 	pamCfg := manifest.MacOS.Security.PAM.SudoLocal
 	packages := plan.ExpandPAMFormulae(manifest.Packages, pamCfg)
+	packages = plan.ExpandMasFormulae(packages)
 	deps, err := discovery.FormulaDependencyClosure(ctx, runner, packages.Formulae)
 	if err != nil {
 		return plan.Plan{}, fmt.Errorf("formula deps: %w", err)
@@ -49,6 +53,18 @@ func BuildPlanWith(ctx context.Context, configPath string, runner discovery.Runn
 	brewPlan, err = plan.AdviseCaskRenames(ctx, runner, brewPlan, brewState.Casks)
 	if err != nil {
 		return plan.Plan{}, fmt.Errorf("detect cask renames: %w", err)
+	}
+
+	var masPlan plan.Plan
+	if packages.MasConfigured {
+		if masRunner == nil {
+			masRunner = discovery.NewExecMasRunner()
+		}
+		masState, err := discovery.DiscoverMas(ctx, masRunner)
+		if err != nil {
+			return plan.Plan{}, fmt.Errorf("discover mas: %w", err)
+		}
+		masPlan = plan.BuildMasPlan(packages, masState)
 	}
 
 	pamPlan, err := buildPAMPlan(ctx, runner, pamCfg, plan.DefaultPAMSudoLocalPath, plan.DefaultPAMSudoPath)
@@ -118,8 +134,8 @@ func BuildPlanWith(ctx context.Context, configPath string, runner discovery.Runn
 	filesMode := policy.ResolveFilesModeFromManifest(manifest)
 	prunePlan := plan.BuildFilePrunePlan(lock.OwnedFiles, declaredFileTargets(manifest), filesMode)
 
-	// brew → pam → macos defaults → file links → managed copies → templates → unlinks → prune
-	return plan.MergePlans(brewPlan, pamPlan, defaultsPlan, filePlan, managedPlan, templatePlan, unlinkPlan, prunePlan), nil
+	// brew → mas → pam → macos defaults → file links → managed copies → templates → unlinks → prune
+	return plan.MergePlans(brewPlan, masPlan, pamPlan, defaultsPlan, filePlan, managedPlan, templatePlan, unlinkPlan, prunePlan), nil
 }
 
 func buildPAMPlan(ctx context.Context, runner discovery.Runner, cfg config.SudoLocalPAM, sudoLocalPath, sudoPath string) (plan.Plan, error) {

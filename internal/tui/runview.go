@@ -408,6 +408,7 @@ func formatApplySummary(r engine.ApplyResult) string {
 	add(r.Taps, "tap", "taps")
 	add(r.Formulae, "formula", "formulae")
 	add(r.Casks, "cask", "casks")
+	add(r.Mas, "mas app", "mas apps")
 	add(r.Removed, "removed", "removed")
 	add(r.Defaults, "default", "defaults")
 	add(r.Linked, "link", "links")

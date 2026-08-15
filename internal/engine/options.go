@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/chasebank87/PourOver/internal/config"
+	"github.com/chasebank87/PourOver/internal/discovery"
 )
 
 // Progress reports a single progress line to the frontend.
@@ -24,9 +25,11 @@ type ApplyOptions struct {
 	Progress    Progress
 	Confirm     Confirmer
 	OnPhase     func(phase string) // optional; called before each mutation phase
-	Stdout      io.Writer          // optional; brew log sink
+	Stdout      io.Writer          // optional; brew/mas log sink
 	Stderr      io.Writer
 	Now         func() time.Time // optional; timestamps for file backups
+	// MasRunner executes mas CLI mutations (nil → NewExecMasRunner).
+	MasRunner discovery.MasRunner
 	// PAMSudoLocalPath / PAMSudoPath override /etc/pam.d paths (tests inject temp dirs).
 	PAMSudoLocalPath string
 	PAMSudoPath      string

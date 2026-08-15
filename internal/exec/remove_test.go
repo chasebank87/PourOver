@@ -64,7 +64,7 @@ func TestApplyRemoves_ByMode(t *testing.T) {
 			prompted = true
 			return true
 		}
-		n, err := ApplyRemoves(context.Background(), runner, p, config.UninstallModeNonDestructive, confirm, nil)
+		n, err := ApplyRemoves(context.Background(), runner, nil, p, config.UninstallModeNonDestructive, confirm, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -83,7 +83,7 @@ func TestApplyRemoves_ByMode(t *testing.T) {
 			prompted = true
 			return false
 		}
-		n, err := ApplyRemoves(context.Background(), runner, p, config.UninstallModeStrict, confirm, nil)
+		n, err := ApplyRemoves(context.Background(), runner, nil, p, config.UninstallModeStrict, confirm, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -105,7 +105,7 @@ func TestApplyRemoves_ByMode(t *testing.T) {
 			gotNames = append([]string(nil), names...)
 			return true
 		}
-		n, err := ApplyRemoves(context.Background(), runner, p, config.UninstallModeSafe, confirm, nil)
+		n, err := ApplyRemoves(context.Background(), runner, nil, p, config.UninstallModeSafe, confirm, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -123,7 +123,7 @@ func TestApplyRemoves_ByMode(t *testing.T) {
 	t.Run("safe_prompt_no", func(t *testing.T) {
 		runner := &removeRecordingRunner{}
 		confirm := func(names []string) bool { return false }
-		n, err := ApplyRemoves(context.Background(), runner, p, config.UninstallModeSafe, confirm, nil)
+		n, err := ApplyRemoves(context.Background(), runner, nil, p, config.UninstallModeSafe, confirm, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -140,7 +140,7 @@ func TestApplyRemoves_ByMode(t *testing.T) {
 			prompted = true
 			return true
 		}
-		n, err := ApplyRemoves(context.Background(), runner, onlyInstall, config.UninstallModeSafe, confirm, nil)
+		n, err := ApplyRemoves(context.Background(), runner, nil, onlyInstall, config.UninstallModeSafe, confirm, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -156,7 +156,7 @@ func TestApplyRemoves_UntapStrict(t *testing.T) {
 		{Type: plan.ActionTapRemove, Name: "homebrew/cask-fonts"},
 		{Type: plan.ActionFormulaRemove, Name: "wget"},
 	}}
-	n, err := ApplyRemoves(context.Background(), runner, p, config.UninstallModeStrict, nil, nil)
+	n, err := ApplyRemoves(context.Background(), runner, nil, p, config.UninstallModeStrict, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,5 +165,51 @@ func TestApplyRemoves_UntapStrict(t *testing.T) {
 	}
 	if got := strings.Join(runner.uninstalls, ","); got != "untap:homebrew/cask-fonts,wget" {
 		t.Fatalf("uninstalls = %q", got)
+	}
+}
+
+func TestApplyRemoves_MasStrict(t *testing.T) {
+	brew := &removeRecordingRunner{}
+	mas := &recordingMasRunner{}
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionMasRemove, Name: "WhatsApp Messenger", Value: "310633997"},
+		{Type: plan.ActionFormulaRemove, Name: "wget"},
+	}}
+	n, err := ApplyRemoves(context.Background(), brew, mas, p, config.UninstallModeStrict, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 {
+		t.Fatalf("n=%d, want 2", n)
+	}
+	if got := strings.Join(brew.uninstalls, ","); got != "wget" {
+		t.Fatalf("brew uninstalls = %q, want wget", got)
+	}
+	if got := strings.Join(mas.calls, ","); got != "uninstall 310633997" {
+		t.Fatalf("mas calls = %q", got)
+	}
+}
+
+func TestApplyRemoves_MasSafePromptNamesIncludeID(t *testing.T) {
+	brew := &removeRecordingRunner{}
+	mas := &recordingMasRunner{}
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionMasRemove, Name: "WhatsApp Messenger", Value: "310633997"},
+		{Type: plan.ActionFormulaRemove, Name: "wget"},
+	}}
+	var gotNames []string
+	confirm := func(names []string) bool {
+		gotNames = append([]string(nil), names...)
+		return true
+	}
+	n, err := ApplyRemoves(context.Background(), brew, mas, p, config.UninstallModeSafe, confirm, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 {
+		t.Fatalf("n=%d, want 2", n)
+	}
+	if got := strings.Join(gotNames, ","); got != "WhatsApp Messenger (310633997),wget" {
+		t.Fatalf("prompt names = %q", got)
 	}
 }

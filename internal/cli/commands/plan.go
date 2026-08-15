@@ -25,5 +25,5 @@ func buildPlan(ctx context.Context, configPath string, runner discovery.Runner) 
 }
 
 func buildPlanWith(ctx context.Context, configPath string, runner discovery.Runner, defaultsRunner discovery.DefaultsRunner) (plan.Plan, error) {
-	return engine.BuildPlanWith(ctx, configPath, runner, defaultsRunner, "")
+	return engine.BuildPlanWith(ctx, configPath, runner, defaultsRunner, nil, "")
 }

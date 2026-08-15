@@ -190,7 +190,7 @@ func TestBuildPlan_FilePruneFromLock(t *testing.T) {
 	}
 
 	runner := &stubBrewRunner{}
-	p, err := BuildPlanWith(context.Background(), configPath, runner, discovery.NewExecDefaultsRunner(), stateDir)
+	p, err := BuildPlanWith(context.Background(), configPath, runner, discovery.NewExecDefaultsRunner(), nil, stateDir)
 	if err != nil {
 		t.Fatalf("BuildPlanWith: %v", err)
 	}
@@ -209,7 +209,7 @@ func TestBuildPlan_FilePruneFromLock(t *testing.T) {
 	if err := os.WriteFile(configPath, []byte(luaND), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	p, err = BuildPlanWith(context.Background(), configPath, runner, discovery.NewExecDefaultsRunner(), stateDir)
+	p, err = BuildPlanWith(context.Background(), configPath, runner, discovery.NewExecDefaultsRunner(), nil, stateDir)
 	if err != nil {
 		t.Fatalf("BuildPlanWith non_destructive: %v", err)
 	}
@@ -225,12 +225,102 @@ func TestBuildPlan_FilePruneFromLock(t *testing.T) {
 	if err := os.WriteFile(configPath, []byte(lua), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	p, err = BuildPlanWith(context.Background(), configPath, runner, discovery.NewExecDefaultsRunner(), emptyState)
+	p, err = BuildPlanWith(context.Background(), configPath, runner, discovery.NewExecDefaultsRunner(), nil, emptyState)
 	if err != nil {
 		t.Fatalf("BuildPlanWith empty owned: %v", err)
 	}
 	if names := plan.ActionNames(p, plan.ActionFilePrune); len(names) != 0 {
 		t.Fatalf("empty owned prune = %v, want none", names)
+	}
+}
+
+type stubMasRunner struct {
+	list string
+	err  error
+}
+
+func (s *stubMasRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
+	if len(args) == 1 && args[0] == "list" {
+		if s.err != nil {
+			return nil, s.err
+		}
+		return []byte(s.list), nil
+	}
+	return nil, fmt.Errorf("unexpected mas args: %v", args)
+}
+
+func TestBuildPlanWith_MasInstallAndImpliedFormula(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "cfg")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	lua := `return {
+  packages = {
+    formulae = {},
+    casks = {},
+    mas = { Xcode = 497799835 },
+  },
+  files = {},
+}
+`
+	configPath := filepath.Join(configDir, "pourover.lua")
+	if err := os.WriteFile(configPath, []byte(lua), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	brew := &stubBrewRunner{}
+	mas := &stubMasRunner{list: ""}
+	p, err := BuildPlanWith(context.Background(), configPath, brew, discovery.NewExecDefaultsRunner(), mas, "")
+	if err != nil {
+		t.Fatalf("BuildPlanWith: %v", err)
+	}
+	if names := plan.ActionNames(p, plan.ActionFormulaInstall); len(names) != 1 || names[0] != "mas" {
+		t.Fatalf("formula installs = %v, want [mas]", names)
+	}
+	masInstalls := plan.ActionNames(p, plan.ActionMasInstall)
+	if len(masInstalls) != 1 || masInstalls[0] != "Xcode" {
+		t.Fatalf("mas installs = %v, want [Xcode]", masInstalls)
+	}
+	var xcode plan.Action
+	for _, a := range p.Actions {
+		if a.Type == plan.ActionMasInstall && a.Name == "Xcode" {
+			xcode = a
+			break
+		}
+	}
+	if xcode.Value != "497799835" {
+		t.Fatalf("Xcode action = %#v, want Value 497799835", xcode)
+	}
+}
+
+func TestBuildPlanWith_MasSkippedWhenUnconfigured(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "cfg")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	lua := `return {
+  packages = { formulae = {}, casks = {} },
+  files = {},
+}
+`
+	configPath := filepath.Join(configDir, "pourover.lua")
+	if err := os.WriteFile(configPath, []byte(lua), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	brew := &stubBrewRunner{}
+	mas := &stubMasRunner{err: fmt.Errorf("mas should not be called")}
+	p, err := BuildPlanWith(context.Background(), configPath, brew, discovery.NewExecDefaultsRunner(), mas, "")
+	if err != nil {
+		t.Fatalf("BuildPlanWith: %v", err)
+	}
+	if names := plan.ActionNames(p, plan.ActionMasInstall); len(names) != 0 {
+		t.Fatalf("mas installs = %v, want none", names)
+	}
+	if names := plan.ActionNames(p, plan.ActionFormulaInstall); len(names) != 0 {
+		t.Fatalf("formula installs = %v, want none (mas not implied)", names)
 	}
 }
 

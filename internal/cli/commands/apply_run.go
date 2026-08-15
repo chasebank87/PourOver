@@ -143,7 +143,7 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 
 	result, err := engine.Apply(cmd.Context(), runner, p, engineOpts)
 
-	n := result.Taps + result.Formulae + result.Casks + result.Removed + result.Defaults +
+	n := result.Taps + result.Formulae + result.Casks + result.Mas + result.Removed + result.Defaults +
 		result.Linked + result.Managed + result.Templates + result.Unlinked + result.Pruned
 
 	if session != nil {
@@ -151,6 +151,7 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 			Taps:     result.Taps,
 			Formulae: result.Formulae,
 			Casks:    result.Casks,
+			Mas:      result.Mas,
 			Removed:  result.Removed,
 			Defaults: result.Defaults,
 			Linked:   result.Linked,
@@ -173,6 +174,9 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 		}
 		if result.Casks > 0 {
 			fmt.Fprintf(out, "Installed %d cask(s).\n", result.Casks)
+		}
+		if result.Mas > 0 {
+			fmt.Fprintf(out, "Installed %d Mac App Store app(s).\n", result.Mas)
 		}
 		if result.Removed > 0 {
 			fmt.Fprintf(out, "Removed %d package(s).\n", result.Removed)
