@@ -65,7 +65,10 @@ func ImportMacOS(ctx context.Context, opts ImportMacOSOptions) (ImportMacOSResul
 		result.AdminNote = "system-scope keys (e.g. loginwindow) need admin privileges on apply"
 	}
 
-	existing := loadExistingMacOSDefaults(opts)
+	existing, err := loadExistingMacOSDefaults(opts)
+	if err != nil {
+		return result, err
+	}
 	merged, added := configimport.MergeMacOSDefaults(existing, discovered, opts.Force)
 	result.Added = added
 	body := configimport.FormatMacOSLua(merged)
@@ -104,19 +107,23 @@ func ImportMacOS(ctx context.Context, opts ImportMacOSOptions) (ImportMacOSResul
 	return result, nil
 }
 
-func loadExistingMacOSDefaults(opts ImportMacOSOptions) config.MacOSDefaults {
+func loadExistingMacOSDefaults(opts ImportMacOSOptions) (config.MacOSDefaults, error) {
 	macosPath := filepath.Join(opts.ConfigDir, "macos.lua")
 	if _, err := os.Stat(macosPath); err == nil {
-		if d, err := config.LoadMacOSModule(macosPath); err == nil {
-			return d
+		d, err := config.LoadMacOSModule(macosPath)
+		if err != nil {
+			return config.MacOSDefaults{}, fmt.Errorf("load existing macos.lua: %w", err)
 		}
+		return d, nil
+	} else if !os.IsNotExist(err) {
+		return config.MacOSDefaults{}, err
 	}
 	if _, err := os.Stat(opts.ConfigPath); err == nil {
 		if m, err := config.LoadManifest(opts.ConfigPath); err == nil {
-			return m.MacOS.Defaults
+			return m.MacOS.Defaults, nil
 		}
 	}
-	return config.MacOSDefaults{}
+	return config.MacOSDefaults{}, nil
 }
 
 func macOSDefaultsFromEntries(entries []discovery.SnapshotEntry) config.MacOSDefaults {

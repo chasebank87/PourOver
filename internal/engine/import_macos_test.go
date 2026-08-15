@@ -256,6 +256,37 @@ func TestImportMacOS_WriteWithoutConfig_Errors(t *testing.T) {
 	}
 }
 
+func TestImportMacOS_CorruptMacOSLua_Errors(t *testing.T) {
+	dir := t.TempDir()
+	configPath := scaffoldRoot(t, dir)
+	macosPath := filepath.Join(dir, "macos.lua")
+	corrupt := "this is not valid lua {{{"
+	if err := os.WriteFile(macosPath, []byte(corrupt), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runner := &mapDefaults{vals: map[string]string{
+		loginwindowDomain + "|LoginwindowText": "should not write",
+	}}
+	_, err := ImportMacOS(context.Background(), ImportMacOSOptions{
+		ConfigDir:  dir,
+		ConfigPath: configPath,
+		Runner:     runner,
+	})
+	if err == nil {
+		t.Fatal("expected error from corrupt macos.lua")
+	}
+	if !strings.Contains(err.Error(), "macos.lua") {
+		t.Fatalf("error = %v", err)
+	}
+	got, readErr := os.ReadFile(macosPath)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if string(got) != corrupt {
+		t.Fatalf("macos.lua was overwritten:\n%s", got)
+	}
+}
+
 func TestImportMacOS_DryRunWithoutConfig_OK(t *testing.T) {
 	dir := t.TempDir()
 	runner := &mapDefaults{vals: map[string]string{
