@@ -110,23 +110,6 @@ func TestHomeUpdate_QQuits(t *testing.T) {
 	}
 }
 
-func TestHomeUpdate_EnterOpensStubEscReturns(t *testing.T) {
-	m := newTestHome()
-	m.cursor = 3 // Doctor (still stubbed)
-
-	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	hm := next.(HomeModel)
-	if hm.stub == "" {
-		t.Fatal("expected stub screen after selecting Doctor")
-	}
-
-	next, _ = hm.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	hm = next.(HomeModel)
-	if hm.stub != "" {
-		t.Fatalf("stub = %q after esc, want empty", hm.stub)
-	}
-}
-
 func newTestHome() HomeModel {
 	return HomeModel{
 		items:      defaultMenuItems(),

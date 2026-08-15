@@ -253,6 +253,12 @@ func (m HomeModel) activate() (tea.Model, tea.Cmd) {
 	case menuUpgrade:
 		rm := NewRunModel(RunUpgrade, m.configPath, m)
 		return rm, rm.Init()
+	case menuDoctor:
+		dm := NewDoctorModel(m.configPath, m)
+		return dm, dm.Init()
+	case menuHistory:
+		hm := NewHistoryModel(m)
+		return hm, hm.Init()
 	default:
 		m.stub = stubTitle(item)
 		return m, nil
