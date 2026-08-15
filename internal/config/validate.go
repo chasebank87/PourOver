@@ -26,6 +26,7 @@ func Validate(m *Manifest) error {
 			errs = append(errs, err)
 		}
 	}
+	errs = append(errs, validateMasApps(m.Packages.Mas)...)
 
 	for i, link := range m.Files.Links {
 		prefix := fmt.Sprintf("files.links[%d]", i+1)
@@ -127,6 +128,37 @@ func validatePackageName(name, field string) error {
 		}
 	}
 	return nil
+}
+
+func validateMasApps(apps []MasApp) []error {
+	var errs []error
+	seenIDs := make(map[int64]string, len(apps))
+	seenNames := make(map[string]int64, len(apps))
+	for i, app := range apps {
+		field := fmt.Sprintf("packages.mas[%d]", i+1)
+		name := strings.TrimSpace(app.Name)
+		if name == "" {
+			errs = append(errs, fmt.Errorf("%s: name must not be empty", field))
+		} else if name != app.Name {
+			errs = append(errs, fmt.Errorf("%s: name must not have leading/trailing whitespace (got %q)", field, app.Name))
+		}
+		if app.ID <= 0 {
+			errs = append(errs, fmt.Errorf("%s: id must be a positive integer (got %d)", field, app.ID))
+		}
+		if prev, ok := seenIDs[app.ID]; ok {
+			errs = append(errs, fmt.Errorf("%s: duplicate id %d (also used by %q)", field, app.ID, prev))
+		} else if app.ID > 0 {
+			seenIDs[app.ID] = app.Name
+		}
+		if app.Name != "" {
+			if prevID, ok := seenNames[app.Name]; ok {
+				errs = append(errs, fmt.Errorf("%s: duplicate name %q (also id %d)", field, app.Name, prevID))
+			} else {
+				seenNames[app.Name] = app.ID
+			}
+		}
+	}
+	return errs
 }
 
 func validatePathField(value, field string) error {

@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	lua "github.com/yuin/gopher-lua"
@@ -367,7 +368,60 @@ func decodePackages(L *lua.LState, root *lua.LTable, key string) (Packages, erro
 	if err != nil {
 		return Packages{}, fmt.Errorf("packages.%w", err)
 	}
-	return Packages{Taps: taps, Formulae: formulae, Casks: casks}, nil
+	mas, masConfigured, err := fieldMasApps(L, tbl, "mas")
+	if err != nil {
+		return Packages{}, fmt.Errorf("packages.%w", err)
+	}
+	return Packages{
+		Taps:          taps,
+		Formulae:      formulae,
+		Casks:         casks,
+		Mas:           mas,
+		MasConfigured: masConfigured,
+	}, nil
+}
+
+// fieldMasApps decodes packages.mas as a string-key → number-id map.
+// Omitted key → configured=false; present (including {}) → configured=true.
+func fieldMasApps(L *lua.LState, tbl *lua.LTable, key string) ([]MasApp, bool, error) {
+	arr, ok, err := fieldTable(L, tbl, key)
+	if err != nil {
+		return nil, false, err
+	}
+	if !ok {
+		return nil, false, nil
+	}
+
+	var out []MasApp
+	var walkErr error
+	arr.ForEach(func(k, v lua.LValue) {
+		if walkErr != nil {
+			return
+		}
+		if k.Type() != lua.LTString {
+			walkErr = fmt.Errorf("%s: keys must be strings (app names), got %s", key, k.Type())
+			return
+		}
+		name := k.String()
+		if v.Type() != lua.LTNumber {
+			walkErr = fmt.Errorf("%s[%q]: expected number id, got %s", key, name, v.Type())
+			return
+		}
+		n := float64(v.(lua.LNumber))
+		id := int64(n)
+		if n != float64(id) {
+			walkErr = fmt.Errorf("%s[%q]: id must be an integer, got %v", key, name, n)
+			return
+		}
+		out = append(out, MasApp{Name: name, ID: id})
+	})
+	if walkErr != nil {
+		return nil, true, walkErr
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].ID < out[j].ID
+	})
+	return out, true, nil
 }
 
 func decodeFiles(L *lua.LState, root *lua.LTable, key string) (Files, error) {

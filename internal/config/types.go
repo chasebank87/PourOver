@@ -79,11 +79,19 @@ type TapSpec struct {
 	Trusted bool   `json:"trusted"` // default true when decoded from Lua string/table
 }
 
-// Packages lists Homebrew taps, formulae, and casks to reconcile.
+// MasApp is a Mac App Store app declared by display name and numeric ID.
+type MasApp struct {
+	Name string `json:"name"`
+	ID   int64  `json:"id"`
+}
+
+// Packages lists Homebrew taps, formulae, casks, and MAS apps to reconcile.
 type Packages struct {
-	Taps     []TapSpec `json:"taps,omitempty"`
-	Formulae []string  `json:"formulae,omitempty"`
-	Casks    []string  `json:"casks,omitempty"`
+	Taps          []TapSpec `json:"taps,omitempty"`
+	Formulae      []string  `json:"formulae,omitempty"`
+	Casks         []string  `json:"casks,omitempty"`
+	Mas           []MasApp  `json:"mas,omitempty"`
+	MasConfigured bool      `json:"-"` // true if mas key present in Lua
 }
 
 // TapNames returns the tap repository names in declaration order.
