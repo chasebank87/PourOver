@@ -31,6 +31,14 @@ func TrustTap(ctx context.Context, runner discovery.Runner, name string) error {
 	return nil
 }
 
+// UpdateBrew runs `brew update` so newly tapped formulae/casks are visible to install.
+func UpdateBrew(ctx context.Context, runner discovery.Runner) error {
+	if _, err := runner.Run(ctx, "update"); err != nil {
+		return fmt.Errorf("brew update: %w", err)
+	}
+	return nil
+}
+
 // InstallFormula runs `brew install <name>`.
 func InstallFormula(ctx context.Context, runner discovery.Runner, name string) error {
 	if _, err := runner.Run(ctx, "install", name); err != nil {
@@ -48,10 +56,12 @@ func InstallCask(ctx context.Context, runner discovery.Runner, name string) erro
 }
 
 // ApplyTapAdds runs brew tap (and trust) for each tap_add action, and brew trust
-// for each tap_trust action, in plan order.
+// for each tap_trust action, in plan order. After any successful tap_add it runs
+// `brew update` once so packages from new taps can be installed.
 // Failures are collected so later taps still run. Returns successes and joined errors.
 func ApplyTapAdds(ctx context.Context, runner discovery.Runner, p plan.Plan, progress Progress) (int, error) {
 	n := 0
+	added := 0
 	var errs []error
 	for _, a := range p.Actions {
 		switch a.Type {
@@ -63,6 +73,7 @@ func ApplyTapAdds(ctx context.Context, runner discovery.Runner, p plan.Plan, pro
 				continue
 			}
 			n++
+			added++
 		case plan.ActionTapTrust:
 			report(progress, a)
 			if err := TrustTap(ctx, runner, a.Name); err != nil {
@@ -71,6 +82,15 @@ func ApplyTapAdds(ctx context.Context, runner discovery.Runner, p plan.Plan, pro
 				continue
 			}
 			n++
+		}
+	}
+	if added > 0 {
+		if progress != nil {
+			progress("brew update")
+		}
+		if err := UpdateBrew(ctx, runner); err != nil {
+			reportFailure(progress, err)
+			errs = append(errs, err)
 		}
 	}
 	return n, errors.Join(errs...)

@@ -24,6 +24,10 @@ func (r *installRecordingRunner) Run(ctx context.Context, args ...string) ([]byt
 		r.installs = append(r.installs, "trust:"+args[2])
 		return nil, nil
 	}
+	if len(args) == 1 && args[0] == "update" {
+		r.installs = append(r.installs, "update")
+		return nil, nil
+	}
 	if len(args) == 2 && args[0] == "list" && args[1] == "--formula" {
 		return r.listFormula, nil
 	}
@@ -85,8 +89,25 @@ func TestApplyTapAdds_OnlyTaps(t *testing.T) {
 	if n != 2 {
 		t.Fatalf("count = %d, want 2", n)
 	}
-	if got := strings.Join(runner.installs, ","); got != "tap:homebrew/cask-fonts,tap:nikitabobko/tap,trust:nikitabobko/tap" {
+	if got := strings.Join(runner.installs, ","); got != "tap:homebrew/cask-fonts,tap:nikitabobko/tap,trust:nikitabobko/tap,update" {
 		t.Fatalf("order = %q", got)
+	}
+}
+
+func TestApplyTapAdds_NoUpdateWhenOnlyTrust(t *testing.T) {
+	runner := &installRecordingRunner{}
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionTapTrust, Name: "nikitabobko/tap"},
+	}}
+	n, err := ApplyTapAdds(context.Background(), runner, p, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("n=%d", n)
+	}
+	if got := strings.Join(runner.installs, ","); got != "trust:nikitabobko/tap" {
+		t.Fatalf("got %q, want trust only (no update)", got)
 	}
 }
 

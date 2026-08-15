@@ -43,7 +43,7 @@ func mutationBrewArgs(args []string) bool {
 		return false
 	}
 	switch args[0] {
-	case "install", "uninstall", "remove", "reinstall", "upgrade", "untap":
+	case "install", "uninstall", "remove", "reinstall", "upgrade", "untap", "update":
 		return true
 	case "tap":
 		// `brew tap` (list) is discovery; `brew tap name` mutates.
