@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -47,7 +48,7 @@ func TestPersistApplyState_WritesLockAndLastPlan(t *testing.T) {
 	}}
 	appliedAt := time.Date(2026, 5, 18, 12, 0, 0, 0, time.UTC)
 
-	if err := PersistApplyState(dir, manifest, p, appliedAt); err != nil {
+	if err := PersistApplyState(dir, manifest, p, appliedAt, nil); err != nil {
 		t.Fatalf("PersistApplyState: %v", err)
 	}
 
@@ -70,6 +71,9 @@ func TestPersistApplyState_WritesLockAndLastPlan(t *testing.T) {
 	if lock.AppliedAt != appliedAt.UTC().Format(time.RFC3339) {
 		t.Fatalf("applied_at = %q", lock.AppliedAt)
 	}
+	if lock.OwnedFiles != nil {
+		t.Fatalf("owned_files = %#v, want nil when empty", lock.OwnedFiles)
+	}
 
 	planPath := paths.LastPlanFile(dir)
 	planData, err := os.ReadFile(planPath)
@@ -86,5 +90,110 @@ func TestPersistApplyState_WritesLockAndLastPlan(t *testing.T) {
 
 	if filepath.Base(lockPath) != "lock.json" || filepath.Base(planPath) != "last-plan.json" {
 		t.Fatal("unexpected artifact basenames")
+	}
+}
+
+func TestLoadLock_MissingFileReturnsEmpty(t *testing.T) {
+	dir := t.TempDir()
+	lock, err := LoadLock(dir)
+	if err != nil {
+		t.Fatalf("LoadLock: %v", err)
+	}
+	if lock.ManifestHash != "" || lock.AppliedAt != "" || lock.OwnedFiles != nil {
+		t.Fatalf("lock = %#v, want empty with nil OwnedFiles", lock)
+	}
+}
+
+func TestLoadLock_CorruptJSONReturnsError(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(paths.LockFile(dir), []byte("{not-json"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := LoadLock(dir)
+	if err == nil {
+		t.Fatal("expected error for corrupt lock.json")
+	}
+}
+
+func TestLoadLock_OldLockWithoutOwnedFiles(t *testing.T) {
+	dir := t.TempDir()
+	old := `{"manifest_hash":"abc","applied_at":"2026-05-18T12:00:00Z"}` + "\n"
+	if err := os.WriteFile(paths.LockFile(dir), []byte(old), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	lock, err := LoadLock(dir)
+	if err != nil {
+		t.Fatalf("LoadLock: %v", err)
+	}
+	if lock.ManifestHash != "abc" {
+		t.Fatalf("manifest_hash = %q", lock.ManifestHash)
+	}
+	if lock.OwnedFiles != nil {
+		t.Fatalf("OwnedFiles = %#v, want nil for old locks", lock.OwnedFiles)
+	}
+}
+
+func TestPersistApplyState_OwnedFilesRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	manifest := config.Manifest{
+		Packages: config.Packages{Formulae: []string{"git"}},
+		Policy:   config.Policy{UninstallMode: config.UninstallModeSafe},
+	}
+	p := plan.Plan{}
+	appliedAt := time.Date(2026, 8, 15, 1, 0, 0, 0, time.UTC)
+	owned := []string{"/tmp/pourover-a", "/tmp/pourover-b"}
+
+	if err := PersistApplyState(dir, manifest, p, appliedAt, owned); err != nil {
+		t.Fatalf("PersistApplyState: %v", err)
+	}
+
+	lock, err := LoadLock(dir)
+	if err != nil {
+		t.Fatalf("LoadLock: %v", err)
+	}
+	if !reflect.DeepEqual(lock.OwnedFiles, owned) {
+		t.Fatalf("OwnedFiles = %#v, want %#v", lock.OwnedFiles, owned)
+	}
+}
+
+func TestComputeOwnedFiles_AddsCreatesRemovesUnlinks(t *testing.T) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prev := []string{
+		filepath.Join(home, ".keep"),
+		filepath.Join(home, ".gone"),
+	}
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionLinkCreate, Name: "~/.newlink", Source: "config/new"},
+		{Type: plan.ActionLinkUpdate, Name: "~/.keep", Source: "config/keep"},
+		{Type: plan.ActionManagedCopy, Name: "~/.managed", Source: "config/managed"},
+		{Type: plan.ActionLinkReplace, Name: "~/.replaced", Source: "config/replaced"},
+		{Type: plan.ActionFileUnlink, Name: "~/.gone"},
+		{Type: plan.ActionFormulaInstall, Name: "git"},
+	}}
+
+	got, err := ComputeOwnedFiles(prev, p, "/cfg")
+	if err != nil {
+		t.Fatalf("ComputeOwnedFiles: %v", err)
+	}
+	want := []string{
+		filepath.Join(home, ".keep"),
+		filepath.Join(home, ".managed"),
+		filepath.Join(home, ".newlink"),
+		filepath.Join(home, ".replaced"),
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("owned = %#v, want %#v", got, want)
+	}
+}
+
+func TestComputeOwnedFiles_RejectsRelativeTarget(t *testing.T) {
+	_, err := ComputeOwnedFiles(nil, plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionLinkCreate, Name: "relative/path", Source: "src"},
+	}}, "/cfg")
+	if err == nil {
+		t.Fatal("expected error for relative target")
 	}
 }

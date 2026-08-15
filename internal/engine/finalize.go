@@ -12,9 +12,10 @@ import (
 
 // FinalizeOptions configures post-apply history and state persistence.
 type FinalizeOptions struct {
-	StateDir string
-	Manifest config.Manifest
-	Now      func() time.Time // optional; defaults to time.Now
+	StateDir  string
+	ConfigDir string // used to resolve owned file paths; may be empty
+	Manifest  config.Manifest
+	Now       func() time.Time // optional; defaults to time.Now
 }
 
 // FinalizeApply records apply history and, on success, persists lock/last-plan
@@ -38,7 +39,7 @@ func FinalizeApply(opts FinalizeOptions, p plan.Plan, applyErr error) error {
 	if applyErr != nil {
 		return applyErr
 	}
-	if err := persistApplyState(opts.StateDir, opts.Manifest, p, at); err != nil {
+	if err := persistApplyState(opts.StateDir, opts.ConfigDir, opts.Manifest, p, at); err != nil {
 		return err
 	}
 	return nil
@@ -56,8 +57,16 @@ func appendApplyHistory(stateDir string, manifest config.Manifest, p plan.Plan, 
 	return nil
 }
 
-func persistApplyState(stateDir string, manifest config.Manifest, p plan.Plan, at time.Time) error {
-	if err := state.PersistApplyState(stateDir, manifest, p, at); err != nil {
+func persistApplyState(stateDir, configDir string, manifest config.Manifest, p plan.Plan, at time.Time) error {
+	prev, err := state.LoadLock(stateDir)
+	if err != nil {
+		return fmt.Errorf("load lock: %w", err)
+	}
+	owned, err := state.ComputeOwnedFiles(prev.OwnedFiles, p, configDir)
+	if err != nil {
+		return fmt.Errorf("compute owned files: %w", err)
+	}
+	if err := state.PersistApplyState(stateDir, manifest, p, at, owned); err != nil {
 		return fmt.Errorf("persist state: %w", err)
 	}
 	if _, err := backup.SnapshotAndMirror(stateDir, manifest, at); err != nil {

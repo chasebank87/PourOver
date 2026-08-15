@@ -116,3 +116,48 @@ func TestFinalizeApply_EmptyStateDirNoop(t *testing.T) {
 		t.Fatalf("want apply error returned, got %v", err)
 	}
 }
+
+func TestFinalizeApply_PersistsOwnedFilesFromPlan(t *testing.T) {
+	dir := t.TempDir()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest := config.Manifest{
+		Packages: config.Packages{Formulae: []string{"git"}},
+		Policy:   config.Policy{UninstallMode: config.UninstallModeSafe},
+	}
+	prevOwned := []string{filepath.Join(home, ".old"), filepath.Join(home, ".gone")}
+	if err := state.PersistApplyState(dir, manifest, plan.Plan{}, time.Date(2026, 8, 14, 0, 0, 0, 0, time.UTC), prevOwned); err != nil {
+		t.Fatal(err)
+	}
+
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionLinkCreate, Name: "~/.new", Source: "config/new"},
+		{Type: plan.ActionFileUnlink, Name: "~/.gone"},
+	}}
+	at := time.Date(2026, 8, 15, 14, 0, 0, 0, time.UTC)
+
+	if err := FinalizeApply(FinalizeOptions{
+		StateDir:  dir,
+		ConfigDir: "/cfg",
+		Manifest:  manifest,
+		Now:       func() time.Time { return at },
+	}, p, nil); err != nil {
+		t.Fatalf("FinalizeApply: %v", err)
+	}
+
+	lock, err := state.LoadLock(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{filepath.Join(home, ".new"), filepath.Join(home, ".old")}
+	if len(lock.OwnedFiles) != len(want) {
+		t.Fatalf("OwnedFiles = %#v, want %#v", lock.OwnedFiles, want)
+	}
+	for i := range want {
+		if lock.OwnedFiles[i] != want[i] {
+			t.Fatalf("OwnedFiles = %#v, want %#v", lock.OwnedFiles, want)
+		}
+	}
+}

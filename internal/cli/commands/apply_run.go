@@ -81,9 +81,10 @@ func runApply(cmd *cobra.Command, dryRun, autoYes, quiet bool) error {
 func executeApply(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, opts applyOptions) error {
 	applyErr := runApplyActions(cmd, runner, p, opts)
 	if err := engine.FinalizeApply(engine.FinalizeOptions{
-		StateDir: opts.stateDir,
-		Manifest: opts.manifest,
-		Now:      opts.now,
+		StateDir:  opts.stateDir,
+		ConfigDir: opts.configDir,
+		Manifest:  opts.manifest,
+		Now:       opts.now,
 	}, p, applyErr); err != nil {
 		return err
 	}
