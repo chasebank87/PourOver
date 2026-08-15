@@ -97,13 +97,14 @@ func executeApply(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, opts
 
 func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, opts applyOptions) error {
 	out := cmd.ErrOrStderr()
+	renames := exec.CaskRenameActions(p)
 	skipped := exec.UnsupportedApplyActions(p)
 	if len(p.Actions) == 0 {
 		fmt.Fprintln(out, "No changes.")
 		return nil
 	}
 
-	total := len(p.Actions) - len(skipped)
+	total := len(p.Actions) - len(skipped) - len(renames)
 	var session *ui.Session
 	var progress exec.Progress
 	var brewOut io.Writer = out
@@ -111,8 +112,10 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 	if fancy {
 		session = ui.NewSession(out, "apply")
 		session.Start(total)
-		progress = session.ProgressAdapter()
-		brewOut = session
+		if total > 0 {
+			progress = session.ProgressAdapter()
+			brewOut = session
+		}
 	} else {
 		progress = applyProgress(out, opts.quiet)
 	}
@@ -122,21 +125,21 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 
 	// Phase 1: Homebrew (taps, installs, then removes). Per-package failures continue;
 	// phase errors are collected so later phases still run.
-	if session != nil {
+	if session != nil && total > 0 {
 		session.SetPhase("taps")
 	}
 	taps, err := exec.ApplyTapAdds(cmd.Context(), mutRunner, p, progress)
 	if err != nil {
 		errs = append(errs, err)
 	}
-	if session != nil {
+	if session != nil && total > 0 {
 		session.SetPhase("formulae")
 	}
 	formulae, err := exec.ApplyFormulaInstalls(cmd.Context(), mutRunner, p, progress)
 	if err != nil {
 		errs = append(errs, err)
 	}
-	if session != nil {
+	if session != nil && total > 0 {
 		session.SetPhase("casks")
 	}
 	casks, err := exec.ApplyCaskInstalls(cmd.Context(), mutRunner, p, progress)
@@ -145,7 +148,7 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 	}
 
 	confirm := removeConfirmer(cmd, opts.autoYes)
-	if session != nil {
+	if session != nil && total > 0 {
 		session.SetPhase("removes")
 	}
 	removed, err := exec.ApplyRemoves(cmd.Context(), mutRunner, p, opts.mode, confirm, progress)
@@ -154,7 +157,7 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 	}
 
 	// Phase 2: macOS defaults (after packages, before file links)
-	if session != nil {
+	if session != nil && total > 0 {
 		session.SetPhase("defaults")
 	}
 	written, err := exec.ApplyDefaultsWrites(cmd.Context(), exec.NewExecDefaultsApplier(), p, progress)
@@ -163,7 +166,7 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 	}
 
 	// Phase 3: file links
-	if session != nil {
+	if session != nil && total > 0 {
 		session.SetPhase("links")
 	}
 	linked, err := exec.ApplyFileLinks(p, opts.configDir, progress)
@@ -174,12 +177,6 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 	n := taps + formulae + casks + removed + written + linked
 
 	if session != nil {
-		if len(skipped) > 0 {
-			for _, a := range skipped {
-				line := strings.TrimSuffix(plan.RenderText(plan.Plan{Actions: []plan.Action{a}}), "\n")
-				fmt.Fprintf(out, "  %s\n", line)
-			}
-		}
 		session.Finish(ui.Summary{
 			Taps:     taps,
 			Formulae: formulae,
@@ -187,9 +184,12 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 			Removed:  removed,
 			Defaults: written,
 			Linked:   linked,
+			Renames:  len(renames),
 			Skipped:  len(skipped),
 			Failures: session.FailureCount(),
 		})
+		printCaskRenameAdvice(out, renames)
+		printUnsupportedActions(out, skipped)
 	} else {
 		if taps > 0 {
 			fmt.Fprintf(out, "Added %d tap(s).\n", taps)
@@ -209,20 +209,36 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 		if linked > 0 {
 			fmt.Fprintf(out, "Updated %d file link(s).\n", linked)
 		}
+		printCaskRenameAdvice(out, renames)
 		if len(skipped) > 0 {
 			fmt.Fprintf(out, "Skipped %d action(s) not yet supported by apply:\n", len(skipped))
-			for _, a := range skipped {
-				line := strings.TrimSuffix(plan.RenderText(plan.Plan{Actions: []plan.Action{a}}), "\n")
-				fmt.Fprintf(out, "  %s\n", line)
-			}
+			printUnsupportedActions(out, skipped)
 		}
-		if n == 0 && len(skipped) == 0 && len(errs) == 0 {
+		if n == 0 && len(skipped) == 0 && len(renames) == 0 && len(errs) == 0 {
 			fmt.Fprintln(out, "No changes.")
-		} else if n == 0 && len(skipped) == len(p.Actions) {
+		} else if n == 0 && len(skipped)+len(renames) == len(p.Actions) && len(renames) == 0 {
 			fmt.Fprintln(out, "No actions to apply.")
 		}
 	}
 	return errors.Join(errs...)
+}
+
+func printCaskRenameAdvice(out io.Writer, renames []plan.Action) {
+	if len(renames) == 0 {
+		return
+	}
+	for _, a := range renames {
+		line := strings.TrimSuffix(plan.RenderText(plan.Plan{Actions: []plan.Action{a}}), "\n")
+		fmt.Fprintf(out, "  %s\n", line)
+	}
+	fmt.Fprintf(out, "☕ Update packages.lua to use the new cask names (%d).\n", len(renames))
+}
+
+func printUnsupportedActions(out io.Writer, skipped []plan.Action) {
+	for _, a := range skipped {
+		line := strings.TrimSuffix(plan.RenderText(plan.Plan{Actions: []plan.Action{a}}), "\n")
+		fmt.Fprintf(out, "  %s\n", line)
+	}
 }
 
 func applyProgress(out io.Writer, quiet bool) exec.Progress {

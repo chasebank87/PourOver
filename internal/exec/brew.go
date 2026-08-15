@@ -138,6 +138,7 @@ func ApplyCaskInstalls(ctx context.Context, runner discovery.Runner, p plan.Plan
 }
 
 // UnsupportedApplyActions returns plan actions that apply does not run yet.
+// Advisory actions like cask_rename are excluded (handled separately).
 func UnsupportedApplyActions(p plan.Plan) []plan.Action {
 	var out []plan.Action
 	for _, a := range p.Actions {
@@ -146,9 +147,21 @@ func UnsupportedApplyActions(p plan.Plan) []plan.Action {
 			plan.ActionFormulaInstall, plan.ActionCaskInstall,
 			plan.ActionFormulaRemove, plan.ActionCaskRemove,
 			plan.ActionLinkCreate, plan.ActionLinkUpdate,
-			plan.ActionDefaultsWrite:
+			plan.ActionDefaultsWrite,
+			plan.ActionCaskRename:
 			continue
 		default:
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+// CaskRenameActions returns advisory cask_rename actions from the plan.
+func CaskRenameActions(p plan.Plan) []plan.Action {
+	var out []plan.Action
+	for _, a := range p.Actions {
+		if a.Type == plan.ActionCaskRename {
 			out = append(out, a)
 		}
 	}

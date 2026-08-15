@@ -667,3 +667,35 @@ func TestNewApplyCmd_HasDryRunFlag(t *testing.T) {
 		t.Errorf("--dry-run usage = %q, want mention of plan", flag.Usage)
 	}
 }
+
+func TestRunApplyActions_CaskRenamesAreAdvisory(t *testing.T) {
+	cmd := &cobra.Command{}
+	cmd.SetContext(context.Background())
+	var stderr strings.Builder
+	cmd.SetErr(&stderr)
+
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionCaskRename, Name: "windsurf", Value: "devin-desktop"},
+		{Type: plan.ActionCaskRename, Name: "vmware-horizon-client", Value: "omnissa-horizon-client"},
+	}}
+	err := runApplyActions(cmd, &recordingRunner{}, p, applyOptions{autoYes: true, quiet: true})
+	if err != nil {
+		t.Fatalf("runApplyActions: %v", err)
+	}
+	out := stderr.String()
+	if strings.Contains(out, "unsupported") {
+		t.Fatalf("renames must not be reported as unsupported: %q", out)
+	}
+	if !strings.Contains(out, "cask renamed: windsurf → devin-desktop") {
+		t.Fatalf("missing windsurf rename: %q", out)
+	}
+	if !strings.Contains(out, "cask renamed: vmware-horizon-client → omnissa-horizon-client") {
+		t.Fatalf("missing vmware rename: %q", out)
+	}
+	if !strings.Contains(out, "Update packages.lua") {
+		t.Fatalf("missing packages.lua tip: %q", out)
+	}
+	if strings.Contains(out, "0/0") || strings.Contains(out, "starting") {
+		t.Fatalf("unexpected progress formatting: %q", out)
+	}
+}

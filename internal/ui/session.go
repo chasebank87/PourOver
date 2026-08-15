@@ -17,6 +17,7 @@ type Summary struct {
 	Defaults int
 	Linked   int
 	Skipped  int
+	Renames  int
 	Failures int
 }
 
@@ -45,6 +46,7 @@ func NewSession(out io.Writer, mode string) *Session {
 }
 
 // Start prints the header and initializes the progress total.
+// When total is 0, only the header is shown (no live 0/0 progress line).
 func (s *Session) Start(total int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -57,7 +59,9 @@ func (s *Session) Start(total int) {
 	s.started = true
 	s.liveStatus = false
 	s.renderHeaderLocked()
-	s.renderStatusLocked()
+	if total > 0 {
+		s.renderStatusLocked()
+	}
 }
 
 // SetPhase updates the phase label. It does not redraw by itself so a phase
@@ -117,10 +121,14 @@ func (s *Session) Finish(sum Summary) {
 	}
 	s.parkStatusLocked()
 	s.started = false
-	fmt.Fprintln(s.out, styleMuted.Render(strings.Repeat("─", 40)))
+	// When Start(0) skipped the progress line, stay under the header rule —
+	// a second separator with nothing between looks broken (rename-only apply).
+	if s.total > 0 {
+		fmt.Fprintln(s.out, styleMuted.Render(strings.Repeat("─", 40)))
+	}
 
 	if sum.Failures == 0 && sum.Taps == 0 && sum.Formulae == 0 && sum.Casks == 0 && sum.Removed == 0 &&
-		sum.Upgraded == 0 && sum.Defaults == 0 && sum.Linked == 0 && sum.Skipped == 0 {
+		sum.Upgraded == 0 && sum.Defaults == 0 && sum.Linked == 0 && sum.Skipped == 0 && sum.Renames == 0 {
 		fmt.Fprintln(s.out, styleMuted.Render("☕ No changes."))
 		return
 	}
@@ -152,6 +160,7 @@ func (s *Session) Finish(sum Summary) {
 	if sum.Failures > 0 {
 		fmt.Fprintln(s.out, styleFail.Render(fmt.Sprintf("☕ %d action(s) failed.", sum.Failures)))
 	}
+	// Renames: caller prints detail lines after Finish (status must be parked first).
 }
 
 func (s *Session) renderHeaderLocked() {

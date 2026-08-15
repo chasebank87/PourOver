@@ -54,6 +54,25 @@ func TestSession_StepFailFinishPlain(t *testing.T) {
 	}
 }
 
+func TestSession_StartZero_NoProgressBar(t *testing.T) {
+	ForcePlain()
+	var buf bytes.Buffer
+	s := NewSession(&buf, "apply")
+	s.Start(0)
+	s.Finish(Summary{Renames: 2})
+	out := buf.String()
+	if strings.Contains(out, "0/0") || strings.Contains(out, "starting") {
+		t.Fatalf("unexpected progress line: %q", out)
+	}
+	sep := strings.Repeat("─", 40)
+	if strings.Count(out, sep) != 1 {
+		t.Fatalf("want single header rule (no empty closing box): %q", out)
+	}
+	if strings.Contains(out, "No changes") {
+		t.Fatalf("renames should suppress No changes: %q", out)
+	}
+}
+
 func TestSession_WritePassthrough(t *testing.T) {
 	ForcePlain()
 	var buf bytes.Buffer

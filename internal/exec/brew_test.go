@@ -265,9 +265,26 @@ func TestUnsupportedApplyActions(t *testing.T) {
 		{Type: plan.ActionCaskRemove, Name: "vlc"},
 		{Type: plan.ActionLinkCreate, Name: "/tmp/x", Source: "config/x"},
 		{Type: plan.ActionLinkUpdate, Name: "/tmp/y", Source: "config/y"},
+		{Type: plan.ActionCaskRename, Name: "windsurf", Value: "devin-desktop"},
+		{Type: plan.ActionFormulaUpgrade, Name: "git"},
 	}}
 	skipped := UnsupportedApplyActions(p)
-	if len(skipped) != 0 {
-		t.Fatalf("skipped = %+v, want none", skipped)
+	if len(skipped) != 1 || skipped[0].Type != plan.ActionFormulaUpgrade {
+		t.Fatalf("skipped = %+v, want only formula_upgrade", skipped)
+	}
+}
+
+func TestCaskRenameActions(t *testing.T) {
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionCaskInstall, Name: "raycast"},
+		{Type: plan.ActionCaskRename, Name: "windsurf", Value: "devin-desktop"},
+		{Type: plan.ActionCaskRename, Name: "vmware-horizon-client", Value: "omnissa-horizon-client"},
+	}}
+	got := CaskRenameActions(p)
+	if len(got) != 2 {
+		t.Fatalf("got %d renames, want 2", len(got))
+	}
+	if got[0].Name != "windsurf" || got[1].Name != "vmware-horizon-client" {
+		t.Fatalf("got %+v", got)
 	}
 }
