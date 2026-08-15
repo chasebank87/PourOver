@@ -120,8 +120,8 @@ func TestSession_PrepareAuth_ParksLiveStatus(t *testing.T) {
 	if !strings.Contains(got, "authentication required") {
 		t.Fatalf("missing auth hint after PrepareAuth: %q", got)
 	}
-	if !strings.Contains(got, "\n") {
-		t.Fatalf("PrepareAuth must end the progress line before the hint: %q", got)
+	if !strings.HasPrefix(got, "\n") {
+		t.Fatalf("PrepareAuth must finalize progress with newline first: %q", got)
 	}
 	// After park, a following Password: must not sit on the bar line.
 	if _, err := buf.WriteString("Password:\n"); err != nil {

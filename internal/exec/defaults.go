@@ -13,6 +13,7 @@ import (
 	"github.com/chasebank87/PourOver/internal/config"
 	"github.com/chasebank87/PourOver/internal/discovery"
 	"github.com/chasebank87/PourOver/internal/plan"
+	"github.com/chasebank87/PourOver/internal/tty"
 )
 
 // DefaultsApplier writes preferences and restarts UI processes.
@@ -115,7 +116,12 @@ var elevatedDefaultsWrite = sudoDefaultsWrite
 func sudoDefaultsWrite(ctx context.Context, timeout time.Duration, args []string, beforeAuth func()) error {
 	if beforeAuth != nil {
 		beforeAuth()
+	} else {
+		tty.SyncPromptLine()
 	}
+	// Belt-and-suspenders: BeforeAuth already syncs, but ensure the tty cursor
+	// is column 0 immediately before sudo opens /dev/tty for Password:.
+	tty.SyncPromptLine()
 	if timeout == 0 {
 		timeout = discovery.DefaultDefaultsTimeout
 	}

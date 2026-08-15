@@ -11,6 +11,7 @@ import (
 
 	"github.com/chasebank87/PourOver/internal/pam"
 	"github.com/chasebank87/PourOver/internal/plan"
+	"github.com/chasebank87/PourOver/internal/tty"
 )
 
 // PAMApplyOptions configures PAM apply with injectable paths for tests.
@@ -181,7 +182,10 @@ func writeElevatedFile(ctx context.Context, path string, data []byte, mode os.Fi
 	if needsElevation(path) {
 		if beforeAuth != nil {
 			beforeAuth()
+		} else {
+			tty.SyncPromptLine()
 		}
+		tty.SyncPromptLine()
 		return elevatedWrite(ctx, path, data, mode)
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

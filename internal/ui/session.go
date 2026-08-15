@@ -5,6 +5,8 @@ import (
 	"io"
 	"strings"
 	"sync"
+
+	"github.com/chasebank87/PourOver/internal/tty"
 )
 
 // Summary holds final apply/upgrade counts for Finish.
@@ -120,21 +122,24 @@ func (s *Session) Write(p []byte) (int, error) {
 // subsequent sudo Password: prompt on /dev/tty is not glued onto the bar.
 // Brew mutations get this via Write; PAM/system elevation must call it first.
 //
-// sudo reads the password from /dev/tty and shares the terminal cursor with
-// stderr, so we must leave the cursor at column 0 on a fresh line and flush
-// before returning — otherwise Password: lands mid-progress-line.
+// sudo prompts on /dev/tty (not stderr). Long progress lines may soft-wrap, so
+// CSI clear on stderr alone is unreliable — we finalize with a newline, then
+// reset the tty cursor via tty.SyncPromptLine.
 func (s *Session) PrepareAuth() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	wasLive := s.liveStatus
-	s.parkStatusLocked()
-	if !wasLive {
-		// liveStatus can be false while the cursor still sits mid-line (e.g. a
-		// prior clear missed); force a newline so Password: is never appended.
+	// Finalize the live status as its own line (do not CSI-clear: wrapped
+	// rows would leave remnants and a mid-column tty cursor).
+	if s.liveStatus {
+		fmt.Fprint(s.out, "\n")
+		s.liveStatus = false
+	} else {
 		fmt.Fprint(s.out, "\n")
 	}
-	fmt.Fprint(s.out, styleAccentPrompt.Render("☕ authentication required — enter your password if prompted\n"))
+	fmt.Fprint(s.out, styleAccentPrompt.Render("☕ authentication required — enter your password if prompted"))
+	fmt.Fprint(s.out, "\n")
 	flushWriter(s.out)
+	tty.SyncPromptLine()
 }
 
 // Finish parks the status line and prints a colored summary.
