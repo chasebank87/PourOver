@@ -14,8 +14,8 @@ import (
 )
 
 // Apply runs the reconcile mutation loop for taps, formulae, casks, removes,
-// defaults, and file links. It does not create UI sessions or print summaries;
-// frontends pass Progress / Confirmer / writers via opts.
+// defaults, file links, managed copies, and unlinks. It does not create UI
+// sessions or print summaries; frontends pass Progress / Confirmer / writers via opts.
 func Apply(ctx context.Context, runner discovery.Runner, p plan.Plan, opts ApplyOptions) (ApplyResult, error) {
 	renames := exec.CaskRenameActions(p)
 	skipped := exec.UnsupportedApplyActions(p)
@@ -93,12 +93,26 @@ func Apply(ctx context.Context, runner discovery.Runner, p plan.Plan, opts Apply
 		errs = append(errs, err)
 	}
 
+	phase("managed")
+	managed, err := exec.ApplyManagedCopies(p, configDir, progress)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	phase("unlink")
+	unlinked, err := exec.ApplyFileUnlinks(p, progress)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
 	result.Taps = taps
 	result.Formulae = formulae
 	result.Casks = casks
 	result.Removed = removed
 	result.Defaults = written
 	result.Linked = linked
+	result.Managed = managed
+	result.Unlinked = unlinked
 	result.Failures = failures
 	return result, errors.Join(errs...)
 }

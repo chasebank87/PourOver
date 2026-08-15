@@ -48,7 +48,7 @@ unlink ~/.old-dotfile
 
 `cask_rename` is advisory only (apply does not mutate); replace the old token in config with the new name.
 
-`managed_copy` and `file_unlink` appear in the plan when discovered; apply support lands in a later Phase 3 task (until then apply reports them as skipped unsupported).
+`managed_copy` and `file_unlink` appear in the plan when discovered; apply copies atomically and unlinks with directory safeguards.
 
 `pourover upgrade --dry-run` merges upgrade actions (outdated declared packages only) ahead of the normal apply plan.
 

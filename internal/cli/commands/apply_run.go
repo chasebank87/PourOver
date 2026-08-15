@@ -136,7 +136,8 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 
 	result, err := engine.Apply(cmd.Context(), runner, p, engineOpts)
 
-	n := result.Taps + result.Formulae + result.Casks + result.Removed + result.Defaults + result.Linked
+	n := result.Taps + result.Formulae + result.Casks + result.Removed + result.Defaults +
+		result.Linked + result.Managed + result.Unlinked
 
 	if session != nil {
 		session.Finish(ui.Summary{
@@ -146,6 +147,8 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 			Removed:  result.Removed,
 			Defaults: result.Defaults,
 			Linked:   result.Linked,
+			Managed:  result.Managed,
+			Unlinked: result.Unlinked,
 			Renames:  result.Renames,
 			Skipped:  result.Skipped,
 			Failures: result.Failures,
@@ -170,6 +173,12 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 		}
 		if result.Linked > 0 {
 			fmt.Fprintf(out, "Updated %d file link(s).\n", result.Linked)
+		}
+		if result.Managed > 0 {
+			fmt.Fprintf(out, "Copied %d managed file(s).\n", result.Managed)
+		}
+		if result.Unlinked > 0 {
+			fmt.Fprintf(out, "Unlinked %d file(s).\n", result.Unlinked)
 		}
 		printCaskRenameAdvice(out, renames)
 		if len(skipped) > 0 {
@@ -231,4 +240,3 @@ func brewRunnerWithProgress(runner discovery.Runner, out io.Writer, quiet bool) 
 	}
 	return runner
 }
-

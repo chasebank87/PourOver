@@ -165,3 +165,203 @@ func TestApplyFileLinks_ContinuesAfterFailure(t *testing.T) {
 		t.Fatalf("ok link = %q err=%v, want %q", got, err, srcOK)
 	}
 }
+
+func TestApplyManagedCopies_CreatesAndOverwrites(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "cfg")
+	srcDir := filepath.Join(configDir, "config")
+	if err := os.MkdirAll(srcDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	srcA := filepath.Join(srcDir, "a.conf")
+	srcB := filepath.Join(srcDir, "b.conf")
+	if err := os.WriteFile(srcA, []byte("alpha"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(srcB, []byte("bravo"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	createTgt := filepath.Join(root, "home", "nested", "a.conf")
+	overwriteTgt := filepath.Join(root, "home", "b.conf")
+	if err := os.MkdirAll(filepath.Dir(overwriteTgt), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(overwriteTgt, []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionFormulaInstall, Name: "fzf"},
+		{Type: plan.ActionManagedCopy, Name: createTgt, Source: "config/a.conf"},
+		{Type: plan.ActionManagedCopy, Name: overwriteTgt, Source: "config/b.conf"},
+	}}
+
+	n, err := ApplyManagedCopies(p, configDir, nil)
+	if err != nil {
+		t.Fatalf("ApplyManagedCopies: %v", err)
+	}
+	if n != 2 {
+		t.Fatalf("n=%d, want 2", n)
+	}
+
+	if got, err := os.ReadFile(createTgt); err != nil || string(got) != "alpha" {
+		t.Fatalf("create = %q err=%v, want alpha", got, err)
+	}
+	if got, err := os.ReadFile(overwriteTgt); err != nil || string(got) != "bravo" {
+		t.Fatalf("overwrite = %q err=%v, want bravo", got, err)
+	}
+	info, err := os.Lstat(createTgt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		t.Fatal("managed copy must write a regular file, not a symlink")
+	}
+}
+
+func TestApplyManagedCopies_ReplacesSymlinkWithFile(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "cfg")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	src := filepath.Join(configDir, "src.txt")
+	if err := os.WriteFile(src, []byte("content"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	elsewhere := filepath.Join(root, "elsewhere")
+	if err := os.WriteFile(elsewhere, []byte("linked"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	tgt := filepath.Join(root, "target.txt")
+	if err := os.Symlink(elsewhere, tgt); err != nil {
+		t.Fatal(err)
+	}
+
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionManagedCopy, Name: tgt, Source: "src.txt"},
+	}}
+	n, err := ApplyManagedCopies(p, configDir, nil)
+	if err != nil {
+		t.Fatalf("ApplyManagedCopies: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("n=%d, want 1", n)
+	}
+	info, err := os.Lstat(tgt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		t.Fatal("target should no longer be a symlink")
+	}
+	got, err := os.ReadFile(tgt)
+	if err != nil || string(got) != "content" {
+		t.Fatalf("got %q err=%v", got, err)
+	}
+	// Original symlink destination must remain untouched.
+	if got, err := os.ReadFile(elsewhere); err != nil || string(got) != "linked" {
+		t.Fatalf("elsewhere = %q err=%v", got, err)
+	}
+}
+
+func TestApplyManagedCopies_ContinuesAfterFailure(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "cfg")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	okSrc := filepath.Join(configDir, "ok.txt")
+	if err := os.WriteFile(okSrc, []byte("ok"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dirTgt := filepath.Join(root, "isdir")
+	if err := os.Mkdir(dirTgt, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	okTgt := filepath.Join(root, "ok.txt")
+
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionManagedCopy, Name: dirTgt, Source: "ok.txt"},
+		{Type: plan.ActionManagedCopy, Name: okTgt, Source: "ok.txt"},
+	}}
+	n, err := ApplyManagedCopies(p, configDir, nil)
+	if err == nil {
+		t.Fatal("expected error for directory target")
+	}
+	if n != 1 {
+		t.Fatalf("n=%d, want 1 successful copy after failure", n)
+	}
+	if got, err := os.ReadFile(okTgt); err != nil || string(got) != "ok" {
+		t.Fatalf("ok = %q err=%v", got, err)
+	}
+}
+
+func TestApplyFileUnlinks_RemovesSymlinkAndFile(t *testing.T) {
+	root := t.TempDir()
+	filePath := filepath.Join(root, "file.txt")
+	if err := os.WriteFile(filePath, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	linkTarget := filepath.Join(root, "link-dest")
+	if err := os.WriteFile(linkTarget, []byte("y"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	linkPath := filepath.Join(root, "link.txt")
+	if err := os.Symlink(linkTarget, linkPath); err != nil {
+		t.Fatal(err)
+	}
+
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionFileUnlink, Name: filePath},
+		{Type: plan.ActionFileUnlink, Name: linkPath},
+		{Type: plan.ActionFormulaInstall, Name: "fzf"},
+	}}
+	n, err := ApplyFileUnlinks(p, nil)
+	if err != nil {
+		t.Fatalf("ApplyFileUnlinks: %v", err)
+	}
+	if n != 2 {
+		t.Fatalf("n=%d, want 2", n)
+	}
+	if _, err := os.Lstat(filePath); !os.IsNotExist(err) {
+		t.Fatalf("file still exists: %v", err)
+	}
+	if _, err := os.Lstat(linkPath); !os.IsNotExist(err) {
+		t.Fatalf("link still exists: %v", err)
+	}
+	if _, err := os.Stat(linkTarget); err != nil {
+		t.Fatalf("link destination should remain: %v", err)
+	}
+}
+
+func TestApplyFileUnlinks_RefusesDirectory(t *testing.T) {
+	root := t.TempDir()
+	dirPath := filepath.Join(root, "dir")
+	if err := os.Mkdir(dirPath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	okFile := filepath.Join(root, "ok.txt")
+	if err := os.WriteFile(okFile, []byte("z"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionFileUnlink, Name: dirPath},
+		{Type: plan.ActionFileUnlink, Name: okFile},
+	}}
+	n, err := ApplyFileUnlinks(p, nil)
+	if err == nil {
+		t.Fatal("expected error refusing directory unlink")
+	}
+	if n != 1 {
+		t.Fatalf("n=%d, want 1", n)
+	}
+	if _, err := os.Stat(dirPath); err != nil {
+		t.Fatalf("directory should remain: %v", err)
+	}
+	if _, err := os.Lstat(okFile); !os.IsNotExist(err) {
+		t.Fatalf("ok file should be removed: %v", err)
+	}
+}
