@@ -6,7 +6,10 @@ Ideas and scope **explicitly deferred from v1**. When we cut v1, anything not do
 
 **Related:** v1 decisions live in `docs/plans/2026-05-18-pourover-v1-micro-steps.md` (Open decisions table). v1 non-goals in `docs/plans/2026-05-18-pourover-v1-design.md`. V2 plan: `docs/plans/2026-08-15-pourover-v2-implementation.md`.
 
-**V2 progress:** Phase 0 (reconcile engine façade) is done — `internal/engine` owns BuildPlan, Apply, UpgradePackages, Doctor, Backup, Restore, and Import; the CLI is a thin frontend. Next is Phase 1 (TUI).
+**V2 progress:**
+- **Phase 0** (reconcile engine façade) — done. `internal/engine` owns BuildPlan, Apply, UpgradePackages, Doctor, Backup, Restore, and Import; the CLI is a thin frontend.
+- **Phase 1** (TUI shell) — landed. Interactive no-args / `pourover tui` launch; home drift summary; Plan, Apply, Upgrade, Doctor, and History views. **Backup/Restore**, **Import**, and **Config** remain TUI stubs (“coming soon”); use the CLI for those.
+- **Phase 2** (TUI complete control) — still needed: Backup/Restore, Import, Config (iCloud + git), self-update from TUI, and opt-in doctor fixes.
 
 ---
 
@@ -50,22 +53,23 @@ Ideas and scope **explicitly deferred from v1**. When we cut v1, anything not do
 |------|---------------|-------|
 | Default iCloud path formalized + override UX | D5 | v1 will pick a default at M9; document here when chosen |
 | Remote sync beyond iCloud (S3, git remote **state**) | Design v2 | Git **config** sync (`pourover config git`) landed; state remotes still deferred |
-| Rich history browser / drift UI | Design v2 | Needs dashboard or TUI |
+| Rich history browser / drift UI | Design v2 | **Phase 1 done** — TUI History + Plan/drift views; deeper browse still optional |
 | Rollback command beyond `restore` | — | One-click undo last apply |
 
 ## Dashboard & tooling
 
 | Item | Deferred from | Notes |
 |------|---------------|-------|
-| Admin dashboard (local web or native macOS) | Design v1 non-goals | Plan JSON shape frozen for future UI |
-| `doctor` fix mode (auto-repair) | — | v1 diagnose only |
-| CI / headless apply with `--yes` | M5 | Non-interactive installs/uninstalls |
+| Interactive TUI (Bubble Tea) | Design v2 | **Phase 1 shell done** — launch rules + Plan/Apply/Upgrade/Doctor/History. Phase 2: Backup/Import/Config/self-update |
+| Admin dashboard (local web or native macOS) | Design v1 non-goals | Plan JSON shape frozen; TUI is the primary UI for V2 |
+| `doctor` fix mode (auto-repair) | — | Diagnose in CLI + TUI; opt-in fixes planned Phase 2 |
+| CI / headless apply with `--yes` | M5 | Non-interactive installs/uninstalls; TUI never auto-launches when `CI=true` or non-TTY |
 
 ## Platform
 
 | Item | Deferred from | Notes |
 |------|---------------|-------|
-| Linux / non-macOS support | Design v1 non-goals | macOS-only for v1 |
+| Linux / non-macOS support | Design v1 non-goals | **macOS-only forever** — not a deferred port |
 | Full Nix-like store / build graph | Design v1 non-goals | Declarative reconcile only |
 
 ## macOS defaults (follow-ups)

@@ -4,6 +4,26 @@ Declarative Homebrew and dotfile management for macOS.
 
 PourOver loads `~/.pourover/pourover.lua`, plans the diff against your machine, and applies Homebrew packages, macOS `defaults` preferences, and symlink file links.
 
+**macOS only, forever.** Linux and other platforms are out of scope.
+
+## Interactive TUI
+
+On an interactive terminal (stdin and stdout are TTYs), running `pourover` with **no arguments** opens the Bubble Tea TUI. You can also launch it explicitly:
+
+```bash
+pourover          # interactive, no args → TUI
+pourover tui      # always open the TUI
+pourover plan     # subcommands stay CLI
+```
+
+Auto-launch does **not** run when:
+
+- a subcommand or flags are passed (CLI path)
+- stdin/stdout are not a TTY (pipes, scripts)
+- `CI=true` (CI / non-interactive automation)
+
+The Phase 1 TUI home screen covers Plan, Apply, Upgrade, Doctor, and History. **Backup/Restore**, **Import**, and **Config** are still stubs in the menu (CLI remains fully available); self-update from the TUI is Phase 2.
+
 ## Install
 
 One-liner (downloads the latest GitHub Release binary; installs Homebrew first if missing):
@@ -22,7 +42,7 @@ make install  # copies to ~/.local/bin by default (PREFIX=/usr/local make instal
 make test
 ```
 
-Requires macOS. The installer bootstraps Homebrew when it is not already present and installs a `pour` symlink alias beside `pourover`. Building from source also needs Go. CI runs `make vet`, `make test`, and `make build` on push/PR; tagged `v*` releases publish darwin archives via GoReleaser.
+Requires macOS (darwin only; no Linux/Windows target). The installer bootstraps Homebrew when it is not already present and installs a `pour` symlink alias beside `pourover`. Building from source also needs Go. CI runs `make vet`, `make test`, and `make build` on push/PR; tagged `v*` releases publish darwin archives via GoReleaser.
 
 ## Releasing
 
@@ -99,6 +119,7 @@ already current even if Caskroom metadata is stale — use `brew upgrade --cask 
 
 | Command | Purpose |
 |---------|---------|
+| `tui` | Open the interactive TUI (also auto-launches on interactive no-args) |
 | `init` | Scaffold config |
 | `import` | Import installed brew packages and common files into config |
 | `config` | Manage iCloud mirror and git config sync (`config icloud`, `config git`, `push`/`pull`) |
