@@ -125,3 +125,41 @@ func TestApplyPAM_EmptySOPathErrors(t *testing.T) {
 		t.Fatal("want error for empty .so path")
 	}
 }
+
+func TestPrepareSudoInstall_StagesFileNotDevStdin(t *testing.T) {
+	dest := "/etc/pam.d/sudo_local"
+	body := []byte("# pourover: managed\nauth sufficient pam_tid.so\n")
+	args, cleanup, err := prepareSudoInstall(body, 0o644, dest)
+	if err != nil {
+		t.Fatalf("prepareSudoInstall: %v", err)
+	}
+	defer cleanup()
+
+	if len(args) != 6 {
+		t.Fatalf("args = %v, want [sudo install -m MODE src dest]", args)
+	}
+	if args[0] != "sudo" || args[1] != "install" || args[2] != "-m" || args[3] != "0644" {
+		t.Fatalf("args prefix = %v", args[:4])
+	}
+	if args[5] != dest {
+		t.Fatalf("dest arg = %q, want %q", args[5], dest)
+	}
+	for _, a := range args {
+		if a == "/dev/stdin" {
+			t.Fatal("sudo install must not use /dev/stdin (macOS rejects it)")
+		}
+	}
+	staged := args[4]
+	got, err := os.ReadFile(staged)
+	if err != nil {
+		t.Fatalf("staged file %s: %v", staged, err)
+	}
+	if string(got) != string(body) {
+		t.Fatalf("staged content = %q, want %q", got, body)
+	}
+
+	cleanup()
+	if _, err := os.Stat(staged); !os.IsNotExist(err) {
+		t.Fatalf("cleanup left staged file %s: %v", staged, err)
+	}
+}

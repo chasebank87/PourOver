@@ -211,12 +211,41 @@ func needsElevation(path string) bool {
 }
 
 func sudoWriteFile(ctx context.Context, path string, data []byte, mode os.FileMode) error {
-	// install -m MODE /dev/stdin PATH via sudo, feeding content on stdin.
-	modeArg := fmt.Sprintf("%04o", mode.Perm())
-	cmd := exec.CommandContext(ctx, "sudo", "install", "-m", modeArg, "/dev/stdin", path)
-	cmd.Stdin = strings.NewReader(string(data))
+	args, cleanup, err := prepareSudoInstall(data, mode, path)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("writing %s requires admin privileges: %w: %s", path, err, strings.TrimSpace(string(out)))
 	}
 	return nil
+}
+
+// prepareSudoInstall stages data in a temp file and returns sudo install argv.
+// macOS `install` rejects /dev/stdin ("Inappropriate file type or format"), so
+// content must be copied from a regular file: sudo install -m MODE <tmp> <dest>.
+func prepareSudoInstall(data []byte, mode os.FileMode, dest string) (args []string, cleanup func(), err error) {
+	tmp, err := os.CreateTemp("", "pourover-pam-*")
+	if err != nil {
+		return nil, nil, fmt.Errorf("pam stage write: create temp: %w", err)
+	}
+	tmpName := tmp.Name()
+	cleanup = func() { _ = os.Remove(tmpName) }
+
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		cleanup()
+		return nil, nil, fmt.Errorf("pam stage write: write temp: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		cleanup()
+		return nil, nil, fmt.Errorf("pam stage write: close temp: %w", err)
+	}
+
+	modeArg := fmt.Sprintf("%04o", mode.Perm())
+	args = []string{"sudo", "install", "-m", modeArg, tmpName, dest}
+	return args, cleanup, nil
 }
