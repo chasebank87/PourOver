@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"sync"
@@ -14,8 +15,9 @@ const DefaultBrewHeartbeatInterval = 15 * time.Second
 
 // activityWriter records the last time Write was called.
 type activityWriter struct {
-	out      io.Writer
-	lastUnix atomic.Int64 // unix nano; 0 means never
+	out             io.Writer
+	lastUnix        atomic.Int64 // unix nano; 0 means never
+	heartbeatPaused atomic.Bool
 }
 
 func newActivityWriter(out io.Writer) *activityWriter {
@@ -25,6 +27,12 @@ func newActivityWriter(out io.Writer) *activityWriter {
 }
 
 func (w *activityWriter) Write(p []byte) (int, error) {
+	if looksLikeAuthPrompt(string(p)) {
+		w.heartbeatPaused.Store(true)
+	} else if len(bytes.TrimSpace(p)) > 0 {
+		// Resume after password once brew prints more output.
+		w.heartbeatPaused.Store(false)
+	}
 	w.touch()
 	if w.out == nil {
 		return len(p), nil
@@ -72,6 +80,9 @@ func startBrewHeartbeat(out io.Writer, activity *activityWriter, args []string, 
 			case <-done:
 				return
 			case <-t.C:
+				if activity.heartbeatPaused.Load() {
+					continue
+				}
 				if time.Since(activity.lastActivity()) < interval {
 					continue
 				}

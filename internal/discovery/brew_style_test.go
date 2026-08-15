@@ -66,3 +66,18 @@ func TestBrewStyleWriter_FlushPartial(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestBrewStyleWriter_FlushesPasswordPromptImmediately(t *testing.T) {
+	var out bytes.Buffer
+	w := NewBrewStyleWriter(&out)
+	if _, err := w.Write([]byte("Password:")); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "Password:") {
+		t.Fatalf("prompt not flushed: %q", got)
+	}
+	if strings.HasSuffix(got, "\n") {
+		t.Fatalf("password prompt should not end with newline (cursor stays for typing): %q", got)
+	}
+}

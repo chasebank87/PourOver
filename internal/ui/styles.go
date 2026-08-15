@@ -17,13 +17,14 @@ var (
 )
 
 var (
-	styleBrand  = lipgloss.NewStyle().Bold(true).Foreground(colorBrand)
-	styleMode   = lipgloss.NewStyle().Foreground(colorAccent)
-	styleMuted  = lipgloss.NewStyle().Foreground(colorMuted)
-	styleOK     = lipgloss.NewStyle().Foreground(colorOK)
-	styleFail   = lipgloss.NewStyle().Foreground(colorFail)
-	styleBarOn  = lipgloss.NewStyle().Foreground(colorBarOn)
-	styleBarOff = lipgloss.NewStyle().Foreground(colorBarOff)
+	styleBrand        = lipgloss.NewStyle().Bold(true).Foreground(colorBrand)
+	styleMode         = lipgloss.NewStyle().Foreground(colorAccent)
+	styleMuted        = lipgloss.NewStyle().Foreground(colorMuted)
+	styleOK           = lipgloss.NewStyle().Foreground(colorOK)
+	styleFail         = lipgloss.NewStyle().Foreground(colorFail)
+	styleBarOn        = lipgloss.NewStyle().Foreground(colorBarOn)
+	styleBarOff       = lipgloss.NewStyle().Foreground(colorBarOff)
+	styleAccentPrompt = lipgloss.NewStyle().Foreground(colorAccent)
 )
 
 // ForcePlain disables ANSI styling for tests.
@@ -36,4 +37,5 @@ func ForcePlain() {
 	styleFail = lipgloss.NewStyle()
 	styleBarOn = lipgloss.NewStyle()
 	styleBarOff = lipgloss.NewStyle()
+	styleAccentPrompt = lipgloss.NewStyle()
 }

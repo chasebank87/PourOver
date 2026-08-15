@@ -67,6 +67,44 @@ func TestSession_WritePassthrough(t *testing.T) {
 	}
 }
 
+func TestSession_WriteAuthPromptHint(t *testing.T) {
+	ForcePlain()
+	var buf bytes.Buffer
+	s := NewSession(&buf, "apply")
+	s.Start(1)
+	s.Step("install cask sony-ps-remote-play")
+	before := buf.Len()
+	if _, err := s.Write([]byte("Password:")); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()[before:]
+	if !strings.Contains(got, "authentication required") {
+		t.Fatalf("missing auth hint: %q", got)
+	}
+	if !strings.Contains(got, "Password:") {
+		t.Fatalf("missing prompt: %q", got)
+	}
+	// Progress uses newlines, not CR overlays.
+	if strings.Contains(got, "\r") {
+		t.Fatalf("auth path should not use CR overlay: %q", got)
+	}
+}
+
+func TestSession_StatusUsesNewlines(t *testing.T) {
+	ForcePlain()
+	var buf bytes.Buffer
+	s := NewSession(&buf, "apply")
+	s.Start(2)
+	s.Step("install cask foo")
+	out := buf.String()
+	if !strings.Contains(out, "→ install cask foo") {
+		t.Fatalf("missing status arrow: %q", out)
+	}
+	if strings.Contains(out, "\r") {
+		t.Fatalf("status should not use CR: %q", out)
+	}
+}
+
 func TestProgressAdapter_RoutesFailed(t *testing.T) {
 	ForcePlain()
 	var buf bytes.Buffer

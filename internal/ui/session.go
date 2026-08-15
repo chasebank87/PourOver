@@ -19,7 +19,9 @@ type Summary struct {
 	Failures int
 }
 
-// Session renders a PourOver header, action progress bar, and streams brew logs underneath.
+// Session renders a PourOver header, action progress, and streams brew logs underneath.
+// Progress is printed as normal lines (not carriage-return overlays) so sudo/password
+// prompts from Homebrew stay on their own clean line.
 type Session struct {
 	out  io.Writer
 	mode string
@@ -54,7 +56,7 @@ func (s *Session) Start(total int) {
 	s.renderStatusLocked()
 }
 
-// SetPhase updates the phase label shown in the header/status (formulae, casks, …).
+// SetPhase updates the phase label shown in the status block.
 func (s *Session) SetPhase(phase string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -84,25 +86,27 @@ func (s *Session) Fail(err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.failed++
-	s.clearStatusLocked()
 	fmt.Fprintln(s.out, styleFail.Render("☕ failed: "+err.Error()))
-	s.renderStatusLocked()
 }
 
-// Write implements io.Writer for brew restyled output. Clears the status row,
-// writes the payload, then redraws status so brew logs stay readable.
+// Write implements io.Writer for brew restyled output.
+// It streams logs as-is without redrawing the progress bar, so interactive
+// prompts (Password:) are not glued onto the status line.
 func (s *Session) Write(p []byte) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.clearStatusLocked()
-	n, err := s.out.Write(p)
-	if s.started {
-		s.renderStatusLocked()
+	if len(p) == 0 {
+		return 0, nil
 	}
-	return n, err
+	// Ensure prompts start on a fresh line when brew omits a leading newline.
+	if looksLikeAuthPrompt(string(p)) {
+		fmt.Fprint(s.out, "\n")
+		fmt.Fprint(s.out, styleAccentPrompt.Render("☕ authentication required — enter your password if prompted\n"))
+	}
+	return s.out.Write(p)
 }
 
-// Finish clears the live status row and prints a colored summary.
+// Finish prints a colored summary.
 func (s *Session) Finish(sum Summary) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -110,8 +114,8 @@ func (s *Session) Finish(sum Summary) {
 		s.done++
 		s.current = ""
 	}
-	s.clearStatusLocked()
 	s.started = false
+	fmt.Fprintln(s.out, styleMuted.Render(strings.Repeat("─", 40)))
 
 	if sum.Failures == 0 && sum.Formulae == 0 && sum.Casks == 0 && sum.Removed == 0 &&
 		sum.Upgraded == 0 && sum.Defaults == 0 && sum.Linked == 0 && sum.Skipped == 0 {
@@ -148,8 +152,7 @@ func (s *Session) Finish(sum Summary) {
 func (s *Session) renderHeaderLocked() {
 	brand := styleBrand.Render("☕ PourOver")
 	mode := styleMode.Render(s.mode)
-	line := brand + "  " + mode
-	fmt.Fprintln(s.out, line)
+	fmt.Fprintln(s.out, brand+"  "+mode)
 	fmt.Fprintln(s.out, styleMuted.Render(strings.Repeat("─", 40)))
 }
 
@@ -164,18 +167,14 @@ func (s *Session) renderStatusLocked() {
 	if cur == "" {
 		cur = "…"
 	}
-	status := fmt.Sprintf("%s %s  %s  %s",
+	fmt.Fprintln(s.out)
+	fmt.Fprintf(s.out, "%s  %s  %s\n",
 		styleBarOn.Render(bar),
 		styleMuted.Render(count),
 		styleMode.Render(phase),
-		styleMuted.Render(cur),
 	)
-	// Trailing spaces help clear leftover glyphs when the new line is shorter.
-	fmt.Fprintf(s.out, "\r\033[2K%s", status)
-}
-
-func (s *Session) clearStatusLocked() {
-	fmt.Fprint(s.out, "\r\033[2K")
+	fmt.Fprintln(s.out, styleMuted.Render("→ "+cur))
+	fmt.Fprintln(s.out)
 }
 
 func renderBar(done, total, width int) string {
@@ -213,5 +212,19 @@ func (s *Session) ProgressAdapter() func(string) {
 			return
 		}
 		s.Step(line)
+	}
+}
+
+func looksLikeAuthPrompt(s string) bool {
+	lower := strings.ToLower(s)
+	switch {
+	case strings.Contains(lower, "password:"):
+		return true
+	case strings.Contains(lower, "password for"):
+		return true
+	case strings.Contains(lower, "passphrase"):
+		return true
+	default:
+		return false
 	}
 }

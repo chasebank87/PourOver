@@ -19,12 +19,17 @@ func NewBrewStyleWriter(out io.Writer) *BrewStyleWriter {
 }
 
 // Write buffers input and emits restyled complete lines.
+// Auth prompts (Password:) are flushed immediately without waiting for a newline
+// so they are not stuck in the buffer or glued to a progress bar.
 func (w *BrewStyleWriter) Write(p []byte) (int, error) {
 	if w.Out == nil {
 		return len(p), nil
 	}
 	w.buf = append(w.buf, p...)
 	for {
+		if err := w.flushAuthPrompt(); err != nil {
+			return len(p), err
+		}
 		// Prefer newline; also split on bare CR (brew download progress).
 		n := bytes.IndexByte(w.buf, '\n')
 		r := bytes.IndexByte(w.buf, '\r')
@@ -45,6 +50,12 @@ func (w *BrewStyleWriter) Write(p []byte) (int, error) {
 		}
 		line := string(w.buf[:i])
 		w.buf = w.buf[i+1:]
+		if looksLikeAuthPrompt(line) {
+			if _, err := io.WriteString(w.Out, "\n"+strings.TrimRight(line, "\r")); err != nil {
+				return len(p), err
+			}
+			continue
+		}
 		if styled := StyleBrewLine(line); styled != "" {
 			if _, err := io.WriteString(w.Out, styled+"\n"); err != nil {
 				return len(p), err
@@ -53,11 +64,25 @@ func (w *BrewStyleWriter) Write(p []byte) (int, error) {
 	}
 }
 
+func (w *BrewStyleWriter) flushAuthPrompt() error {
+	if !looksLikeAuthPrompt(string(w.buf)) {
+		return nil
+	}
+	line := strings.TrimRight(string(w.buf), "\r\n")
+	w.buf = nil
+	// No trailing newline: leave the cursor after "Password:" for typing.
+	_, err := io.WriteString(w.Out, "\n"+line)
+	return err
+}
+
 // Flush emits any trailing partial line.
 func (w *BrewStyleWriter) Flush() error {
 	if w.Out == nil || len(w.buf) == 0 {
 		w.buf = nil
 		return nil
+	}
+	if looksLikeAuthPrompt(string(w.buf)) {
+		return w.flushAuthPrompt()
 	}
 	styled := StyleBrewLine(string(w.buf))
 	w.buf = nil
@@ -79,6 +104,9 @@ func StyleBrewLine(line string) string {
 
 	if shouldOmitBrewLine(trimmed) {
 		return ""
+	}
+	if looksLikeAuthPrompt(trimmed) {
+		return trimmed
 	}
 
 	out := trimmed
@@ -107,6 +135,20 @@ func shouldOmitBrewLine(line string) bool {
 	case strings.HasPrefix(line, "To re-enable"):
 		return true
 	case line == "Removing:":
+		return true
+	default:
+		return false
+	}
+}
+
+func looksLikeAuthPrompt(s string) bool {
+	lower := strings.ToLower(strings.TrimSpace(s))
+	switch {
+	case strings.HasSuffix(lower, "password:"):
+		return true
+	case strings.Contains(lower, "password for"):
+		return true
+	case strings.Contains(lower, "passphrase"):
 		return true
 	default:
 		return false
