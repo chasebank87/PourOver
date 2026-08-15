@@ -262,6 +262,9 @@ func (m HomeModel) activate() (tea.Model, tea.Cmd) {
 	case menuBackupRestore:
 		bm := NewBackupModel(m.configPath, m)
 		return bm, bm.Init()
+	case menuImport:
+		im := NewImportModel(m.configPath, m)
+		return im, im.Init()
 	default:
 		m.stub = stubTitle(item)
 		return m, nil

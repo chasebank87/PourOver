@@ -211,19 +211,3 @@ func TestHomeUpdate_EnterOnHistoryOpensHistoryView(t *testing.T) {
 	_ = hm
 }
 
-func TestHomeUpdate_EnterOnImportStillStub(t *testing.T) {
-	m := newTestHome()
-	m.cursor = 6 // Import still stubbed
-
-	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	hm := next.(HomeModel)
-	if hm.stub == "" {
-		t.Fatal("expected stub screen after selecting Import")
-	}
-
-	next, _ = hm.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	hm = next.(HomeModel)
-	if hm.stub != "" {
-		t.Fatalf("stub = %q after esc, want empty", hm.stub)
-	}
-}
