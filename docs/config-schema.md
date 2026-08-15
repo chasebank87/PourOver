@@ -36,6 +36,7 @@ Apply order: **tap adds (with `brew trust --tap` for non-official taps, then `br
 |-----|------|--------|-------------|
 | `links` | array of tables | **supported** | Symlinks: `source` → `target` |
 | `managed` | array of tables | **supported** (V2 Phase 3) | Copy source → target (`source`, `target`) |
+| `templates` | array of tables | **supported** (V2 Phase 5) | Render text/template source → target (`source`, `target`) |
 | `unlink` | array of strings | **supported** (V2 Phase 3) | Target paths to remove when safe (`~` ok) |
 
 ### `files.links`
@@ -66,7 +67,42 @@ Each entry:
 | `source` | yes | string | Path relative to the config directory, or absolute |
 | `target` | yes | string | Destination path on disk (`~` expanded) |
 
-Copies (or later templates) `source` to `target` for apps that reject symlinks. Empty `source`/`target` (after trim) fail validation. Plan emits `managed_copy` when the target is missing or content differs; apply writes atomically. Regular files are overwritten in place. Unexpected target types (e.g. directories) fail unless `policy.file_replace = "backup"`, which moves the target aside then writes.
+Copies `source` to `target` for apps that reject symlinks. Empty `source`/`target` (after trim) fail validation. Plan emits `managed_copy` when the target is missing or content differs; apply writes atomically. Regular files are overwritten in place. Unexpected target types (e.g. directories) fail unless `policy.file_replace = "backup"`, which moves the target aside then writes.
+
+### `files.templates` (V2 Phase 5)
+
+Each entry:
+
+| Key | Required | Type | Description |
+|-----|----------|------|-------------|
+| `source` | yes | string | Path to a Go `text/template` file (relative to the config directory, or absolute) |
+| `target` | yes | string | Destination path on disk (`~` expanded) |
+
+Renders `source` with a fixed sandboxed context (no arbitrary code execution), then writes the result to `target` like managed copies. Empty `source`/`target` (after trim) fail validation. Plan/apply for templates is supported in V2 Phase 5 (render + unified diff in plan; atomic write on apply).
+
+Template context fields include:
+
+| Field | Example | Description |
+|-------|---------|-------------|
+| `{{.Hostname}}` | `mymac` | Machine hostname |
+| `{{.User}}` | `chase` | Current username |
+| `{{.Home}}` | `/Users/chase` | Home directory |
+
+Example source (`config/gitconfig.tmpl`):
+
+```text
+[user]
+	name = {{.User}}
+	email = {{.User}}@{{.Hostname}}.local
+```
+
+```lua
+files = {
+  templates = {
+    { source = "config/gitconfig.tmpl", target = "~/.gitconfig" },
+  },
+}
+```
 
 ### `files.unlink` (V2 Phase 3)
 
@@ -81,6 +117,9 @@ files = {
   },
   managed = {
     { source = "config/foo.conf", target = "~/.config/foo.conf" },
+  },
+  templates = {
+    { source = "config/gitconfig.tmpl", target = "~/.gitconfig" },
   },
   unlink = { "~/.old-dotfile" },
 }

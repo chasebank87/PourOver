@@ -47,3 +47,18 @@ func TestLoadManifest_ManagedAndUnlink(t *testing.T) {
 		t.Errorf("files.unlink = %#v", manifest.Files.Unlink)
 	}
 }
+
+func TestLoadManifest_Templates(t *testing.T) {
+	path := filepath.Join("..", "..", "test", "fixtures", "config", "valid", "files_templates.lua")
+
+	manifest, err := LoadManifest(path)
+	if err != nil {
+		t.Fatalf("LoadManifest: %v", err)
+	}
+
+	if len(manifest.Files.Templates) != 1 ||
+		manifest.Files.Templates[0].Source != "config/gitconfig.tmpl" ||
+		manifest.Files.Templates[0].Target != "~/.gitconfig" {
+		t.Errorf("files.templates = %#v", manifest.Files.Templates)
+	}
+}

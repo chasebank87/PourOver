@@ -45,6 +45,15 @@ func Validate(m *Manifest) error {
 			errs = append(errs, err)
 		}
 	}
+	for i, file := range m.Files.Templates {
+		prefix := fmt.Sprintf("files.templates[%d]", i+1)
+		if err := validatePathField(file.Source, prefix+".source"); err != nil {
+			errs = append(errs, err)
+		}
+		if err := validatePathField(file.Target, prefix+".target"); err != nil {
+			errs = append(errs, err)
+		}
+	}
 	for i, path := range m.Files.Unlink {
 		if err := validatePathField(path, fmt.Sprintf("files.unlink[%d]", i+1)); err != nil {
 			errs = append(errs, err)

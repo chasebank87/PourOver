@@ -24,6 +24,12 @@ func TestLoadManifest_EmptyLinkTarget(t *testing.T) {
 	assertLoadErrorContains(t, err, "files.links[1].target")
 }
 
+func TestLoadManifest_EmptyTemplateSource(t *testing.T) {
+	path := filepath.Join("..", "..", "test", "fixtures", "config", "invalid", "empty_template_source.lua")
+	_, err := LoadManifest(path)
+	assertLoadErrorContains(t, err, "files.templates[1].source")
+}
+
 func TestLoadManifest_EmptyUnlinkPath(t *testing.T) {
 	path := filepath.Join("..", "..", "test", "fixtures", "config", "invalid", "empty_unlink.lua")
 	_, err := LoadManifest(path)
@@ -93,6 +99,25 @@ func TestValidate_EmptyUnlinkPath(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "files.unlink[2]") {
 		t.Fatalf("Validate() = %v, want files.unlink[2] empty error", err)
+	}
+}
+
+func TestValidate_EmptyTemplateFields(t *testing.T) {
+	err := Validate(&Manifest{
+		Policy: Policy{UninstallMode: UninstallModeSafe},
+		Files: Files{
+			Templates: []TemplateFile{
+				{Source: "config/ok.tmpl", Target: "~/.ok"},
+				{Source: "  ", Target: "   "},
+			},
+		},
+	})
+	if err == nil {
+		t.Fatal("Validate() = nil, want empty template field errors")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "files.templates[2].source") || !strings.Contains(msg, "files.templates[2].target") {
+		t.Fatalf("Validate() = %v, want templates[2] source and target empty errors", err)
 	}
 }
 

@@ -292,11 +292,15 @@ func decodeFiles(L *lua.LState, root *lua.LTable, key string) (Files, error) {
 	if err != nil {
 		return Files{}, fmt.Errorf("files.%w", err)
 	}
+	templates, err := fieldTemplateFiles(L, tbl, "templates")
+	if err != nil {
+		return Files{}, fmt.Errorf("files.%w", err)
+	}
 	unlink, err := fieldStringSlice(L, tbl, "unlink")
 	if err != nil {
 		return Files{}, fmt.Errorf("files.%w", err)
 	}
-	return Files{Links: links, Managed: managed, Unlink: unlink}, nil
+	return Files{Links: links, Managed: managed, Templates: templates, Unlink: unlink}, nil
 }
 
 func decodePolicy(L *lua.LState, root *lua.LTable, key string) (Policy, error) {
@@ -479,6 +483,30 @@ func fieldManagedFiles(L *lua.LState, tbl *lua.LTable, key string) ([]ManagedFil
 	return files, nil
 }
 
+func fieldTemplateFiles(L *lua.LState, tbl *lua.LTable, key string) ([]TemplateFile, error) {
+	arr, ok, err := fieldTable(L, tbl, key)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, nil
+	}
+
+	var files []TemplateFile
+	for i := 1; i <= arr.Len(); i++ {
+		entry := L.RawGetInt(arr, i)
+		if entry.Type() != lua.LTTable {
+			return nil, fmt.Errorf("%s[%d]: expected table, got %s", key, i, entry.Type())
+		}
+		file, err := decodeTemplateFile(L, entry.(*lua.LTable), key, i)
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, file)
+	}
+	return files, nil
+}
+
 func decodeFileLink(L *lua.LState, tbl *lua.LTable, field string, index int) (FileLink, error) {
 	prefix := fmt.Sprintf("%s[%d]", field, index)
 	source, err := requiredString(L, tbl, "source", prefix)
@@ -503,6 +531,19 @@ func decodeManagedFile(L *lua.LState, tbl *lua.LTable, field string, index int) 
 		return ManagedFile{}, err
 	}
 	return ManagedFile{Source: source, Target: target}, nil
+}
+
+func decodeTemplateFile(L *lua.LState, tbl *lua.LTable, field string, index int) (TemplateFile, error) {
+	prefix := fmt.Sprintf("%s[%d]", field, index)
+	source, err := requiredString(L, tbl, "source", prefix)
+	if err != nil {
+		return TemplateFile{}, err
+	}
+	target, err := requiredString(L, tbl, "target", prefix)
+	if err != nil {
+		return TemplateFile{}, err
+	}
+	return TemplateFile{Source: source, Target: target}, nil
 }
 
 func fieldStringSlice(L *lua.LState, tbl *lua.LTable, key string) ([]string, error) {

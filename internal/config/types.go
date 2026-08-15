@@ -60,9 +60,10 @@ type Packages struct {
 
 // Files declares dotfiles and other paths to reconcile on disk.
 type Files struct {
-	Links   []FileLink    `json:"links,omitempty"`
-	Managed []ManagedFile `json:"managed,omitempty"`
-	Unlink  []string      `json:"unlink,omitempty"` // target paths (~ ok)
+	Links     []FileLink     `json:"links,omitempty"`
+	Managed   []ManagedFile  `json:"managed,omitempty"`
+	Templates []TemplateFile `json:"templates,omitempty"`
+	Unlink    []string       `json:"unlink,omitempty"` // target paths (~ ok)
 }
 
 // FileLink creates or updates a symlink from Source to Target.
@@ -71,8 +72,14 @@ type FileLink struct {
 	Target string `json:"target"`
 }
 
-// ManagedFile copies or templates a file from Source to Target.
+// ManagedFile copies a file from Source to Target.
 type ManagedFile struct {
+	Source string `json:"source"`
+	Target string `json:"target"`
+}
+
+// TemplateFile renders a text/template Source to Target (V2 Phase 5).
+type TemplateFile struct {
 	Source string `json:"source"`
 	Target string `json:"target"`
 }
