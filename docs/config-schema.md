@@ -102,8 +102,8 @@ files = {
 
 Controls pruning of **PourOver-owned** file targets that are no longer declared under `files.links` or `files.managed`. Ownership comes from `lock.json` `owned_files` (empty for old locks → no prune). Paths listed in `files.unlink` get `file_unlink` instead and are not also pruned.
 
-- **safe** (default) — plan emits `file_prune`; apply prompts before removing (Phase 4.3)
-- **strict** — plan emits `file_prune`; apply removes without prompting (Phase 4.3)
+- **safe** (default) — plan emits `file_prune`; apply prompts once before removing
+- **strict** — plan emits `file_prune`; apply removes without prompting
 - **non_destructive** — never emit prune actions
 
 ```lua

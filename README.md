@@ -22,7 +22,7 @@ Auto-launch does **not** run when:
 - stdin/stdout are not a TTY (pipes, scripts)
 - `CI=true` (CI / non-interactive automation)
 
-The TUI is **complete control** for Phase 2: Plan, Apply, Upgrade, Doctor (with opt-in fixes), History, Backup/Restore, Import, Config (iCloud + git), and Self-update. **Phase 3 file essentials** landed: `files.managed`, `files.unlink`, and `policy.file_replace` (backup-on-replace). Next is Phase 4 ownership/prune.
+The TUI is **complete control** for Phase 2: Plan, Apply, Upgrade, Doctor (with opt-in fixes), History, Backup/Restore, Import, Config (iCloud + git), and Self-update. **Phase 3 file essentials** landed: `files.managed`, `files.unlink`, and `policy.file_replace` (backup-on-replace). **Phase 4 ownership/prune** landed: `lock.json` `owned_files` and `policy.files_mode` (safe confirm / strict / non_destructive). Next is Phase 5 templates.
 
 ## Install
 
@@ -159,6 +159,14 @@ Re-import without `--force` only adds newly discovered packages, taps, and file 
 - **error** (default) — plan fails when a link target exists as a regular file (or managed target is an unexpected type such as a directory)
 - **backup** — move the existing target aside under `<stateDir>/backups/files/<timestamp>/<escaped-path>`, then link or copy (`force` is an accepted alias)
 
+`policy.files_mode` (PourOver-owned undeclared file targets from `lock.json` `owned_files`):
+
+- **safe** (default) — plan emits `file_prune`; apply prompts once before removing
+- **strict** — prune without prompting
+- **non_destructive** — never plan or apply prune
+
+Use `files.unlink` for explicit removals. Old locks with empty `owned_files` never invent prune candidates.
+
 Packages declared under `formulae` or `casks` count as declared for either type (so a cask listed under `formulae` is not treated as undeclared). Prefer putting GUI apps in `casks`.
 
 ## Paths
@@ -169,7 +177,7 @@ Packages declared under `formulae` or `casks` count as declared for either type 
 | State | `~/Library/Application Support/PourOver/state/` |
 | iCloud mirror | `~/Library/Mobile Documents/com~apple~CloudDocs/PourOver/` |
 
-State artifacts: `lock.json`, `last-plan.json`, `history/`, `snapshots/`, `backups/files/` (file replace backups).
+State artifacts: `lock.json` (includes `owned_files`), `last-plan.json`, `history/`, `snapshots/`, `backups/files/` (file replace backups).
 
 Enable iCloud state mirroring:
 

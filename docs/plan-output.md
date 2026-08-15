@@ -54,7 +54,7 @@ prune file ~/.config/old
 
 `managed_copy` and `file_unlink` appear in the plan when discovered; apply copies atomically and unlinks with directory safeguards. Managed copies against unexpected target types (e.g. directories) require `file_replace = "backup"` and are labeled `(backup)` in text output.
 
-`file_prune` appears for PourOver-owned paths (from `lock.json`) that are no longer declared under links/managed when `policy.files_mode` is `safe` or `strict`. `non_destructive` never plans prune. Apply-time confirm vs auto-remove is Phase 4.3.
+`file_prune` appears for PourOver-owned paths (from `lock.json`) that are no longer declared under links/managed when `policy.files_mode` is `safe` or `strict`. `non_destructive` never plans prune. Apply prompts once in `safe` (skipped if declined), removes without prompting in `strict`, and soft-fails per path.
 
 `pourover upgrade --dry-run` merges upgrade actions (outdated declared packages only) ahead of the normal apply plan.
 
