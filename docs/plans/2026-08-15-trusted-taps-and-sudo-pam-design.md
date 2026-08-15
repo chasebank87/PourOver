@@ -70,7 +70,7 @@ macos.security.pam.sudo_local
   → desired /etc/pam.d/sudo_local text
   → ensure `auth include sudo_local` in /etc/pam.d/sudo
   → apply after brew installs; admin write
-  → enable=false → delete managed sudo_local
+  → enable=false → write managed stub (keeps include safe)
 ```
 
 Generated lines (nix-darwin order):
@@ -89,7 +89,7 @@ File starts with `# pourover: managed` marker.
 | `trusted=false` third-party | Tap only; no trust / no tap_trust drift |
 | Official homebrew/* | Trust no-op |
 | `sudo_local` omitted | No PAM management |
-| `enable=false` | Remove if PourOver-managed (marker) |
+| `enable=false` | Replace with managed stub if PourOver-managed/empty; leave unmanaged alone |
 | Pre-existing sudo_local | Backup then replace when enabling |
 | Missing .so | Fail apply clearly |
 | sudo missing include | Add include line only |
