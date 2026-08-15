@@ -73,8 +73,9 @@ func ExistingImportable(candidates []FileCandidate) ([]FileCandidate, error) {
 	return out, nil
 }
 
-// ImportFile copies the candidate into cfgDir and optionally retargets the live path
-// to a symlink under the PourOver config tree. Returns the FileLink declaration.
+// ImportFile copies the candidate into cfgDir and optionally rewrites the live
+// path as a regular file/directory tree matching the config copy (not a symlink).
+// Returns the FileLink declaration for pourover.lua.
 func ImportFile(cfgDir string, c FileCandidate, applyLive bool) (config.FileLink, error) {
 	srcAbs := filepath.Join(cfgDir, filepath.FromSlash(c.RelSource))
 	if err := os.MkdirAll(filepath.Dir(srcAbs), 0o755); err != nil {
@@ -121,22 +122,24 @@ func ImportFile(cfgDir string, c FileCandidate, applyLive bool) (config.FileLink
 
 	link := config.FileLink{Source: c.RelSource, Target: c.TargetDecl}
 	if applyLive {
-		if err := retargetAsSymlink(c.TargetPath, srcAbs); err != nil {
+		if err := retargetAsRegularFile(c.TargetPath, srcAbs); err != nil {
 			return link, err
 		}
 	}
 	return link, nil
 }
 
-func retargetAsSymlink(targetPath, sourceAbs string) error {
+// retargetAsRegularFile replaces targetPath with a copy of sourceAbs (file or tree).
+// Used after import so live paths are not live-symlinks into ~/.pourover.
+func retargetAsRegularFile(targetPath, sourceAbs string) error {
 	if err := os.RemoveAll(targetPath); err != nil {
 		return fmt.Errorf("replace %s: %w", targetPath, err)
 	}
 	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
 		return err
 	}
-	if err := os.Symlink(sourceAbs, targetPath); err != nil {
-		return fmt.Errorf("symlink %s -> %s: %w", targetPath, sourceAbs, err)
+	if err := copyPath(sourceAbs, targetPath); err != nil {
+		return fmt.Errorf("copy %s -> %s: %w", sourceAbs, targetPath, err)
 	}
 	return nil
 }

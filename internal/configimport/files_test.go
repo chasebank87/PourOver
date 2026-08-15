@@ -33,12 +33,16 @@ func TestImportFile_RegularFile(t *testing.T) {
 	if err != nil || string(data) != "export HI=1\n" {
 		t.Fatalf("copied = %q err=%v", data, err)
 	}
-	got, err := os.Readlink(target)
+	info, err := os.Lstat(target)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != src {
-		t.Fatalf("symlink = %q, want %q", got, src)
+	if info.Mode()&os.ModeSymlink != 0 {
+		t.Fatal("live target must be a regular file, not a symlink")
+	}
+	got, err := os.ReadFile(target)
+	if err != nil || string(got) != "export HI=1\n" {
+		t.Fatalf("live = %q err=%v", got, err)
 	}
 }
 
@@ -72,13 +76,16 @@ func TestImportFile_ExistingSymlink(t *testing.T) {
 	if _, err := os.Stat(copied); err != nil {
 		t.Fatal(err)
 	}
-	got, err := os.Readlink(target)
+	info, err := os.Lstat(target)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := filepath.Join(cfgDir, "config", "nvim")
-	if got != want {
-		t.Fatalf("symlink = %q, want %q", got, want)
+	if info.Mode()&os.ModeSymlink != 0 {
+		t.Fatal("live nvim must be a directory tree, not a symlink")
+	}
+	data, err := os.ReadFile(filepath.Join(target, "init.lua"))
+	if err != nil || string(data) != "-- nvim\n" {
+		t.Fatalf("live init.lua = %q err=%v", data, err)
 	}
 }
 
@@ -180,9 +187,16 @@ func TestImportFile_ReimportWhenAlreadySymlinkedIntoConfig(t *testing.T) {
 	if err != nil || string(data) != "export HI=1\n" {
 		t.Fatalf("content = %q err=%v", data, err)
 	}
-	got, err := os.Readlink(target)
-	if err != nil || got != src {
-		t.Fatalf("symlink = %q err=%v", got, err)
+	info, err := os.Lstat(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		t.Fatal("reimport must replace legacy symlink with a regular file")
+	}
+	got, err := os.ReadFile(target)
+	if err != nil || string(got) != "export HI=1\n" {
+		t.Fatalf("live = %q err=%v", got, err)
 	}
 }
 

@@ -51,17 +51,17 @@ prune file ~/.config/old
 
 `cask_rename` is advisory only (apply does not mutate); replace the old token in config with the new name.
 
-`link_replace` appears when `policy.file_replace` is `backup` (or `force`) and the link target exists as a non-symlink; apply moves the target under `state/backups/files/` then creates the link.
+`link_replace` appears when `policy.file_replace` is `backup` (or `force`) and the target is an unexpected type (e.g. a directory); apply moves the target under `state/backups/files/` then writes a **regular file** from the generation blob. Legacy PourOver symlinks are planned as `link_update` and replaced with regular files on apply.
 
 `managed_copy` and `file_unlink` appear in the plan when discovered; apply copies atomically and unlinks with directory safeguards. Managed copies against unexpected target types (e.g. directories) require `file_replace = "backup"` and are labeled `(backup)` in text output.
 
-`template_write` appears when a `files.templates` target is missing or its content differs from the sandboxed render of the source. Text output is one line; JSON `value` holds a unified diff (truncated around 4KB when very long). Apply re-renders the source at write time (ignores `value`) and writes atomically like managed copies. Blocked template targets follow the same `file_replace` backup/error rules as managed copies.
+`template_write` appears when a `files.templates` target is missing or its content differs from the generation blob (rendered at build time). Text output is one line; JSON `value` holds the content hash used to read the blob. Apply writes the blob atomically like managed copies. Blocked template targets follow the same `file_replace` backup/error rules as managed copies.
 
 `file_prune` appears for PourOver-owned paths (from `lock.json`) that are no longer declared under links/managed/templates when `policy.files_mode` is `safe` or `strict`. `non_destructive` never plans prune. Apply prompts once in `safe` (skipped if declined), removes without prompting in `strict`, and soft-fails per path.
 
 `pourover upgrade --dry-run` merges upgrade actions (outdated declared packages only) ahead of the normal apply plan.
 
-Plan order: upgrade actions (upgrade command only), then brew install/remove, then macOS `defaults_write`, then file link actions, then managed copies, then template writes, then unlinks, then owned-file prunes.
+Plan order: upgrade actions (upgrade command only), then brew/mas/pam/defaults, then generation file actions (links/managed/templates), then unlinks, then owned-file prunes.
 
 When there is nothing to do:
 
