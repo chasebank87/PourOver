@@ -10,6 +10,7 @@ import (
 	"github.com/chasebank87/PourOver/internal/discovery"
 	"github.com/chasebank87/PourOver/internal/engine"
 	"github.com/chasebank87/PourOver/internal/paths"
+	"github.com/chasebank87/PourOver/internal/scaffold"
 	"github.com/spf13/cobra"
 )
 
@@ -87,7 +88,7 @@ func runImport(cmd *cobra.Command, flags importFlags) error {
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		if flags.dryRun {
 			fmt.Fprintf(cmd.OutOrStdout(), "would scaffold config in %s\n", cfgDir)
-		} else if err := InitConfigDir(cfgDir, false); err != nil {
+		} else if err := scaffold.InitConfigDir(cfgDir, false); err != nil {
 			return err
 		}
 	}

@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 
 	"github.com/chasebank87/PourOver/internal/paths"
+	"github.com/chasebank87/PourOver/internal/scaffold"
 	"github.com/spf13/cobra"
 )
 
@@ -42,7 +43,7 @@ func runInit(cmd *cobra.Command, force bool) error {
 		}
 	}
 
-	if err := InitConfigDir(cfgDir, force); err != nil {
+	if err := scaffold.InitConfigDir(cfgDir, force); err != nil {
 		return err
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "Initialized PourOver config in %s\n", cfgDir)

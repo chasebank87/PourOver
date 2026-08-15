@@ -104,3 +104,76 @@ func TestHomeUpdate_EnterOnDoctorOpensDoctorView(t *testing.T) {
 		t.Fatal("expected Init/load command when opening doctor view")
 	}
 }
+
+func TestDoctorUpdate_FOnStateFailureTriggersConfirm(t *testing.T) {
+	m := DoctorModel{
+		configPath: "/tmp/pourover.lua",
+		stateDir:   "/tmp/pourover-state",
+		report: engine.DoctorReport{Checks: []engine.DoctorCheck{
+			{Name: "brew", OK: true, Detail: "available"},
+			{Name: "state", OK: false, Detail: "not writable"},
+		}},
+		cursor: 1,
+	}
+
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
+	dm := next.(DoctorModel)
+	if cmd != nil {
+		t.Fatal("expected no async cmd before confirm")
+	}
+	if !dm.confirm.Active {
+		t.Fatal("expected confirm Active after f on state failure")
+	}
+	if !strings.Contains(dm.confirm.Prompt, "state") {
+		t.Fatalf("confirm prompt = %q, want state mention", dm.confirm.Prompt)
+	}
+	if dm.pendingFix != "state" {
+		t.Fatalf("pendingFix = %q, want state", dm.pendingFix)
+	}
+}
+
+func TestDoctorUpdate_FOnBrewFailureShowsTipOnly(t *testing.T) {
+	m := DoctorModel{
+		configPath: "/tmp/pourover.lua",
+		report: engine.DoctorReport{Checks: []engine.DoctorCheck{
+			{Name: "brew", OK: false, Detail: "brew not found on PATH"},
+		}},
+		cursor: 0,
+	}
+
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
+	dm := next.(DoctorModel)
+	if cmd != nil {
+		t.Fatal("expected no fix cmd for brew")
+	}
+	if dm.confirm.Active {
+		t.Fatal("brew failure must not open confirm")
+	}
+	if dm.pendingFix != "" {
+		t.Fatalf("pendingFix = %q, want empty", dm.pendingFix)
+	}
+	if dm.tip == "" {
+		t.Fatal("expected tip text for non-fixable failure")
+	}
+}
+
+func TestDoctorUpdate_ConfirmYesRunsStateFix(t *testing.T) {
+	m := DoctorModel{
+		configPath: "/tmp/pourover.lua",
+		stateDir:   "/tmp/pourover-state",
+		pendingFix: "state",
+		confirm:    ConfirmModel{Prompt: "Create state directory?", Active: true},
+		report: engine.DoctorReport{Checks: []engine.DoctorCheck{
+			{Name: "state", OK: false, Detail: "missing"},
+		}},
+	}
+
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+	dm := next.(DoctorModel)
+	if dm.confirm.Active {
+		t.Fatal("confirm should clear after y")
+	}
+	if cmd == nil {
+		t.Fatal("expected fix command after confirm yes")
+	}
+}
