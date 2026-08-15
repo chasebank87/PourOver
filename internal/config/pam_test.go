@@ -84,3 +84,111 @@ return {
 		t.Fatal("defaults still load when security omitted")
 	}
 }
+
+func TestLoadManifest_SudoLocalEnableDefaultsTrueWithTouchID(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "pourover.lua")
+	src := `
+return {
+  packages = { formulae = {}, casks = {} },
+  files = { links = {} },
+  policy = { uninstall_mode = "safe" },
+  macos = {
+    security = {
+      pam = {
+        sudo_local = { touch_id_auth = true },
+      },
+    },
+  },
+}
+`
+	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	m, err := LoadManifest(path)
+	if err != nil {
+		t.Fatalf("LoadManifest: %v", err)
+	}
+	sl := m.MacOS.Security.PAM.SudoLocal
+	if !sl.Configured {
+		t.Fatal("Configured = false, want true")
+	}
+	if !sl.Enable {
+		t.Error("Enable = false, want true (default when omitted)")
+	}
+	if !sl.TouchIDAuth {
+		t.Error("TouchIDAuth = false, want true")
+	}
+	if sl.Reattach || sl.WatchIDAuth {
+		t.Errorf("other flags should default false: %#v", sl)
+	}
+}
+
+func TestLoadManifest_SudoLocalEnableExplicitFalse(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "pourover.lua")
+	src := `
+return {
+  packages = { formulae = {}, casks = {} },
+  files = { links = {} },
+  policy = { uninstall_mode = "safe" },
+  macos = {
+    security = {
+      pam = {
+        sudo_local = { enable = false },
+      },
+    },
+  },
+}
+`
+	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	m, err := LoadManifest(path)
+	if err != nil {
+		t.Fatalf("LoadManifest: %v", err)
+	}
+	sl := m.MacOS.Security.PAM.SudoLocal
+	if !sl.Configured {
+		t.Fatal("Configured = false, want true")
+	}
+	if sl.Enable {
+		t.Error("Enable = true, want false")
+	}
+}
+
+func TestLoadManifest_SudoLocalEmptyTableEnableDefaultsTrue(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "pourover.lua")
+	src := `
+return {
+  packages = { formulae = {}, casks = {} },
+  files = { links = {} },
+  policy = { uninstall_mode = "safe" },
+  macos = {
+    security = {
+      pam = {
+        sudo_local = {},
+      },
+    },
+  },
+}
+`
+	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	m, err := LoadManifest(path)
+	if err != nil {
+		t.Fatalf("LoadManifest: %v", err)
+	}
+	sl := m.MacOS.Security.PAM.SudoLocal
+	if !sl.Configured {
+		t.Fatal("Configured = false, want true")
+	}
+	if !sl.Enable {
+		t.Error("Enable = false, want true (empty table defaults enable)")
+	}
+}

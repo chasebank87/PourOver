@@ -36,6 +36,7 @@ type MacOSPAM struct {
 
 // SudoLocalPAM configures /etc/pam.d/sudo_local (Touch ID / Watch / reattach).
 // Omitted sudo_local table means unmanaged (Configured=false).
+// When the table is present, Enable defaults to true unless set to false.
 type SudoLocalPAM struct {
 	Configured  bool // true if sudo_local table present
 	Enable      bool

@@ -160,7 +160,7 @@ func decodeSudoLocalPAM(L *lua.LState, pamTbl *lua.LTable) (SudoLocalPAM, error)
 	out := SudoLocalPAM{Configured: true}
 	prefix := "macos.security.pam.sudo_local"
 
-	enable, err := optionalBool(L, tbl, "enable", prefix)
+	enable, err := optionalBoolDefault(L, tbl, "enable", prefix, true)
 	if err != nil {
 		return SudoLocalPAM{}, err
 	}
@@ -188,9 +188,13 @@ func decodeSudoLocalPAM(L *lua.LState, pamTbl *lua.LTable) (SudoLocalPAM, error)
 }
 
 func optionalBool(L *lua.LState, tbl *lua.LTable, key, prefix string) (bool, error) {
+	return optionalBoolDefault(L, tbl, key, prefix, false)
+}
+
+func optionalBoolDefault(L *lua.LState, tbl *lua.LTable, key, prefix string, def bool) (bool, error) {
 	lv := L.GetField(tbl, key)
 	if lv == lua.LNil {
-		return false, nil
+		return def, nil
 	}
 	if lv.Type() != lua.LTBool {
 		return false, fmt.Errorf("%s.%s: expected boolean, got %s", prefix, key, lv.Type())
