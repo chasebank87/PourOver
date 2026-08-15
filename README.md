@@ -87,6 +87,10 @@ pourover upgrade --dry-run # preview package/apply actions (skips self-update)
 pourover upgrade --skip-self-update
 ```
 
+`upgrade` upgrades packages Homebrew reports as outdated. `apply` only installs
+missing packages (never upgrades; brew install is run with `HOMEBREW_NO_INSTALL_UPGRADE`).
+Auto-updating casks (Chrome, Omnissa, …) are skipped when the app on disk is
+already current even if Caskroom metadata is stale — use `brew upgrade --cask --greedy` for those.
 `pour` is an install-time symlink to `pourover` (same CLI).
 
 ## Commands

@@ -84,6 +84,11 @@ func (r *ExecRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
+	// Apply should install missing packages only — never silently upgrade via
+	// brew install's default "upgrade if already installed" behavior.
+	if len(args) > 0 && args[0] == "install" {
+		cmd.Env = append(os.Environ(), "HOMEBREW_NO_INSTALL_UPGRADE=1")
+	}
 
 	// Mutations may prompt (sudo password, cask installer confirms). Discovery
 	// commands stay non-interactive.

@@ -22,11 +22,14 @@ func DiscoverBrew(ctx context.Context, runner Runner) (BrewState, error) {
 	if err != nil {
 		return BrewState{}, fmt.Errorf("list taps: %w", err)
 	}
-	formulaeOut, err := runner.Run(ctx, "list", "--formula")
+	// -1 forces one name per line; without it some brew versions print columns
+	// and newline-only parsing would treat "foo  bar" as a single token, so
+	// apply would try to reinstall packages that are already present.
+	formulaeOut, err := runner.Run(ctx, "list", "--formula", "-1")
 	if err != nil {
 		return BrewState{}, fmt.Errorf("list formulae: %w", err)
 	}
-	casksOut, err := runner.Run(ctx, "list", "--cask")
+	casksOut, err := runner.Run(ctx, "list", "--cask", "-1")
 	if err != nil {
 		return BrewState{}, fmt.Errorf("list casks: %w", err)
 	}
@@ -58,25 +61,19 @@ func DiscoverBrew(ctx context.Context, runner Runner) (BrewState, error) {
 	}, nil
 }
 
-// parseBrewList splits brew list stdout into package names (one per line).
+// parseBrewList splits brew list/tap stdout into package names.
+// Splits on any whitespace so multi-column `brew list` output cannot glue
+// two tokens into one (which would make installed packages look missing).
 func parseBrewList(out []byte) []string {
 	text := strings.TrimSpace(string(out))
 	if text == "" {
 		return nil
 	}
-	lines := strings.Split(text, "\n")
-	names := make([]string, 0, len(lines))
-	for _, line := range lines {
-		name := strings.TrimSpace(line)
-		if name == "" {
-			continue
-		}
-		names = append(names, name)
-	}
-	if len(names) == 0 {
+	fields := strings.Fields(text)
+	if len(fields) == 0 {
 		return nil
 	}
-	return names
+	return fields
 }
 
 type trustJSON struct {

@@ -227,6 +227,23 @@ func TestBuildBrewPlan_RemovesOnlyRequestedUndeclared(t *testing.T) {
 	}
 }
 
+func TestBuildBrewPlan_ColumnarListDoesNotFalseInstall(t *testing.T) {
+	// After whitespace-splitting a remote multi-column `brew list --cask` grid,
+	// already-installed declared casks must not be planned for install.
+	desired := config.Packages{Casks: []string{"devin-desktop", "omnissa-horizon-client", "warp"}}
+	current := discovery.BrewState{
+		Casks: []string{
+			"anaconda", "epic-games", "kitty", "sigmaos",
+			"devin-desktop", "jump-desktop-connect", "pika", "vlc",
+			"omnissa-horizon-client", "transmission", "warp", "zen",
+		},
+	}
+	p := BuildBrewPlan(desired, current)
+	if got := ActionNames(p, ActionCaskInstall); len(got) != 0 {
+		t.Fatalf("cask installs = %v, want none (all already installed)", got)
+	}
+}
+
 func slicesEqual(a, b []string) bool {
 	if len(a) != len(b) {
 		return false

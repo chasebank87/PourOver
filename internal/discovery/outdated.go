@@ -12,6 +12,9 @@ type OutdatedPackages struct {
 }
 
 // DiscoverOutdated lists outdated formulae and casks via `brew outdated -q`.
+// Auto-updating casks are only included when Homebrew itself reports them
+// outdated (e.g. the app bundle is behind the tap). Stale Caskroom metadata
+// alone is not enough — use `brew upgrade --cask --greedy` manually for that.
 func DiscoverOutdated(ctx context.Context, runner Runner) (OutdatedPackages, error) {
 	formulaeOut, err := runner.Run(ctx, "outdated", "--formula", "-q")
 	if err != nil {

@@ -28,13 +28,35 @@ func TestParseBrewList_MultipleLines(t *testing.T) {
 	}
 }
 
+func TestParseBrewList_MultiColumn(t *testing.T) {
+	// Remote/TTY brew list --cask prints a grid; newline-only parsing used to
+	// treat each row as one name and miss tokens like omnissa-horizon-client.
+	raw := []byte("anaconda\t\tepic-games\t\tkitty\t\tsigmaos\n" +
+		"devin-desktop\t\tjump-desktop-connect\t\tpika\t\tvlc\n" +
+		"omnissa-horizon-client\t\ttransmission\n")
+	got := parseBrewList(raw)
+	want := []string{
+		"anaconda", "epic-games", "kitty", "sigmaos",
+		"devin-desktop", "jump-desktop-connect", "pika", "vlc",
+		"omnissa-horizon-client", "transmission",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %#v, want %#v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got %#v, want %#v", got, want)
+		}
+	}
+}
+
 func TestDiscoverBrew_FromFixtures(t *testing.T) {
 	runner := &fakeRunner{
 		responses: map[string][]byte{
 			"tap":                                   readFixture(t, "list-tap.txt"),
 			"trust --json=v1":                       []byte(`{"taps":["nikitabobko/tap"],"formulae":[],"casks":[],"commands":[]}`),
-			"list --formula":                        readFixture(t, "list-formula.txt"),
-			"list --cask":                           readFixture(t, "list-cask.txt"),
+			"list --formula -1":                     readFixture(t, "list-formula.txt"),
+			"list --cask -1":                        readFixture(t, "list-cask.txt"),
 			"list --formula --installed-on-request": []byte("git\nfzf\n"),
 		},
 	}
@@ -70,8 +92,8 @@ func TestDiscoverBrew_EmptyLists(t *testing.T) {
 	runner := &fakeRunner{
 		responses: map[string][]byte{
 			"tap":                                   readFixture(t, "list-formula-empty.txt"),
-			"list --formula":                        readFixture(t, "list-formula-empty.txt"),
-			"list --cask":                           readFixture(t, "list-formula-empty.txt"),
+			"list --formula -1":                     readFixture(t, "list-formula-empty.txt"),
+			"list --cask -1":                        readFixture(t, "list-formula-empty.txt"),
 			"list --formula --installed-on-request": readFixture(t, "list-formula-empty.txt"),
 		},
 	}
@@ -94,10 +116,10 @@ func TestDiscoverBrew_EmptyLists(t *testing.T) {
 func TestDiscoverBrew_OnRequestFailsUsesLeaves(t *testing.T) {
 	runner := &fakeRunner{
 		responses: map[string][]byte{
-			"tap":            []byte("homebrew/core\n"),
-			"list --formula": []byte("git\ngettext\npcre2\n"),
-			"list --cask":    []byte("raycast\n"),
-			"leaves":         []byte("git\n"),
+			"tap":               []byte("homebrew/core\n"),
+			"list --formula -1": []byte("git\ngettext\npcre2\n"),
+			"list --cask -1":    []byte("raycast\n"),
+			"leaves":            []byte("git\n"),
 		},
 		errFor: map[string]error{
 			"list --formula --installed-on-request": fmt.Errorf("api unavailable"),
@@ -115,9 +137,9 @@ func TestDiscoverBrew_OnRequestFailsUsesLeaves(t *testing.T) {
 func TestDiscoverBrew_OnRequestAndLeavesFailSkipsFormulaRemoves(t *testing.T) {
 	runner := &fakeRunner{
 		responses: map[string][]byte{
-			"tap":            []byte(""),
-			"list --formula": []byte("git\ngettext\n"),
-			"list --cask":    []byte(""),
+			"tap":               []byte(""),
+			"list --formula -1": []byte("git\ngettext\n"),
+			"list --cask -1":    []byte(""),
 		},
 		errFor: map[string]error{
 			"list --formula --installed-on-request": fmt.Errorf("api unavailable"),

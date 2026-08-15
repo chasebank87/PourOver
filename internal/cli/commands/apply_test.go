@@ -26,13 +26,13 @@ func (r *recordingRunner) Run(ctx context.Context, args ...string) ([]byte, erro
 	if len(args) == 2 && args[0] == "trust" && args[1] == "--json=v1" {
 		return []byte(`{"taps":[],"formulae":[],"casks":[],"commands":[]}`), nil
 	}
-	if len(args) == 2 && args[0] == "list" && args[1] == "--formula" {
+	if isBrewListArgs(args, "--formula") {
 		return []byte("git\n"), nil
 	}
 	if len(args) == 3 && args[0] == "list" && args[1] == "--formula" && args[2] == "--installed-on-request" {
 		return []byte("git\n"), nil
 	}
-	if len(args) == 2 && args[0] == "list" && args[1] == "--cask" {
+	if isBrewListArgs(args, "--cask") {
 		return []byte(""), nil
 	}
 	return nil, fmt.Errorf("unexpected brew args: %v", args)
@@ -185,7 +185,7 @@ func (r *installRecordingRunner) Run(ctx context.Context, args ...string) ([]byt
 		r.installs = append(r.installs, "trust:"+args[2])
 		return nil, nil
 	}
-	if len(args) == 2 && args[0] == "list" && args[1] == "--formula" {
+	if isBrewListArgs(args, "--formula") {
 		return r.listFormula, nil
 	}
 	if len(args) == 3 && args[0] == "list" && args[1] == "--formula" && args[2] == "--installed-on-request" {
@@ -194,7 +194,7 @@ func (r *installRecordingRunner) Run(ctx context.Context, args ...string) ([]byt
 		}
 		return r.listFormula, nil
 	}
-	if len(args) == 2 && args[0] == "list" && args[1] == "--cask" {
+	if isBrewListArgs(args, "--cask") {
 		return r.listCask, nil
 	}
 	if len(args) == 2 && args[0] == "install" {
@@ -561,13 +561,13 @@ func (r *failingInstallRunner) Run(ctx context.Context, args ...string) ([]byte,
 	if len(args) == 2 && args[0] == "trust" && args[1] == "--json=v1" {
 		return []byte(`{"taps":[],"formulae":[],"casks":[],"commands":[]}`), nil
 	}
-	if len(args) == 2 && args[0] == "list" && args[1] == "--formula" {
+	if isBrewListArgs(args, "--formula") {
 		return r.listFormula, nil
 	}
 	if len(args) == 3 && args[0] == "list" && args[1] == "--formula" && args[2] == "--installed-on-request" {
 		return r.listFormula, nil
 	}
-	if len(args) == 2 && args[0] == "list" && args[1] == "--cask" {
+	if isBrewListArgs(args, "--cask") {
 		return r.listCask, nil
 	}
 	if len(args) >= 1 && args[0] == "install" {
@@ -637,13 +637,13 @@ func (r *orderRecordingRunner) Run(ctx context.Context, args ...string) ([]byte,
 	if len(args) == 2 && args[0] == "trust" && args[1] == "--json=v1" {
 		return []byte(`{"taps":[],"formulae":[],"casks":[],"commands":[]}`), nil
 	}
-	if len(args) == 2 && args[0] == "list" && args[1] == "--formula" {
+	if isBrewListArgs(args, "--formula") {
 		return r.listFormula, nil
 	}
 	if len(args) == 3 && args[0] == "list" && args[1] == "--formula" && args[2] == "--installed-on-request" {
 		return r.listFormula, nil
 	}
-	if len(args) == 2 && args[0] == "list" && args[1] == "--cask" {
+	if isBrewListArgs(args, "--cask") {
 		return r.listCask, nil
 	}
 	if len(args) == 2 && args[0] == "install" {

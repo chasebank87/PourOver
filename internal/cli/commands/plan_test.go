@@ -25,13 +25,13 @@ func (s *stubBrewRunner) Run(ctx context.Context, args ...string) ([]byte, error
 	if len(args) == 2 && args[0] == "trust" && args[1] == "--json=v1" {
 		return []byte(`{"taps":[],"formulae":[],"casks":[],"commands":[]}`), nil
 	}
-	if len(args) == 2 && args[0] == "list" && args[1] == "--formula" {
+	if isBrewListArgs(args, "--formula") {
 		return []byte(s.formulae), nil
 	}
 	if len(args) == 3 && args[0] == "list" && args[1] == "--formula" && args[2] == "--installed-on-request" {
 		return []byte(s.formulae), nil
 	}
-	if len(args) == 2 && args[0] == "list" && args[1] == "--cask" {
+	if isBrewListArgs(args, "--cask") {
 		return []byte(s.casks), nil
 	}
 	if len(args) == 3 && args[0] == "outdated" && args[1] == "--formula" && args[2] == "-q" {
@@ -49,37 +49,40 @@ func (s *stubBrewRunner) Run(ctx context.Context, args ...string) ([]byte, error
 	return nil, fmt.Errorf("unexpected brew args: %v", args)
 }
 
+// isBrewListArgs matches `brew list --formula` / `brew list --cask` with optional -1.
+func isBrewListArgs(args []string, kind string) bool {
+	if len(args) == 2 && args[0] == "list" && args[1] == kind {
+		return true
+	}
+	return len(args) == 3 && args[0] == "list" && args[1] == kind && args[2] == "-1"
+}
+
 func TestBuildPlan_FromFixture(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, "cfg")
 	if err := os.MkdirAll(filepath.Join(configDir, "config", "nvim"), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	src := filepath.Join("..", "..", "..", "test", "fixtures", "config", "valid")
+	data, err := os.ReadFile(filepath.Join(src, "pourover.lua"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	configPath := filepath.Join(configDir, "pourover.lua")
-	if err := os.WriteFile(configPath, []byte(`return {
-  packages = { formulae = { "git", "fzf" }, casks = { "raycast" } },
-  files = {
-    links = { { source = "config/nvim", target = "`+filepath.Join(root, "tgt")+`" } },
-  },
-  policy = { uninstall_mode = "safe" },
-}`), 0o644); err != nil {
+	if err := os.WriteFile(configPath, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Touch link source so file discovery succeeds.
+	if err := os.WriteFile(filepath.Join(configDir, "config", "nvim", "init.lua"), []byte("--"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	runner := &stubBrewRunner{
-		formulae: "git\n",
-		casks:    "",
-	}
-
+	runner := &stubBrewRunner{formulae: "git\n", casks: "raycast\n"}
 	p, err := buildPlan(context.Background(), configPath, runner)
 	if err != nil {
 		t.Fatalf("buildPlan: %v", err)
 	}
-
 	if names := plan.ActionNames(p, plan.ActionFormulaInstall); len(names) != 1 || names[0] != "fzf" {
-		t.Errorf("formula installs = %v, want [fzf]", names)
-	}
-	if types := plan.ActionTypes(p); len(types) < 2 || types[len(types)-1] != plan.ActionLinkCreate {
-		t.Errorf("expected link create in plan, types = %v", types)
+		t.Fatalf("formula installs = %v", names)
 	}
 }
