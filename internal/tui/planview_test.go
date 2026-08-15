@@ -113,16 +113,6 @@ func TestPlanUpdate_PlanLoadedMsg(t *testing.T) {
 	}
 }
 
-func TestPlanUpdate_AShowsApplyStub(t *testing.T) {
-	m := PlanModel{configPath: "/tmp/pourover.lua", plan: plan.Plan{}}
-
-	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
-	pm := next.(PlanModel)
-	view := pm.View()
-	if !strings.Contains(view, "Apply: coming in 1.5") {
-		t.Fatalf("View() = %q, want apply stub message", view)
-	}
-}
 
 func TestHomeUpdate_EnterOnPlanOpensPlanView(t *testing.T) {
 	m := newTestHome()

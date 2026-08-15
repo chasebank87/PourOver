@@ -247,6 +247,12 @@ func (m HomeModel) activate() (tea.Model, tea.Cmd) {
 	case menuPlan:
 		pm := NewPlanModel(m.configPath, m)
 		return pm, pm.Init()
+	case menuApply:
+		rm := NewRunModel(RunApply, m.configPath, m)
+		return rm, rm.Init()
+	case menuUpgrade:
+		rm := NewRunModel(RunUpgrade, m.configPath, m)
+		return rm, rm.Init()
 	default:
 		m.stub = stubTitle(item)
 		return m, nil

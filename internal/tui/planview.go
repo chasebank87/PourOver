@@ -78,8 +78,8 @@ func (m PlanModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = ""
 			return m, refreshPlan(m.configPath)
 		case "a":
-			m.status = "Apply: coming in 1.5"
-			return m, nil
+			rm := NewRunModel(RunApply, m.configPath, m.home)
+			return rm, rm.Init()
 		}
 	}
 	return m, nil
