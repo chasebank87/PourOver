@@ -6,8 +6,10 @@ import (
 	"strings"
 
 	"github.com/chasebank87/PourOver/internal/cli/commands"
+	"github.com/chasebank87/PourOver/internal/tui"
 	"github.com/chasebank87/PourOver/internal/version"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 // Exit codes (D6).
@@ -24,6 +26,18 @@ func Execute() {
 
 // Run executes the CLI with the given args (without program name) and returns an exit code.
 func Run(args []string) int {
+	if tui.ShouldAutoLaunch(tui.LaunchEnv{
+		Interactive: isInteractive(),
+		Args:        args,
+		CI:          isCI(),
+	}) {
+		if err := tui.Run(); err != nil {
+			fmt.Fprintln(os.Stderr, "Error:", err)
+			return ExitFailure
+		}
+		return ExitOK
+	}
+
 	root := NewRootCommand()
 	root.SetArgs(args)
 	if err := root.Execute(); err != nil {
@@ -34,6 +48,14 @@ func Run(args []string) int {
 		return ExitFailure
 	}
 	return ExitOK
+}
+
+func isInteractive() bool {
+	return term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
+}
+
+func isCI() bool {
+	return os.Getenv("CI") == "true"
 }
 
 func isUsageError(err error) bool {
@@ -72,6 +94,7 @@ declarative config (~/.pourover/) with one command: pourover apply.`,
 		commands.NewDoctorCmd(),
 		commands.NewBackupCmd(),
 		commands.NewRestoreCmd(),
+		commands.NewTUICmd(),
 	)
 	return cmd
 }

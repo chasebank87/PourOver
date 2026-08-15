@@ -11,7 +11,7 @@ import (
 func TestRootCommand_HasCoreSubcommands(t *testing.T) {
 	names := subcommandNames(cli.NewRootCommand())
 
-	required := []string{"init", "import", "config", "plan", "apply", "upgrade", "self-update", "doctor", "backup", "restore"}
+	required := []string{"init", "import", "config", "plan", "apply", "upgrade", "self-update", "doctor", "backup", "restore", "tui"}
 	for _, name := range required {
 		if !slices.Contains(names, name) {
 			t.Errorf("missing subcommand %q; registered: %v", name, names)
