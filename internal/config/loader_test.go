@@ -29,3 +29,21 @@ func TestLoadManifest_ValidFixture(t *testing.T) {
 		t.Errorf("backup.icloud.enabled = false, want true")
 	}
 }
+
+func TestLoadManifest_ManagedAndUnlink(t *testing.T) {
+	path := filepath.Join("..", "..", "test", "fixtures", "config", "valid", "files_managed_unlink.lua")
+
+	manifest, err := LoadManifest(path)
+	if err != nil {
+		t.Fatalf("LoadManifest: %v", err)
+	}
+
+	if len(manifest.Files.Managed) != 1 ||
+		manifest.Files.Managed[0].Source != "config/foo.conf" ||
+		manifest.Files.Managed[0].Target != "~/.config/foo.conf" {
+		t.Errorf("files.managed = %#v", manifest.Files.Managed)
+	}
+	if len(manifest.Files.Unlink) != 1 || manifest.Files.Unlink[0] != "~/.old-dotfile" {
+		t.Errorf("files.unlink = %#v", manifest.Files.Unlink)
+	}
+}

@@ -292,7 +292,11 @@ func decodeFiles(L *lua.LState, root *lua.LTable, key string) (Files, error) {
 	if err != nil {
 		return Files{}, fmt.Errorf("files.%w", err)
 	}
-	return Files{Links: links, Managed: managed}, nil
+	unlink, err := fieldStringSlice(L, tbl, "unlink")
+	if err != nil {
+		return Files{}, fmt.Errorf("files.%w", err)
+	}
+	return Files{Links: links, Managed: managed, Unlink: unlink}, nil
 }
 
 func decodePolicy(L *lua.LState, root *lua.LTable, key string) (Policy, error) {

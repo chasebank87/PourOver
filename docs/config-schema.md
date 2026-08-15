@@ -32,12 +32,13 @@ Apply order: **tap adds (with `brew trust --tap` for non-official taps, then `br
 
 ## `files`
 
-| Key | Type | v1 | Description |
-|-----|------|-----|-------------|
+| Key | Type | Status | Description |
+|-----|------|--------|-------------|
 | `links` | array of tables | **supported** | Symlinks: `source` → `target` |
-| `managed` | array of tables | **reserved** | Parsed but not planned/applied in v1 (see `docs/v2-backlog.md`) |
+| `managed` | array of tables | **supported** (V2 Phase 3) | Copy source → target (`source`, `target`) |
+| `unlink` | array of strings | **supported** (V2 Phase 3) | Target paths to remove when safe (`~` ok) |
 
-### `files.links` (v1)
+### `files.links`
 
 Each entry:
 
@@ -46,15 +47,30 @@ Each entry:
 | `source` | yes | string | Path relative to the directory containing `pourover.lua`, or absolute |
 | `target` | yes | string | Path on disk (`~` expanded) |
 
-**v1 behavior:**
+**Behavior:**
 
 - Plan/apply only creates or updates symlinks for declared links.
 - `source` must exist when planning.
 - If `target` exists and is not a symlink → error (no overwrite).
-- No automatic removal of symlinks absent from config.
+- No automatic removal of symlinks absent from config (use `files.unlink` for explicit removals).
 - Typical layout: sources under `~/.pourover/config/...`, targets under `~/.config/...`.
 
 `pourover import --files` copies existing home/`~/.config` paths into the config tree, writes `files.links`, and retargets live paths to symlinks (use `--force` if links are already declared).
+
+### `files.managed` (V2 Phase 3)
+
+Each entry:
+
+| Key | Required | Type | Description |
+|-----|----------|------|-------------|
+| `source` | yes | string | Path relative to the config directory, or absolute |
+| `target` | yes | string | Destination path on disk (`~` expanded) |
+
+Copies (or later templates) `source` to `target` for apps that reject symlinks. Empty `source`/`target` (after trim) fail validation. Plan/apply for managed copies ships in later Phase 3 tasks.
+
+### `files.unlink` (V2 Phase 3)
+
+Array of target path strings to remove when safe (`~` expanded). Each entry must be non-empty after trim. Plan/apply with ownership/safety checks ships in later Phase 3 tasks.
 
 Example:
 
@@ -63,6 +79,10 @@ files = {
   links = {
     { source = "config/nvim", target = "~/.config/nvim" },
   },
+  managed = {
+    { source = "config/foo.conf", target = "~/.config/foo.conf" },
+  },
+  unlink = { "~/.old-dotfile" },
 }
 ```
 

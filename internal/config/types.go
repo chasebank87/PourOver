@@ -62,6 +62,7 @@ type Packages struct {
 type Files struct {
 	Links   []FileLink    `json:"links,omitempty"`
 	Managed []ManagedFile `json:"managed,omitempty"`
+	Unlink  []string      `json:"unlink,omitempty"` // target paths (~ ok)
 }
 
 // FileLink creates or updates a symlink from Source to Target.

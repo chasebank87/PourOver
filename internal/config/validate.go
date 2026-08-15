@@ -45,6 +45,11 @@ func Validate(m *Manifest) error {
 			errs = append(errs, err)
 		}
 	}
+	for i, path := range m.Files.Unlink {
+		if err := validatePathField(path, fmt.Sprintf("files.unlink[%d]", i+1)); err != nil {
+			errs = append(errs, err)
+		}
+	}
 
 	errs = append(errs, validateMacOS(m.MacOS)...)
 

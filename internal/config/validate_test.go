@@ -24,6 +24,12 @@ func TestLoadManifest_EmptyLinkTarget(t *testing.T) {
 	assertLoadErrorContains(t, err, "files.links[1].target")
 }
 
+func TestLoadManifest_EmptyUnlinkPath(t *testing.T) {
+	path := filepath.Join("..", "..", "test", "fixtures", "config", "invalid", "empty_unlink.lua")
+	_, err := LoadManifest(path)
+	assertLoadErrorContains(t, err, "files.unlink[1]")
+}
+
 func TestValidate_UnknownUninstallMode(t *testing.T) {
 	err := Validate(&Manifest{
 		Policy: Policy{UninstallMode: UninstallMode("bogus")},
@@ -50,6 +56,16 @@ func TestValidate_EmptyTap(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "packages.taps[2]") {
 		t.Fatalf("Validate() = %v", err)
+	}
+}
+
+func TestValidate_EmptyUnlinkPath(t *testing.T) {
+	err := Validate(&Manifest{
+		Policy: Policy{UninstallMode: UninstallModeSafe},
+		Files:  Files{Unlink: []string{"~/.keep", "  "}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "files.unlink[2]") {
+		t.Fatalf("Validate() = %v, want files.unlink[2] empty error", err)
 	}
 }
 
