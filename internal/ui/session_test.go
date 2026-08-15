@@ -120,6 +120,9 @@ func TestSession_PrepareAuth_ParksLiveStatus(t *testing.T) {
 	if !strings.Contains(got, "authentication required") {
 		t.Fatalf("missing auth hint after PrepareAuth: %q", got)
 	}
+	if !strings.Contains(got, "\n") {
+		t.Fatalf("PrepareAuth must end the progress line before the hint: %q", got)
+	}
 	// After park, a following Password: must not sit on the bar line.
 	if _, err := buf.WriteString("Password:\n"); err != nil {
 		t.Fatal(err)
@@ -127,6 +130,31 @@ func TestSession_PrepareAuth_ParksLiveStatus(t *testing.T) {
 	out := buf.String()
 	if strings.Contains(out, "sudo_localPassword:") {
 		t.Fatalf("Password glued to progress label: %q", out)
+	}
+	hintIdx := strings.Index(out, "authentication required")
+	passIdx := strings.Index(out, "Password:")
+	if hintIdx < 0 || passIdx < hintIdx {
+		t.Fatalf("Password should follow auth hint on a later line: %q", out)
+	}
+	between := out[hintIdx:passIdx]
+	if !strings.Contains(between, "\n") {
+		t.Fatalf("Password glued to auth hint: %q", out)
+	}
+}
+
+func TestSession_PrepareAuth_BreaksMidLineWhenNotLive(t *testing.T) {
+	ForcePlain()
+	var buf bytes.Buffer
+	s := NewSession(&buf, "apply")
+	// Simulate a mid-line write without liveStatus (cursor not parked).
+	buf.WriteString("░░░░  0/1  defaults  → defaults write /Library/Preferences/x")
+	s.PrepareAuth()
+	out := buf.String()
+	if strings.Contains(out, "Preferences/x☕") || strings.Contains(out, "Preferences/xauthentication") {
+		t.Fatalf("auth hint glued to mid-line content: %q", out)
+	}
+	if !strings.Contains(out, "authentication required") {
+		t.Fatalf("missing auth hint: %q", out)
 	}
 }
 

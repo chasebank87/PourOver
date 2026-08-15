@@ -119,11 +119,22 @@ func (s *Session) Write(p []byte) (int, error) {
 // PrepareAuth parks the live progress line and prints the auth hint so a
 // subsequent sudo Password: prompt on /dev/tty is not glued onto the bar.
 // Brew mutations get this via Write; PAM/system elevation must call it first.
+//
+// sudo reads the password from /dev/tty and shares the terminal cursor with
+// stderr, so we must leave the cursor at column 0 on a fresh line and flush
+// before returning — otherwise Password: lands mid-progress-line.
 func (s *Session) PrepareAuth() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	wasLive := s.liveStatus
 	s.parkStatusLocked()
+	if !wasLive {
+		// liveStatus can be false while the cursor still sits mid-line (e.g. a
+		// prior clear missed); force a newline so Password: is never appended.
+		fmt.Fprint(s.out, "\n")
+	}
 	fmt.Fprint(s.out, styleAccentPrompt.Render("☕ authentication required — enter your password if prompted\n"))
+	flushWriter(s.out)
 }
 
 // Finish parks the status line and prints a colored summary.
@@ -236,8 +247,15 @@ func (s *Session) parkStatusLocked() {
 	if !s.liveStatus {
 		return
 	}
-	fmt.Fprint(s.out, "\r\033[2K")
+	fmt.Fprint(s.out, "\r\033[2K\n")
 	s.liveStatus = false
+}
+
+func flushWriter(w io.Writer) {
+	type flusher interface{ Flush() error }
+	if f, ok := w.(flusher); ok {
+		_ = f.Flush()
+	}
 }
 
 func renderBar(done, total, width int) string {

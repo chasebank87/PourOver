@@ -121,14 +121,13 @@ func sudoDefaultsWrite(ctx context.Context, timeout time.Duration, args []string
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+	// Do not CombinedOutput: sudo prompts on /dev/tty and must keep the
+	// terminal interactive. Stderr stays on the terminal for errors.
 	cmd := exec.CommandContext(ctx, "sudo", append([]string{"defaults"}, args...)...)
 	cmd.Stdin = os.Stdin
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		msg := strings.TrimSpace(string(out))
-		if msg != "" {
-			return fmt.Errorf("sudo defaults %s: %w: %s", strings.Join(args, " "), err, msg)
-		}
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("sudo defaults %s: %w", strings.Join(args, " "), err)
 	}
 	return nil
