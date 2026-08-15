@@ -275,6 +275,90 @@ func TestImportMacOS_DryRunWithoutConfig_OK(t *testing.T) {
 	}
 }
 
+func TestImportMacOS_MergePreservesUnrequiredMacOSFile(t *testing.T) {
+	dir := t.TempDir()
+	configPath := scaffoldRoot(t, dir)
+
+	existingMacOS := `-- generated
+return {
+  defaults = {
+    dock = {
+      autohide = false,
+      tilesize = 64,
+    },
+    custom = {
+      ["com.apple.Safari"] = {
+        ShowFullURLInSmartSearchField = true,
+      },
+    },
+  },
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "macos.lua"), []byte(existingMacOS), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// pourover.lua intentionally does NOT require macos — LoadManifest would miss existing.
+	runner := &mapDefaults{vals: map[string]string{
+		loginwindowDomain + "|LoginwindowText": "new from snapshot",
+		// dock.autohide / tilesize not in snapshot
+	}}
+
+	res, err := ImportMacOS(context.Background(), ImportMacOSOptions{
+		ConfigDir:  dir,
+		ConfigPath: configPath,
+		Runner:     runner,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.EnsuredRequire {
+		t.Fatal("expected EnsuredRequire after wiring")
+	}
+
+	m, err := config.LoadManifest(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dock := m.MacOS.Defaults.Sections["dock"]
+	if dock == nil || dock["autohide"].Bool {
+		t.Fatalf("existing dock.autohide=false must be retained; dock=%#v", dock)
+	}
+	if dock["tilesize"].Int != 64 {
+		t.Fatalf("existing tilesize must be retained; dock=%#v", dock)
+	}
+	lw := m.MacOS.Defaults.Sections["loginwindow"]["LoginwindowText"]
+	if lw.String != "new from snapshot" {
+		t.Fatalf("LoginwindowText = %#v", lw)
+	}
+	if !m.MacOS.Defaults.Custom["com.apple.Safari"]["ShowFullURLInSmartSearchField"].Bool {
+		t.Fatalf("custom must be preserved: %#v", m.MacOS.Defaults.Custom)
+	}
+}
+
+func TestImportMacOS_EnsureFailure_Errors(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "pourover.lua")
+	// No return { — cannot surgically insert macos table field.
+	weird := `local x = 1`
+	if err := os.WriteFile(configPath, []byte(weird), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runner := &mapDefaults{vals: map[string]string{
+		loginwindowDomain + "|LoginwindowText": "x",
+	}}
+	_, err := ImportMacOS(context.Background(), ImportMacOSOptions{
+		ConfigDir:  dir,
+		ConfigPath: configPath,
+		Runner:     runner,
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), `require("macos")`) {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestEnsureMacOSRequire_AddsLocalAndTable(t *testing.T) {
 	in := `local packages = require("packages")
 
@@ -283,7 +367,10 @@ return {
   files = { links = {} },
 }
 `
-	out, changed := ensureMacOSRequire(in)
+	out, changed, err := ensureMacOSRequire(in)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !changed {
 		t.Fatal("expected change")
 	}
@@ -293,7 +380,10 @@ return {
 	if !strings.Contains(out, "macos = macos") {
 		t.Fatalf("missing table field:\n%s", out)
 	}
-	_, changed2 := ensureMacOSRequire(out)
+	_, changed2, err := ensureMacOSRequire(out)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if changed2 {
 		t.Fatal("second pass should be no-op")
 	}
@@ -305,11 +395,55 @@ func TestEnsureMacOSRequire_InlineRequireIntact(t *testing.T) {
   packages = { formulae = {} },
 }
 `
-	out, changed := ensureMacOSRequire(in)
+	out, changed, err := ensureMacOSRequire(in)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if changed {
 		t.Fatal("already requires macos")
 	}
 	if out != in {
 		t.Fatalf("mutated:\n%s", out)
+	}
+}
+
+func TestEnsureMacOSRequire_IgnoresCommentedRequire(t *testing.T) {
+	in := `local packages = require("packages")
+
+return {
+  packages = packages,
+  -- macos = require("macos"),
+  files = { links = {} },
+}
+`
+	out, changed, err := ensureMacOSRequire(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !changed {
+		t.Fatal("commented require must not count as wired")
+	}
+	if !strings.Contains(out, `local macos = require("macos")`) {
+		t.Fatalf("missing active require:\n%s", out)
+	}
+	activeField := false
+	for _, line := range strings.Split(out, "\n") {
+		trim := strings.TrimSpace(line)
+		if strings.HasPrefix(trim, "--") {
+			continue
+		}
+		if strings.Contains(trim, "macos = macos") {
+			activeField = true
+		}
+	}
+	if !activeField {
+		t.Fatalf("missing active macos = macos:\n%s", out)
+	}
+}
+
+func TestEnsureMacOSRequire_NoAnchors_Errors(t *testing.T) {
+	_, _, err := ensureMacOSRequire(`print("hello")`)
+	if err == nil {
+		t.Fatal("expected error")
 	}
 }

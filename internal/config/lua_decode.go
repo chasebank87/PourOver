@@ -54,6 +54,11 @@ func decodeMacOS(L *lua.LState, root *lua.LTable, key string) (MacOS, error) {
 	if !ok {
 		return MacOS{}, nil
 	}
+	return decodeMacOSTable(L, tbl)
+}
+
+// decodeMacOSTable decodes a macos table shaped as { defaults = { … } }.
+func decodeMacOSTable(L *lua.LState, tbl *lua.LTable) (MacOS, error) {
 	defaultsTbl, ok, err := fieldTable(L, tbl, "defaults")
 	if err != nil {
 		return MacOS{}, fmt.Errorf("macos.%w", err)
