@@ -4,16 +4,20 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/chasebank87/PourOver/internal/config"
 )
 
 // FormatPackagesLua renders a packages.lua module from formula and cask lists
-// (empty taps section). Prefer FormatPackagesLuaFull when taps are known.
+// (empty taps section, no mas). Prefer FormatPackagesLuaFull when taps/mas are known.
 func FormatPackagesLua(formulae, casks []string) string {
-	return FormatPackagesLuaFull(nil, formulae, casks)
+	return FormatPackagesLuaFull(nil, formulae, casks, nil)
 }
 
-// FormatPackagesLuaFull renders packages.lua including taps.
-func FormatPackagesLuaFull(taps, formulae, casks []string) string {
+// FormatPackagesLuaFull renders packages.lua including taps and optional mas.
+// A nil mas slice omits the mas key (unmanaged). A non-nil slice (including empty)
+// emits mas = { ... } so the next load treats MAS as configured.
+func FormatPackagesLuaFull(taps, formulae, casks []string, mas []config.MasApp) string {
 	taps = sortedCopy(taps)
 	formulae = sortedCopy(formulae)
 	casks = sortedCopy(casks)
@@ -35,6 +39,14 @@ func FormatPackagesLuaFull(taps, formulae, casks []string) string {
 		fmt.Fprintf(&b, "    %q,\n", name)
 	}
 	b.WriteString("  },\n")
+	if mas != nil {
+		mas = sortedMasCopy(mas)
+		b.WriteString("  mas = {\n")
+		for _, app := range mas {
+			fmt.Fprintf(&b, "    %s = %d,\n", luaTableKey(app.Name), app.ID)
+		}
+		b.WriteString("  },\n")
+	}
 	b.WriteString("}\n")
 	return b.String()
 }
@@ -42,5 +54,13 @@ func FormatPackagesLuaFull(taps, formulae, casks []string) string {
 func sortedCopy(in []string) []string {
 	out := append([]string(nil), in...)
 	sort.Strings(out)
+	return out
+}
+
+func sortedMasCopy(in []config.MasApp) []config.MasApp {
+	out := append([]config.MasApp(nil), in...)
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].ID < out[j].ID
+	})
 	return out
 }

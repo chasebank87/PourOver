@@ -26,6 +26,7 @@ func TestFormatPackagesLuaFull_IncludesTaps(t *testing.T) {
 		[]string{"nikitabobko/tap", "homebrew/cask-fonts"},
 		[]string{"git"},
 		nil,
+		nil,
 	)
 	if !strings.Contains(got, `"homebrew/cask-fonts"`) || !strings.Contains(got, `"nikitabobko/tap"`) {
 		t.Fatalf("missing taps in:\n%s", got)
@@ -37,6 +38,48 @@ func TestFormatPackagesLuaFull_IncludesTaps(t *testing.T) {
 	if strings.Contains(got, "trusted") || strings.Contains(got, "name =") {
 		t.Fatalf("expected plain string taps, got:\n%s", got)
 	}
+	if strings.Contains(got, "mas =") {
+		t.Fatalf("nil mas should omit mas section, got:\n%s", got)
+	}
+}
+
+func TestFormatPackagesLuaFull_MasSection(t *testing.T) {
+	got := FormatPackagesLuaFull(
+		nil,
+		[]string{"git"},
+		[]string{"raycast"},
+		[]config.MasApp{
+			{Name: "1Password for Safari", ID: 1569813296},
+			{Name: "Xcode", ID: 497799835},
+		},
+	)
+	if !strings.Contains(got, "mas = {") {
+		t.Fatalf("missing mas section:\n%s", got)
+	}
+	if !strings.Contains(got, `["1Password for Safari"] = 1569813296`) {
+		t.Fatalf("missing quoted mas key:\n%s", got)
+	}
+	if !strings.Contains(got, "Xcode = 497799835") {
+		t.Fatalf("missing bare mas key:\n%s", got)
+	}
+	// Sorted by ID: Xcode (497799835) before 1Password (1569813296).
+	xcodeIdx := strings.Index(got, "Xcode = 497799835")
+	onePwIdx := strings.Index(got, `["1Password for Safari"] = 1569813296`)
+	if xcodeIdx < 0 || onePwIdx < 0 || xcodeIdx > onePwIdx {
+		t.Fatalf("mas apps not sorted by ID:\n%s", got)
+	}
+	casksIdx := strings.Index(got, "casks = {")
+	masIdx := strings.Index(got, "mas = {")
+	if casksIdx < 0 || masIdx < 0 || casksIdx > masIdx {
+		t.Fatalf("mas should follow casks:\n%s", got)
+	}
+}
+
+func TestFormatPackagesLuaFull_MasEmptyConfigured(t *testing.T) {
+	got := FormatPackagesLuaFull(nil, nil, nil, []config.MasApp{})
+	if !strings.Contains(got, "mas = {") {
+		t.Fatalf("empty non-nil mas should emit mas = {}, got:\n%s", got)
+	}
 }
 
 func TestFormatPackagesLuaFull_RoundTripLoadManifest(t *testing.T) {
@@ -45,6 +88,10 @@ func TestFormatPackagesLuaFull_RoundTripLoadManifest(t *testing.T) {
 		[]string{"oven-sh/bun", "homebrew/cask-fonts"},
 		[]string{"git"},
 		[]string{"raycast"},
+		[]config.MasApp{
+			{Name: "1Password for Safari", ID: 1569813296},
+			{Name: "Xcode", ID: 497799835},
+		},
 	)
 	if err := os.WriteFile(filepath.Join(dir, "packages.lua"), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
@@ -87,5 +134,17 @@ return {
 	}
 	if len(manifest.Packages.Casks) != 1 || manifest.Packages.Casks[0] != "raycast" {
 		t.Fatalf("casks = %#v", manifest.Packages.Casks)
+	}
+	if !manifest.Packages.MasConfigured {
+		t.Fatal("MasConfigured = false, want true")
+	}
+	if len(manifest.Packages.Mas) != 2 {
+		t.Fatalf("Mas = %#v, want 2", manifest.Packages.Mas)
+	}
+	if manifest.Packages.Mas[0].Name != "Xcode" || manifest.Packages.Mas[0].ID != 497799835 {
+		t.Fatalf("Mas[0] = %#v", manifest.Packages.Mas[0])
+	}
+	if manifest.Packages.Mas[1].Name != "1Password for Safari" || manifest.Packages.Mas[1].ID != 1569813296 {
+		t.Fatalf("Mas[1] = %#v", manifest.Packages.Mas[1])
 	}
 }

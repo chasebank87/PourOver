@@ -237,16 +237,20 @@ func TestBuildPlan_FilePruneFromLock(t *testing.T) {
 }
 
 type stubMasRunner struct {
-	list string
-	err  error
+	list     string
+	outdated string
+	err      error
 }
 
 func (s *stubMasRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
 	if len(args) == 1 && args[0] == "list" {
-		if s.err != nil {
-			return nil, s.err
-		}
 		return []byte(s.list), nil
+	}
+	if len(args) == 1 && args[0] == "outdated" {
+		return []byte(s.outdated), nil
 	}
 	return nil, fmt.Errorf("unexpected mas args: %v", args)
 }

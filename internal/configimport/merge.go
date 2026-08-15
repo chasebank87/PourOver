@@ -36,6 +36,37 @@ func MergePackageLists(existing, discovered []string) (merged, added []string) {
 	return merged, added
 }
 
+// MergeMasApps returns the union of existing and discovered MAS apps keyed by ID.
+// When an ID is already present, the existing Name is kept. Added lists only
+// newly discovered IDs. Both slices are sorted by ID.
+func MergeMasApps(existing, discovered []config.MasApp) (merged, added []config.MasApp) {
+	seen := make(map[int64]struct{}, len(existing)+len(discovered))
+	for _, app := range existing {
+		if app.ID == 0 {
+			continue
+		}
+		if _, ok := seen[app.ID]; ok {
+			continue
+		}
+		seen[app.ID] = struct{}{}
+		merged = append(merged, app)
+	}
+	for _, app := range discovered {
+		if app.ID == 0 {
+			continue
+		}
+		if _, ok := seen[app.ID]; ok {
+			continue
+		}
+		seen[app.ID] = struct{}{}
+		merged = append(merged, app)
+		added = append(added, app)
+	}
+	sort.Slice(merged, func(i, j int) bool { return merged[i].ID < merged[j].ID })
+	sort.Slice(added, func(i, j int) bool { return added[i].ID < added[j].ID })
+	return merged, added
+}
+
 // MergeFileLinks keeps existing links in order, then appends imported links
 // whose Target is not already declared (new targets sorted by Target).
 func MergeFileLinks(existing, imported []config.FileLink) (merged, added []config.FileLink) {

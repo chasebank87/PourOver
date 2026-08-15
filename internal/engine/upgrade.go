@@ -31,6 +31,8 @@ type UpgradeResult struct {
 // outdated when packages.mas is configured), and returns the upgrade-only plan
 // for declared formulae/casks/apps that are installed and outdated.
 // When masRunner is nil and mas is configured, NewExecMasRunner is used.
+// When DiscoverMasOutdated fails because mas is not on PATH, planning continues
+// without mas upgrades (same soft-skip as BuildPlanWith).
 func BuildUpgradePlan(ctx context.Context, configPath string, runner discovery.Runner, masRunner discovery.MasRunner) (plan.Plan, error) {
 	manifest, err := config.LoadManifest(configPath)
 	if err != nil {
@@ -60,12 +62,16 @@ func BuildUpgradePlan(ctx context.Context, configPath string, runner discovery.R
 		}
 		masOutdated, err := discovery.DiscoverMasOutdated(ctx, masRunner)
 		if err != nil {
-			return plan.Plan{}, fmt.Errorf("discover mas outdated: %w", err)
+			// Soft-continue when mas is not on PATH (same as BuildPlanWith).
+			if !discovery.IsMasNotFound(err) {
+				return plan.Plan{}, fmt.Errorf("discover mas outdated: %w", err)
+			}
+		} else {
+			if masOutdated == nil {
+				masOutdated = []int64{}
+			}
+			masState.Outdated = masOutdated
 		}
-		if masOutdated == nil {
-			masOutdated = []int64{}
-		}
-		masState.Outdated = masOutdated
 	}
 
 	return plan.BuildUpgradePlan(manifest.Packages, brewState, masState), nil

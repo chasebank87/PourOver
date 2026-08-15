@@ -26,6 +26,38 @@ func TestMergePackageLists_EmptyExisting(t *testing.T) {
 	}
 }
 
+func TestMergeMasApps(t *testing.T) {
+	existing := []config.MasApp{
+		{Name: "Xcode (config)", ID: 497799835},
+	}
+	discovered := []config.MasApp{
+		{Name: "Xcode", ID: 497799835},
+		{Name: "1Password for Safari", ID: 1569813296},
+	}
+	merged, added := MergeMasApps(existing, discovered)
+	wantMerged := []config.MasApp{
+		{Name: "Xcode (config)", ID: 497799835},
+		{Name: "1Password for Safari", ID: 1569813296},
+	}
+	wantAdded := []config.MasApp{
+		{Name: "1Password for Safari", ID: 1569813296},
+	}
+	if !reflect.DeepEqual(merged, wantMerged) {
+		t.Fatalf("merged = %#v, want %#v", merged, wantMerged)
+	}
+	if !reflect.DeepEqual(added, wantAdded) {
+		t.Fatalf("added = %#v, want %#v", added, wantAdded)
+	}
+}
+
+func TestMergeMasApps_EmptyExisting(t *testing.T) {
+	discovered := []config.MasApp{{Name: "Xcode", ID: 497799835}}
+	merged, added := MergeMasApps(nil, discovered)
+	if !reflect.DeepEqual(merged, discovered) || !reflect.DeepEqual(added, discovered) {
+		t.Fatalf("merged=%#v added=%#v", merged, added)
+	}
+}
+
 func TestMergeFileLinks(t *testing.T) {
 	existing := []config.FileLink{
 		{Source: "config/home/zshrc", Target: "~/.zshrc"},

@@ -19,7 +19,8 @@ type ImportOptions struct {
 	Files      bool
 	DryRun     bool
 	Force      bool
-	Home       string // optional; defaults to os.UserHomeDir
+	Home       string              // optional; defaults to os.UserHomeDir
+	MasRunner  discovery.MasRunner // nil → NewExecMasRunner for package import
 }
 
 // ImportFileLine is one discovered file candidate considered for import.
@@ -40,9 +41,11 @@ type ImportResult struct {
 	Taps          []string
 	Formulae      []string
 	Casks         []string
+	Mas           []config.MasApp
 	AddedTaps     []string
 	AddedFormulae []string
 	AddedCasks    []string
+	AddedMas      []config.MasApp
 
 	FilesDone    bool
 	FileLines    []ImportFileLine
@@ -73,6 +76,8 @@ func Import(ctx context.Context, runner discovery.Runner, opts ImportOptions) (I
 	backupCfg := config.Backup{}
 	existingLinks := []config.FileLink{}
 	var existingTaps, existingFormulae, existingCasks []string
+	var existingMas []config.MasApp
+	masConfigured := false
 	if _, err := os.Stat(opts.ConfigPath); err == nil {
 		if m, loadErr := config.LoadManifest(opts.ConfigPath); loadErr == nil {
 			policy = m.Policy
@@ -81,6 +86,8 @@ func Import(ctx context.Context, runner discovery.Runner, opts ImportOptions) (I
 			existingTaps = append([]string(nil), m.Packages.TapNames()...)
 			existingFormulae = append([]string(nil), m.Packages.Formulae...)
 			existingCasks = append([]string(nil), m.Packages.Casks...)
+			existingMas = append([]config.MasApp(nil), m.Packages.Mas...)
+			masConfigured = m.Packages.MasConfigured
 		}
 	}
 
@@ -107,8 +114,21 @@ func Import(ctx context.Context, runner discovery.Runner, opts ImportOptions) (I
 			formulae, addedF = configimport.MergePackageLists(existingFormulae, state.FormulaeRequested)
 			casks, addedC = configimport.MergePackageLists(existingCasks, state.Casks)
 		}
+
+		mas, addedMas, writeMas, err := importMasApps(ctx, opts, existingMas, masConfigured)
+		if err != nil {
+			return ImportResult{}, err
+		}
+		var masForFormat []config.MasApp // nil omits mas key
+		if writeMas {
+			masForFormat = mas
+			if masForFormat == nil {
+				masForFormat = []config.MasApp{}
+			}
+		}
+
 		pkgPath := filepath.Join(opts.ConfigDir, "packages.lua")
-		body := configimport.FormatPackagesLuaFull(taps, formulae, casks)
+		body := configimport.FormatPackagesLuaFull(taps, formulae, casks, masForFormat)
 		if !opts.DryRun {
 			if err := os.WriteFile(pkgPath, []byte(body), 0o644); err != nil {
 				return ImportResult{}, err
@@ -119,9 +139,11 @@ func Import(ctx context.Context, runner discovery.Runner, opts ImportOptions) (I
 		result.Taps = taps
 		result.Formulae = formulae
 		result.Casks = casks
+		result.Mas = mas
 		result.AddedTaps = addedT
 		result.AddedFormulae = addedF
 		result.AddedCasks = addedC
+		result.AddedMas = addedMas
 	}
 
 	if opts.Files {
@@ -184,4 +206,39 @@ func Import(ctx context.Context, runner discovery.Runner, opts ImportOptions) (I
 	}
 
 	return result, nil
+}
+
+// importMasApps discovers installed Mac App Store apps and merges or replaces
+// them per Force. When mas is missing from PATH, MAS is soft-skipped: brew
+// packages still import, and any existing configured mas list is preserved.
+func importMasApps(ctx context.Context, opts ImportOptions, existing []config.MasApp, configured bool) (mas, added []config.MasApp, writeMas bool, err error) {
+	masRunner := opts.MasRunner
+	if masRunner == nil {
+		masRunner = discovery.NewExecMasRunner()
+	}
+	state, err := discovery.DiscoverMas(ctx, masRunner)
+	if err != nil {
+		if discovery.IsMasNotFound(err) {
+			if configured {
+				return existing, nil, true, nil
+			}
+			return nil, nil, false, nil
+		}
+		return nil, nil, false, fmt.Errorf("discover mas: %w", err)
+	}
+
+	discovered := make([]config.MasApp, 0, len(state.Apps))
+	for _, app := range state.Apps {
+		discovered = append(discovered, config.MasApp{Name: app.Name, ID: app.ID})
+	}
+
+	if opts.Force {
+		mas = append([]config.MasApp(nil), discovered...)
+		writeMas = configured || len(mas) > 0
+		return mas, nil, writeMas, nil
+	}
+
+	mas, added = configimport.MergeMasApps(existing, discovered)
+	writeMas = configured || len(mas) > 0
+	return mas, added, writeMas, nil
 }

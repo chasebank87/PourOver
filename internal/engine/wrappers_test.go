@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -184,12 +185,14 @@ return {
 		t.Fatal(err)
 	}
 	runner := &stubBrewRunner{formulae: "git\nfzf\n", casks: ""}
+	mas := &stubMasRunner{err: &exec.Error{Name: "mas", Err: exec.ErrNotFound}}
 	result, err := Import(context.Background(), runner, ImportOptions{
 		ConfigDir:  cfgDir,
 		ConfigPath: configPath,
 		Packages:   true,
 		Files:      false,
 		Force:      false,
+		MasRunner:  mas,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -203,6 +206,224 @@ return {
 	}
 	if len(result.AddedFormulae) != 1 || result.AddedFormulae[0] != "fzf" {
 		t.Fatalf("AddedFormulae = %v", result.AddedFormulae)
+	}
+	if len(result.Mas) != 0 {
+		t.Fatalf("Mas = %#v, want empty when mas missing and unmanaged", result.Mas)
+	}
+	data, err := os.ReadFile(filepath.Join(cfgDir, "packages.lua"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "mas =") {
+		t.Fatalf("packages.lua should omit mas when soft-skipped unmanaged:\n%s", data)
+	}
+}
+
+func TestImport_PackagesMasMerge(t *testing.T) {
+	cfgDir := t.TempDir()
+	configPath := filepath.Join(cfgDir, "pourover.lua")
+	if err := os.WriteFile(filepath.Join(cfgDir, "packages.lua"), []byte(`return {
+  taps = {},
+  formulae = { "git" },
+  casks = {},
+  mas = { ["Xcode (kept)"] = 497799835 },
+}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(configPath, []byte(`local packages = require("packages")
+return {
+  packages = packages,
+  files = { links = {} },
+  policy = { uninstall_mode = "safe" },
+}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runner := &stubBrewRunner{formulae: "git\n", casks: ""}
+	mas := &stubMasRunner{list: "497799835 Xcode\n1569813296 1Password for Safari\n"}
+	result, err := Import(context.Background(), runner, ImportOptions{
+		ConfigDir:  cfgDir,
+		ConfigPath: configPath,
+		Packages:   true,
+		Files:      false,
+		Force:      false,
+		MasRunner:  mas,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Mas) != 2 {
+		t.Fatalf("Mas = %#v, want 2", result.Mas)
+	}
+	if result.Mas[0].Name != "Xcode (kept)" || result.Mas[0].ID != 497799835 {
+		t.Fatalf("Mas[0] = %#v, want kept config name", result.Mas[0])
+	}
+	if len(result.AddedMas) != 1 || result.AddedMas[0].ID != 1569813296 {
+		t.Fatalf("AddedMas = %#v", result.AddedMas)
+	}
+	data, err := os.ReadFile(filepath.Join(cfgDir, "packages.lua"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(data)
+	if !strings.Contains(body, `["Xcode (kept)"] = 497799835`) {
+		t.Fatalf("kept name missing:\n%s", body)
+	}
+	if !strings.Contains(body, `["1Password for Safari"] = 1569813296`) {
+		t.Fatalf("added app missing:\n%s", body)
+	}
+}
+
+func TestImport_PackagesMasUnmanagedDiscovers(t *testing.T) {
+	cfgDir := t.TempDir()
+	configPath := filepath.Join(cfgDir, "pourover.lua")
+	if err := os.WriteFile(filepath.Join(cfgDir, "packages.lua"), []byte(`return {
+  taps = {},
+  formulae = { "git" },
+  casks = {},
+}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(configPath, []byte(`local packages = require("packages")
+return {
+  packages = packages,
+  files = { links = {} },
+  policy = { uninstall_mode = "safe" },
+}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runner := &stubBrewRunner{formulae: "git\n", casks: ""}
+	mas := &stubMasRunner{list: "497799835 Xcode\n"}
+	result, err := Import(context.Background(), runner, ImportOptions{
+		ConfigDir:  cfgDir,
+		ConfigPath: configPath,
+		Packages:   true,
+		Files:      false,
+		MasRunner:  mas,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Mas) != 1 || result.Mas[0].ID != 497799835 {
+		t.Fatalf("Mas = %#v", result.Mas)
+	}
+	m := mustLoadManifest(t, configPath)
+	if !m.Packages.MasConfigured {
+		t.Fatal("MasConfigured = false after import discovered apps")
+	}
+}
+
+func TestImport_PackagesMasMissingSoftSkip(t *testing.T) {
+	cfgDir := t.TempDir()
+	configPath := filepath.Join(cfgDir, "pourover.lua")
+	if err := os.WriteFile(filepath.Join(cfgDir, "packages.lua"), []byte(`return {
+  taps = {},
+  formulae = { "git" },
+  casks = {},
+  mas = { Xcode = 497799835 },
+}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(configPath, []byte(`local packages = require("packages")
+return {
+  packages = packages,
+  files = { links = {} },
+  policy = { uninstall_mode = "safe" },
+}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runner := &stubBrewRunner{formulae: "git\nfzf\n", casks: ""}
+	mas := &stubMasRunner{err: &exec.Error{Name: "mas", Err: exec.ErrNotFound}}
+	result, err := Import(context.Background(), runner, ImportOptions{
+		ConfigDir:  cfgDir,
+		ConfigPath: configPath,
+		Packages:   true,
+		Files:      false,
+		MasRunner:  mas,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.AddedFormulae) != 1 || result.AddedFormulae[0] != "fzf" {
+		t.Fatalf("AddedFormulae = %v (brew import should still succeed)", result.AddedFormulae)
+	}
+	if len(result.Mas) != 1 || result.Mas[0].ID != 497799835 {
+		t.Fatalf("Mas = %#v, want existing preserved when mas missing", result.Mas)
+	}
+}
+
+func TestImport_PackagesMasForce(t *testing.T) {
+	cfgDir := t.TempDir()
+	configPath := filepath.Join(cfgDir, "pourover.lua")
+	if err := os.WriteFile(filepath.Join(cfgDir, "packages.lua"), []byte(`return {
+  taps = {},
+  formulae = { "neofetch" },
+  casks = {},
+  mas = { Xcode = 497799835, WireGuard = 1451685025 },
+}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(configPath, []byte(`local packages = require("packages")
+return {
+  packages = packages,
+  files = { links = {} },
+  policy = { uninstall_mode = "safe" },
+}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runner := &stubBrewRunner{formulae: "git\n", casks: ""}
+	mas := &stubMasRunner{list: "1569813296 1Password for Safari\n"}
+	result, err := Import(context.Background(), runner, ImportOptions{
+		ConfigDir:  cfgDir,
+		ConfigPath: configPath,
+		Packages:   true,
+		Files:      false,
+		Force:      true,
+		MasRunner:  mas,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Mas) != 1 || result.Mas[0].ID != 1569813296 {
+		t.Fatalf("Mas = %#v, want force-replaced discovered set", result.Mas)
+	}
+	if len(result.Formulae) != 1 || result.Formulae[0] != "git" {
+		t.Fatalf("Formulae = %v, want force-replaced", result.Formulae)
+	}
+}
+
+func TestBuildUpgradePlan_MasMissingSoftContinue(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "cfg")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(configDir, "pourover.lua")
+	if err := os.WriteFile(configPath, []byte(`return {
+  packages = {
+    formulae = { "git" },
+    casks = {},
+    mas = { Xcode = 497799835 },
+  },
+  files = { links = {} },
+  policy = { uninstall_mode = "safe" },
+}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runner := &stubBrewRunner{
+		formulae:         "git\n",
+		outdatedFormulae: "git\n",
+		outdatedSet:      true,
+	}
+	mas := &stubMasRunner{err: &exec.Error{Name: "mas", Err: exec.ErrNotFound}}
+	p, err := BuildUpgradePlan(context.Background(), configPath, runner, mas)
+	if err != nil {
+		t.Fatalf("BuildUpgradePlan: %v", err)
+	}
+	if names := plan.ActionNames(p, plan.ActionFormulaUpgrade); len(names) != 1 || names[0] != "git" {
+		t.Fatalf("formula upgrades = %v", names)
+	}
+	if names := plan.ActionNames(p, plan.ActionMasUpgrade); len(names) != 0 {
+		t.Fatalf("mas upgrades = %v, want none when mas missing", names)
 	}
 }
 
