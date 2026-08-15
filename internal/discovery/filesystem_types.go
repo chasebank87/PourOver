@@ -54,3 +54,23 @@ type UnlinkStatus struct {
 	TargetPath string // resolved absolute path
 	Kind       UnlinkStatusKind
 }
+
+// TemplateStatusKind describes the target path for a declared template render.
+type TemplateStatusKind string
+
+const (
+	TemplateStatusMissing TemplateStatusKind = "missing"
+	TemplateStatusSame    TemplateStatusKind = "same"
+	TemplateStatusDiffer  TemplateStatusKind = "differ"
+	TemplateStatusBlocked TemplateStatusKind = "blocked" // unexpected target type (e.g. directory)
+)
+
+// TemplateStatus is the discovered state of one declared template file.
+type TemplateStatus struct {
+	File       config.TemplateFile
+	SourcePath string // resolved absolute source template
+	TargetPath string // resolved absolute target
+	Rendered   string // rendered template body
+	Current    string // existing target contents (empty when missing/blocked)
+	Kind       TemplateStatusKind
+}

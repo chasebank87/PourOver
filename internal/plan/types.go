@@ -18,6 +18,7 @@ const (
 	ActionLinkUpdate     ActionType = "link_update"
 	ActionLinkReplace    ActionType = "link_replace" // backup existing target, then create link
 	ActionManagedCopy    ActionType = "managed_copy"
+	ActionTemplateWrite  ActionType = "template_write"
 	ActionFileUnlink     ActionType = "file_unlink"
 	ActionFilePrune      ActionType = "file_prune" // owned path no longer declared
 	ActionDefaultsWrite  ActionType = "defaults_write"

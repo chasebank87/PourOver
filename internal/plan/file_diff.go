@@ -116,7 +116,7 @@ func BuildUnlinkPlan(statuses []discovery.UnlinkStatus) (Plan, error) {
 }
 
 // BuildFilePrunePlan emits file_prune for owned paths not in declaredTargets.
-// declaredTargets should be links.targets ∪ managed.targets ∪ unlink paths
+// declaredTargets should be links.targets ∪ managed.targets ∪ templates.targets ∪ unlink paths
 // (explicit unlink already has its own action — do not also prune).
 // Paths are expanded/normalized to absolute for comparison. Only candidates that
 // still exist on disk are emitted. non_destructive yields an empty plan.

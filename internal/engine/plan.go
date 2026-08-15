@@ -11,6 +11,7 @@ import (
 	"github.com/chasebank87/PourOver/internal/plan"
 	"github.com/chasebank87/PourOver/internal/policy"
 	"github.com/chasebank87/PourOver/internal/state"
+	tmpl "github.com/chasebank87/PourOver/internal/template"
 )
 
 // BuildPlan loads config at configPath, discovers current state via runner, and
@@ -67,6 +68,19 @@ func BuildPlanWith(ctx context.Context, configPath string, runner discovery.Runn
 		return plan.Plan{}, err
 	}
 
+	tmplCtx, err := tmpl.DefaultContext()
+	if err != nil {
+		return plan.Plan{}, fmt.Errorf("template context: %w", err)
+	}
+	templateStatuses, err := discovery.DiscoverTemplateFiles(manifest.Files.Templates, configDir, tmplCtx)
+	if err != nil {
+		return plan.Plan{}, fmt.Errorf("discover templates: %w", err)
+	}
+	templatePlan, err := plan.BuildTemplatePlan(templateStatuses, replaceMode)
+	if err != nil {
+		return plan.Plan{}, err
+	}
+
 	unlinkStatuses, err := discovery.DiscoverUnlinkPaths(manifest.Files.Unlink, configDir)
 	if err != nil {
 		return plan.Plan{}, fmt.Errorf("discover unlink paths: %w", err)
@@ -89,19 +103,22 @@ func BuildPlanWith(ctx context.Context, configPath string, runner discovery.Runn
 	filesMode := policy.ResolveFilesModeFromManifest(manifest)
 	prunePlan := plan.BuildFilePrunePlan(lock.OwnedFiles, declaredFileTargets(manifest), filesMode)
 
-	// brew → macos defaults → file links → managed copies → unlinks → prune
-	return plan.MergePlans(brewPlan, defaultsPlan, filePlan, managedPlan, unlinkPlan, prunePlan), nil
+	// brew → macos defaults → file links → managed copies → templates → unlinks → prune
+	return plan.MergePlans(brewPlan, defaultsPlan, filePlan, managedPlan, templatePlan, unlinkPlan, prunePlan), nil
 }
 
-// declaredFileTargets returns paths that should not be pruned: current links and
-// managed targets, plus explicit unlink paths (those get file_unlink instead).
+// declaredFileTargets returns paths that should not be pruned: current links,
+// managed, and template targets, plus explicit unlink paths (those get file_unlink instead).
 func declaredFileTargets(m config.Manifest) []string {
-	n := len(m.Files.Links) + len(m.Files.Managed) + len(m.Files.Unlink)
+	n := len(m.Files.Links) + len(m.Files.Managed) + len(m.Files.Templates) + len(m.Files.Unlink)
 	out := make([]string, 0, n)
 	for _, link := range m.Files.Links {
 		out = append(out, link.Target)
 	}
 	for _, file := range m.Files.Managed {
+		out = append(out, file.Target)
+	}
+	for _, file := range m.Files.Templates {
 		out = append(out, file.Target)
 	}
 	out = append(out, m.Files.Unlink...)

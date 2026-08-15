@@ -88,6 +88,8 @@ Template context fields include:
 | `{{.User}}` | `chase` | Current username |
 | `{{.Home}}` | `/Users/chase` | Home directory |
 
+`.Env` exists on the context struct for a future allowlist but is empty in V2 — do not rely on `{{index .Env "…"}}` for secrets or arbitrary environment variables. Rendering uses Go `text/template` with `missingkey=error` and no custom FuncMap (no shell-out helpers).
+
 Example source (`config/gitconfig.tmpl`):
 
 ```text

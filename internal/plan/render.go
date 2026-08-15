@@ -66,6 +66,11 @@ func formatActionLine(a Action) string {
 			return fmt.Sprintf("managed copy %s <- %s (backup)", a.Name, a.Source)
 		}
 		return fmt.Sprintf("managed copy %s <- %s", a.Name, a.Source)
+	case ActionTemplateWrite:
+		if a.Kind == "backup" {
+			return fmt.Sprintf("template write %s <- %s (backup)", a.Name, a.Source)
+		}
+		return fmt.Sprintf("template write %s <- %s", a.Name, a.Source)
 	case ActionFileUnlink:
 		return fmt.Sprintf("unlink %s", a.Name)
 	case ActionFilePrune:

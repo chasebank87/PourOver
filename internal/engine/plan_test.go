@@ -224,3 +224,75 @@ func TestBuildPlan_FilePruneFromLock(t *testing.T) {
 		t.Fatalf("empty owned prune = %v, want none", names)
 	}
 }
+
+func TestBuildPlan_Templates(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "cfg")
+	home := filepath.Join(root, "home")
+	if err := os.MkdirAll(filepath.Join(configDir, "config"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(home, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+
+	if err := os.WriteFile(filepath.Join(configDir, "config", "foo.tmpl"), []byte("static\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	lua := `return {
+  packages = { formulae = {}, casks = {} },
+  files = {
+    templates = {
+      { source = "config/foo.tmpl", target = "~/.foo" },
+    },
+  },
+}
+`
+	configPath := filepath.Join(configDir, "pourover.lua")
+	if err := os.WriteFile(configPath, []byte(lua), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	runner := &stubBrewRunner{}
+	p, err := BuildPlan(context.Background(), configPath, runner)
+	if err != nil {
+		t.Fatalf("BuildPlan: %v", err)
+	}
+	actions := p.Actions
+	var tmplActs []plan.Action
+	for _, a := range actions {
+		if a.Type == plan.ActionTemplateWrite {
+			tmplActs = append(tmplActs, a)
+		}
+	}
+	if len(tmplActs) != 1 || tmplActs[0].Name != "~/.foo" {
+		t.Fatalf("template writes = %#v", tmplActs)
+	}
+	if tmplActs[0].Value == "" || tmplActs[0].Source != "config/foo.tmpl" {
+		t.Fatalf("action = %#v", tmplActs[0])
+	}
+
+	if err := os.WriteFile(filepath.Join(home, ".foo"), []byte("static\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err = BuildPlan(context.Background(), configPath, runner)
+	if err != nil {
+		t.Fatalf("BuildPlan same: %v", err)
+	}
+	if names := plan.ActionNames(p, plan.ActionTemplateWrite); len(names) != 0 {
+		t.Fatalf("same content should be noop, got %v", names)
+	}
+
+	if err := os.WriteFile(filepath.Join(home, ".foo"), []byte("old\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err = BuildPlan(context.Background(), configPath, runner)
+	if err != nil {
+		t.Fatalf("BuildPlan differ: %v", err)
+	}
+	if names := plan.ActionNames(p, plan.ActionTemplateWrite); len(names) != 1 {
+		t.Fatalf("differ template writes = %v", names)
+	}
+}
