@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -12,6 +11,7 @@ import (
 	"github.com/chasebank87/PourOver/internal/backup"
 	"github.com/chasebank87/PourOver/internal/config"
 	"github.com/chasebank87/PourOver/internal/discovery"
+	"github.com/chasebank87/PourOver/internal/engine"
 	"github.com/chasebank87/PourOver/internal/exec"
 	"github.com/chasebank87/PourOver/internal/paths"
 	"github.com/chasebank87/PourOver/internal/plan"
@@ -97,16 +97,17 @@ func executeApply(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, opts
 
 func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, opts applyOptions) error {
 	out := cmd.ErrOrStderr()
-	renames := exec.CaskRenameActions(p)
-	skipped := exec.UnsupportedApplyActions(p)
 	if len(p.Actions) == 0 {
 		fmt.Fprintln(out, "No changes.")
 		return nil
 	}
 
+	renames := exec.CaskRenameActions(p)
+	skipped := exec.UnsupportedApplyActions(p)
 	total := len(p.Actions) - len(skipped) - len(renames)
+
 	var session *ui.Session
-	var progress exec.Progress
+	var progress engine.Progress
 	var brewOut io.Writer = out
 	fancy := ui.Enabled(out, opts.quiet)
 	if fancy {
@@ -117,110 +118,84 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 			brewOut = session
 		}
 	} else {
-		progress = applyProgress(out, opts.quiet)
-	}
-	mutRunner := brewRunnerWithProgress(runner, brewOut, opts.quiet)
-
-	var errs []error
-
-	// Phase 1: Homebrew (taps, installs, then removes). Per-package failures continue;
-	// phase errors are collected so later phases still run.
-	if session != nil && total > 0 {
-		session.SetPhase("taps")
-	}
-	taps, err := exec.ApplyTapAdds(cmd.Context(), mutRunner, p, progress)
-	if err != nil {
-		errs = append(errs, err)
-	}
-	if session != nil && total > 0 {
-		session.SetPhase("formulae")
-	}
-	formulae, err := exec.ApplyFormulaInstalls(cmd.Context(), mutRunner, p, progress)
-	if err != nil {
-		errs = append(errs, err)
-	}
-	if session != nil && total > 0 {
-		session.SetPhase("casks")
-	}
-	casks, err := exec.ApplyCaskInstalls(cmd.Context(), mutRunner, p, progress)
-	if err != nil {
-		errs = append(errs, err)
+		if p := applyProgress(out, opts.quiet); p != nil {
+			progress = engine.Progress(p)
+		}
 	}
 
-	confirm := removeConfirmer(cmd, opts.autoYes)
-	if session != nil && total > 0 {
-		session.SetPhase("removes")
+	engineOpts := engine.ApplyOptions{
+		ConfigPath: opts.configPath,
+		ConfigDir:  opts.configDir,
+		Mode:       opts.mode,
+		AutoYes:    opts.autoYes,
+		Quiet:      opts.quiet,
+		Progress:   progress,
+		Confirm:    stdinConfirmer{in: cmd.InOrStdin(), out: out},
+		Stdout:     brewOut,
+		Stderr:     brewOut,
 	}
-	removed, err := exec.ApplyRemoves(cmd.Context(), mutRunner, p, opts.mode, confirm, progress)
-	if err != nil {
-		errs = append(errs, err)
+	if session != nil && total > 0 {
+		engineOpts.OnPhase = session.SetPhase
 	}
 
-	// Phase 2: macOS defaults (after packages, before file links)
-	if session != nil && total > 0 {
-		session.SetPhase("defaults")
-	}
-	written, err := exec.ApplyDefaultsWrites(cmd.Context(), exec.NewExecDefaultsApplier(), p, progress)
-	if err != nil {
-		errs = append(errs, err)
-	}
+	result, err := engine.Apply(cmd.Context(), runner, p, engineOpts)
 
-	// Phase 3: file links
-	if session != nil && total > 0 {
-		session.SetPhase("links")
-	}
-	linked, err := exec.ApplyFileLinks(p, opts.configDir, progress)
-	if err != nil {
-		errs = append(errs, err)
-	}
-
-	n := taps + formulae + casks + removed + written + linked
+	n := result.Taps + result.Formulae + result.Casks + result.Removed + result.Defaults + result.Linked
 
 	if session != nil {
 		session.Finish(ui.Summary{
-			Taps:     taps,
-			Formulae: formulae,
-			Casks:    casks,
-			Removed:  removed,
-			Defaults: written,
-			Linked:   linked,
-			Renames:  len(renames),
-			Skipped:  len(skipped),
-			Failures: session.FailureCount(),
+			Taps:     result.Taps,
+			Formulae: result.Formulae,
+			Casks:    result.Casks,
+			Removed:  result.Removed,
+			Defaults: result.Defaults,
+			Linked:   result.Linked,
+			Renames:  result.Renames,
+			Skipped:  result.Skipped,
+			Failures: result.Failures,
 		})
 		printCaskRenameAdvice(out, renames)
 		printUnsupportedActions(out, skipped)
 	} else {
-		if taps > 0 {
-			fmt.Fprintf(out, "Added %d tap(s).\n", taps)
+		if result.Taps > 0 {
+			fmt.Fprintf(out, "Added %d tap(s).\n", result.Taps)
 		}
-		if formulae > 0 {
-			fmt.Fprintf(out, "Installed %d formula(s).\n", formulae)
+		if result.Formulae > 0 {
+			fmt.Fprintf(out, "Installed %d formula(s).\n", result.Formulae)
 		}
-		if casks > 0 {
-			fmt.Fprintf(out, "Installed %d cask(s).\n", casks)
+		if result.Casks > 0 {
+			fmt.Fprintf(out, "Installed %d cask(s).\n", result.Casks)
 		}
-		if removed > 0 {
-			fmt.Fprintf(out, "Removed %d package(s).\n", removed)
+		if result.Removed > 0 {
+			fmt.Fprintf(out, "Removed %d package(s).\n", result.Removed)
 		}
-		if written > 0 {
-			fmt.Fprintf(out, "Updated %d macOS default(s).\n", written)
+		if result.Defaults > 0 {
+			fmt.Fprintf(out, "Updated %d macOS default(s).\n", result.Defaults)
 		}
-		if linked > 0 {
-			fmt.Fprintf(out, "Updated %d file link(s).\n", linked)
+		if result.Linked > 0 {
+			fmt.Fprintf(out, "Updated %d file link(s).\n", result.Linked)
 		}
 		printCaskRenameAdvice(out, renames)
 		if len(skipped) > 0 {
 			fmt.Fprintf(out, "Skipped %d action(s) not yet supported by apply:\n", len(skipped))
 			printUnsupportedActions(out, skipped)
 		}
-		if n == 0 && len(skipped) == 0 && len(renames) == 0 && len(errs) == 0 {
+		if n == 0 && len(skipped) == 0 && len(renames) == 0 && err == nil {
 			fmt.Fprintln(out, "No changes.")
 		} else if n == 0 && len(skipped)+len(renames) == len(p.Actions) && len(renames) == 0 {
 			fmt.Fprintln(out, "No actions to apply.")
 		}
 	}
-	return errors.Join(errs...)
+	return err
+}
+
+type stdinConfirmer struct {
+	in  io.Reader
+	out io.Writer
+}
+
+func (c stdinConfirmer) Confirm(prompt string) bool {
+	return exec.ConfirmYes(c.in, c.out, prompt)
 }
 
 func printCaskRenameAdvice(out io.Writer, renames []plan.Action) {
@@ -299,14 +274,4 @@ func persistApplyState(opts applyOptions, p plan.Plan) error {
 	}
 	_ = result
 	return nil
-}
-
-func removeConfirmer(cmd *cobra.Command, autoYes bool) exec.ConfirmRemoves {
-	return func(names []string) bool {
-		if autoYes {
-			return true
-		}
-		prompt := fmt.Sprintf("Uninstall undeclared packages: %s?", strings.Join(names, ", "))
-		return exec.ConfirmYes(cmd.InOrStdin(), cmd.ErrOrStderr(), prompt)
-	}
 }
