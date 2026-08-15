@@ -22,7 +22,7 @@ Auto-launch does **not** run when:
 - stdin/stdout are not a TTY (pipes, scripts)
 - `CI=true` (CI / non-interactive automation)
 
-The Phase 1 TUI home screen covers Plan, Apply, Upgrade, Doctor, and History. **Backup/Restore**, **Import**, and **Config** are still stubs in the menu (CLI remains fully available); self-update from the TUI is Phase 2.
+The TUI is **complete control** for Phase 2: Plan, Apply, Upgrade, Doctor (with opt-in fixes), History, Backup/Restore, Import, Config (iCloud + git), and Self-update. Remaining work is file essentials in Phases 3–5 (`files.managed`, ownership prune, templates).
 
 ## Install
 

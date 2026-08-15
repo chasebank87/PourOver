@@ -8,8 +8,9 @@ Ideas and scope **explicitly deferred from v1**. When we cut v1, anything not do
 
 **V2 progress:**
 - **Phase 0** (reconcile engine façade) — done. `internal/engine` owns BuildPlan, Apply, UpgradePackages, Doctor, Backup, Restore, and Import; the CLI is a thin frontend.
-- **Phase 1** (TUI shell) — landed. Interactive no-args / `pourover tui` launch; home drift summary; Plan, Apply, Upgrade, Doctor, and History views. **Backup/Restore**, **Import**, and **Config** remain TUI stubs (“coming soon”); use the CLI for those.
-- **Phase 2** (TUI complete control) — still needed: Backup/Restore, Import, Config (iCloud + git), self-update from TUI, and opt-in doctor fixes.
+- **Phase 1** (TUI shell) — done. Interactive no-args / `pourover tui` launch; home drift summary; Plan, Apply, Upgrade, Doctor, and History views.
+- **Phase 2** (TUI complete control) — done. Backup/Restore, Import, Config (iCloud + git), self-update from TUI, and opt-in doctor fixes (`f` + y/n; never silent).
+- **Next:** Phase 3 — file essentials (`files.managed`, `files.unlink`, plan/exec).
 
 ---
 
@@ -60,9 +61,9 @@ Ideas and scope **explicitly deferred from v1**. When we cut v1, anything not do
 
 | Item | Deferred from | Notes |
 |------|---------------|-------|
-| Interactive TUI (Bubble Tea) | Design v2 | **Phase 1 shell done** — launch rules + Plan/Apply/Upgrade/Doctor/History. Phase 2: Backup/Import/Config/self-update |
+| Interactive TUI (Bubble Tea) | Design v2 | **Phase 2 done** — full control surface including Backup/Import/Config/self-update and opt-in doctor fixes |
 | Admin dashboard (local web or native macOS) | Design v1 non-goals | Plan JSON shape frozen; TUI is the primary UI for V2 |
-| `doctor` fix mode (auto-repair) | — | Diagnose in CLI + TUI; opt-in fixes planned Phase 2 |
+| `doctor` fix mode (auto-repair) | — | **Done (opt-in)** — TUI `f` + y/n for safe ops (state dir, config scaffold); tips only for brew/iCloud/git |
 | CI / headless apply with `--yes` | M5 | Non-interactive installs/uninstalls; TUI never auto-launches when `CI=true` or non-TTY |
 
 ## Platform
