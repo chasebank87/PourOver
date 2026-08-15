@@ -259,6 +259,9 @@ func (m HomeModel) activate() (tea.Model, tea.Cmd) {
 	case menuHistory:
 		hm := NewHistoryModel(m)
 		return hm, hm.Init()
+	case menuBackupRestore:
+		bm := NewBackupModel(m.configPath, m)
+		return bm, bm.Init()
 	default:
 		m.stub = stubTitle(item)
 		return m, nil
