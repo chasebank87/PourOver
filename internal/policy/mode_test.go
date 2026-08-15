@@ -63,3 +63,29 @@ func TestResolveFileReplace(t *testing.T) {
 		}
 	}
 }
+
+func TestResolveFilesMode(t *testing.T) {
+	cases := []struct {
+		in   string
+		want config.FilesMode
+	}{
+		{"", config.FilesModeSafe},
+		{"safe", config.FilesModeSafe},
+		{"strict", config.FilesModeStrict},
+		{"non_destructive", config.FilesModeNonDestructive},
+		{"bogus", config.FilesModeSafe},
+	}
+	for _, tc := range cases {
+		if got := ResolveFilesMode(tc.in); got != tc.want {
+			t.Errorf("ResolveFilesMode(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+
+	m := config.Manifest{Policy: config.Policy{FilesMode: config.FilesModeStrict}}
+	if got := ResolveFilesModeFromManifest(m); got != config.FilesModeStrict {
+		t.Fatalf("ResolveFilesModeFromManifest = %q, want strict", got)
+	}
+	if got := ResolveFilesModeFromManifest(config.Manifest{}); got != config.FilesModeSafe {
+		t.Fatalf("empty manifest files_mode = %q, want safe", got)
+	}
+}

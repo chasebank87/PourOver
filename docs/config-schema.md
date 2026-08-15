@@ -52,7 +52,7 @@ Each entry:
 - Plan/apply only creates or updates symlinks for declared links.
 - `source` must exist when planning.
 - If `target` exists and is not a symlink → plan error unless `policy.file_replace = "backup"` (or `"force"`), which emits `link_replace` and moves the target aside under `state/backups/files/` before linking.
-- No automatic removal of symlinks absent from config (use `files.unlink` for explicit removals).
+- Undeclared **owned** paths may be pruned when `policy.files_mode` is `safe` or `strict` (see below). Use `files.unlink` for explicit removals.
 - Typical layout: sources under `~/.pourover/config/...`, targets under `~/.config/...`.
 
 `pourover import --files` copies existing home/`~/.config` paths into the config tree, writes `files.links`, and retargets live paths to symlinks (use `--force` if links are already declared).
@@ -92,10 +92,26 @@ files = {
 |-----|----------|------|---------|--------|
 | `uninstall_mode` | no | string | `"safe"` | `safe`, `strict`, `non_destructive` |
 | `file_replace` | no | string | `"error"` | `error`, `backup` (`force` is an alias for `backup`) |
+| `files_mode` | no | string | `"safe"` | `safe`, `strict`, `non_destructive` |
 
 - **safe** — prompt before uninstalling undeclared Homebrew packages/taps (only formulae installed on request; dependency-only packages are ignored; `homebrew/core` / `homebrew/cask` never untapped). A package listed under `formulae` or `casks` counts as declared for either type.
 - **strict** — uninstall undeclared packages/taps without prompting
 - **non_destructive** — never uninstall undeclared packages/taps
+
+### `policy.files_mode`
+
+Controls pruning of **PourOver-owned** file targets that are no longer declared under `files.links` or `files.managed`. Ownership comes from `lock.json` `owned_files` (empty for old locks → no prune). Paths listed in `files.unlink` get `file_unlink` instead and are not also pruned.
+
+- **safe** (default) — plan emits `file_prune`; apply prompts before removing (Phase 4.3)
+- **strict** — plan emits `file_prune`; apply removes without prompting (Phase 4.3)
+- **non_destructive** — never emit prune actions
+
+```lua
+policy = {
+  uninstall_mode = "safe",
+  files_mode = "safe", -- or "strict", or "non_destructive"
+}
+```
 
 ### `policy.file_replace`
 
@@ -116,6 +132,7 @@ Example: `~/Library/Application Support/PourOver/state/backups/files/20260815T05
 ```lua
 policy = {
   uninstall_mode = "safe",
+  files_mode = "safe",
   file_replace = "backup", -- or "error" (default), or "force"
 }
 ```
@@ -192,7 +209,7 @@ local packages = require("packages")
 
 return {
   packages = packages,
-  policy = { uninstall_mode = "safe", file_replace = "error" },
+  policy = { uninstall_mode = "safe", files_mode = "safe", file_replace = "error" },
 }
 ```
 

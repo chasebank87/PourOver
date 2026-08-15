@@ -8,7 +8,7 @@ Top-level object with an `actions` array. Each action:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `type` | string | `formula_install`, `formula_remove`, `formula_upgrade`, `cask_install`, `cask_remove`, `cask_upgrade`, `cask_rename`, `link_create`, `link_update`, `link_replace`, `managed_copy`, `file_unlink`, `defaults_write` |
+| `type` | string | `formula_install`, `formula_remove`, `formula_upgrade`, `cask_install`, `cask_remove`, `cask_upgrade`, `cask_rename`, `link_create`, `link_update`, `link_replace`, `managed_copy`, `file_unlink`, `file_prune`, `defaults_write` |
 | `name` | string | Homebrew package name, link/managed/unlink target path, or `domain key` for defaults |
 | `source` | string | Link or managed source path (as declared in config) |
 | `domain` | string | Apple defaults domain (`defaults_write` only) |
@@ -45,6 +45,7 @@ link create ~/.config/nvim <- config/nvim
 link replace ~/.zshrc <- config/zshrc (backup)
 managed copy ~/.config/foo <- config/foo
 unlink ~/.old-dotfile
+prune file ~/.config/old
 ```
 
 `cask_rename` is advisory only (apply does not mutate); replace the old token in config with the new name.
@@ -53,9 +54,11 @@ unlink ~/.old-dotfile
 
 `managed_copy` and `file_unlink` appear in the plan when discovered; apply copies atomically and unlinks with directory safeguards. Managed copies against unexpected target types (e.g. directories) require `file_replace = "backup"` and are labeled `(backup)` in text output.
 
+`file_prune` appears for PourOver-owned paths (from `lock.json`) that are no longer declared under links/managed when `policy.files_mode` is `safe` or `strict`. `non_destructive` never plans prune. Apply-time confirm vs auto-remove is Phase 4.3.
+
 `pourover upgrade --dry-run` merges upgrade actions (outdated declared packages only) ahead of the normal apply plan.
 
-Plan order: upgrade actions (upgrade command only), then brew install/remove, then macOS `defaults_write`, then file link actions, then managed copies, then unlinks.
+Plan order: upgrade actions (upgrade command only), then brew install/remove, then macOS `defaults_write`, then file link actions, then managed copies, then unlinks, then owned-file prunes.
 
 When there is nothing to do:
 

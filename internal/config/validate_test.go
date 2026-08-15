@@ -48,6 +48,15 @@ func TestValidate_UnknownFileReplace(t *testing.T) {
 	}
 }
 
+func TestValidate_UnknownFilesMode(t *testing.T) {
+	err := Validate(&Manifest{
+		Policy: Policy{UninstallMode: UninstallModeSafe, FilesMode: FilesMode("wipe")},
+	})
+	if err == nil || !strings.Contains(err.Error(), "policy.files_mode") {
+		t.Fatalf("Validate() = %v, want files_mode error", err)
+	}
+}
+
 func TestValidate_FileReplaceForceAlias(t *testing.T) {
 	err := Validate(&Manifest{
 		Policy: Policy{UninstallMode: UninstallModeSafe, FileReplace: FileReplaceMode("force")},

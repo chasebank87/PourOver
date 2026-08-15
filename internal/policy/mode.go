@@ -35,3 +35,19 @@ func ResolveFileReplace(value string) config.FileReplaceMode {
 func ResolveFileReplaceFromManifest(m config.Manifest) config.FileReplaceMode {
 	return ResolveFileReplace(string(m.Policy.FileReplace))
 }
+
+// ResolveFilesMode returns the owned-file prune mode. Empty or unknown values
+// default to safe (prompt before prune at apply time).
+func ResolveFilesMode(value string) config.FilesMode {
+	switch config.FilesMode(value) {
+	case config.FilesModeSafe, config.FilesModeStrict, config.FilesModeNonDestructive:
+		return config.FilesMode(value)
+	default:
+		return config.FilesModeSafe
+	}
+}
+
+// ResolveFilesModeFromManifest reads policy.files_mode from the manifest.
+func ResolveFilesModeFromManifest(m config.Manifest) config.FilesMode {
+	return ResolveFilesMode(string(m.Policy.FilesMode))
+}

@@ -71,6 +71,9 @@ func validatePolicy(p Policy) []error {
 	if p.FileReplace != "" && !isValidFileReplaceMode(p.FileReplace) {
 		errs = append(errs, fmt.Errorf("policy.file_replace: unknown value %q (want error, backup, or force)", p.FileReplace))
 	}
+	if p.FilesMode != "" && !isValidFilesMode(p.FilesMode) {
+		errs = append(errs, fmt.Errorf("policy.files_mode: unknown value %q (want safe, strict, or non_destructive)", p.FilesMode))
+	}
 	return errs
 }
 
@@ -86,6 +89,15 @@ func isValidUninstallMode(m UninstallMode) bool {
 func isValidFileReplaceMode(m FileReplaceMode) bool {
 	switch m {
 	case FileReplaceError, FileReplaceBackup, FileReplaceMode("force"):
+		return true
+	default:
+		return false
+	}
+}
+
+func isValidFilesMode(m FilesMode) bool {
+	switch m {
+	case FilesModeSafe, FilesModeStrict, FilesModeNonDestructive:
 		return true
 	default:
 		return false

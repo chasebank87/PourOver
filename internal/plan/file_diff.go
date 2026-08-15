@@ -2,7 +2,10 @@ package plan
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/chasebank87/PourOver/internal/config"
 	"github.com/chasebank87/PourOver/internal/discovery"
@@ -110,6 +113,88 @@ func BuildUnlinkPlan(statuses []discovery.UnlinkStatus) (Plan, error) {
 	}
 	sort.Slice(actions, func(i, j int) bool { return actions[i].Name < actions[j].Name })
 	return Plan{Actions: actions}, nil
+}
+
+// BuildFilePrunePlan emits file_prune for owned paths not in declaredTargets.
+// declaredTargets should be links.targets ∪ managed.targets ∪ unlink paths
+// (explicit unlink already has its own action — do not also prune).
+// Paths are expanded/normalized to absolute for comparison. Only candidates that
+// still exist on disk are emitted. non_destructive yields an empty plan.
+// Never prunes paths outside owned.
+func BuildFilePrunePlan(owned []string, declaredTargets []string, mode config.FilesMode) Plan {
+	switch mode {
+	case config.FilesModeNonDestructive:
+		return Plan{}
+	case config.FilesModeSafe, config.FilesModeStrict, "":
+		// safe/strict (and empty→safe) both show prune in the plan; apply differs later.
+	default:
+		// Unknown modes are treated like safe for planning after validation.
+	}
+	if len(owned) == 0 {
+		return Plan{}
+	}
+
+	declared := make(map[string]struct{}, len(declaredTargets))
+	for _, target := range declaredTargets {
+		abs, err := normalizeFilePath(target)
+		if err != nil || abs == "" {
+			continue
+		}
+		declared[abs] = struct{}{}
+	}
+
+	var actions []Action
+	for _, path := range owned {
+		abs, err := normalizeFilePath(path)
+		if err != nil || abs == "" {
+			continue
+		}
+		if _, ok := declared[abs]; ok {
+			continue
+		}
+		if _, err := os.Lstat(abs); err != nil {
+			continue
+		}
+		actions = append(actions, Action{Type: ActionFilePrune, Name: abs})
+	}
+	sort.Slice(actions, func(i, j int) bool { return actions[i].Name < actions[j].Name })
+	return Plan{Actions: actions}
+}
+
+func normalizeFilePath(path string) (string, error) {
+	expanded, err := expandHomePath(path)
+	if err != nil {
+		return "", err
+	}
+	if expanded == "" {
+		return "", nil
+	}
+	if !filepath.IsAbs(expanded) {
+		abs, err := filepath.Abs(expanded)
+		if err != nil {
+			return "", err
+		}
+		return filepath.Clean(abs), nil
+	}
+	return filepath.Clean(expanded), nil
+}
+
+func expandHomePath(path string) (string, error) {
+	if path == "~" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		return home, nil
+	}
+	if strings.HasPrefix(path, "~/") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		return filepath.Join(home, path[2:]), nil
+	}
+	return path, nil
 }
 
 // MergePlans concatenates plans in order (brew first, then files).

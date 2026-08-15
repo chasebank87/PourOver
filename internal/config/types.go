@@ -85,10 +85,20 @@ const (
 	FileReplaceBackup FileReplaceMode = "backup"
 )
 
+// FilesMode mirrors uninstall_mode for PourOver-owned file prune.
+type FilesMode string
+
+const (
+	FilesModeSafe           FilesMode = "safe"
+	FilesModeStrict         FilesMode = "strict"
+	FilesModeNonDestructive FilesMode = "non_destructive"
+)
+
 // Policy holds safety and behavior options.
 type Policy struct {
 	UninstallMode UninstallMode   `json:"uninstall_mode"`
 	FileReplace   FileReplaceMode `json:"file_replace,omitempty"`
+	FilesMode     FilesMode       `json:"files_mode,omitempty"` // default safe
 }
 
 // Backup configures snapshot mirroring and config git sync.
