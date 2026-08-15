@@ -23,6 +23,9 @@ type stubBrewRunner struct {
 }
 
 func (s *stubBrewRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
+	if len(args) == 1 && args[0] == "--prefix" {
+		return []byte("/opt/homebrew\n"), nil
+	}
 	if len(args) == 2 && args[0] == "--prefix" {
 		return []byte("/opt/homebrew/opt/" + args[1] + "\n"), nil
 	}

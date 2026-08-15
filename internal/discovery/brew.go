@@ -182,16 +182,24 @@ func isBrewMutation(args []string) bool {
 	}
 }
 
-// BrewPrefix returns the Homebrew prefix for formula via `brew --prefix <formula>`.
+// BrewPrefix returns the Homebrew prefix via `brew --prefix` or
+// `brew --prefix <formula>` when formula is non-empty.
 // Works for installed and (typically) uninstalled formulae; stub in unit tests.
+// Pass an empty formula for the Homebrew root prefix (e.g. /opt/homebrew).
 func BrewPrefix(ctx context.Context, runner Runner, formula string) (string, error) {
-	out, err := runner.Run(ctx, "--prefix", formula)
+	args := []string{"--prefix"}
+	label := "brew --prefix"
+	if formula != "" {
+		args = append(args, formula)
+		label = "brew --prefix " + formula
+	}
+	out, err := runner.Run(ctx, args...)
 	if err != nil {
-		return "", fmt.Errorf("brew --prefix %s: %w", formula, err)
+		return "", fmt.Errorf("%s: %w", label, err)
 	}
 	prefix := strings.TrimSpace(string(out))
 	if prefix == "" {
-		return "", fmt.Errorf("brew --prefix %s: empty output", formula)
+		return "", fmt.Errorf("%s: empty output", label)
 	}
 	return prefix, nil
 }

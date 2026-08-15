@@ -1,6 +1,8 @@
 package pam
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -88,7 +90,7 @@ func TestRenderSudoLocal_OrderOmitsDisabled(t *testing.T) {
 	}
 }
 
-func TestRenderSudoLocal_EmptyWhenDisabledOrUnconfigured(t *testing.T) {
+func TestRenderSudoLocal_DisabledStubOrUnconfigured(t *testing.T) {
 	reattach := "/opt/homebrew/lib/pam/pam_reattach.so"
 	watchid := "/opt/homebrew/lib/pam/pam_watchid.so"
 
@@ -97,8 +99,15 @@ func TestRenderSudoLocal_EmptyWhenDisabledOrUnconfigured(t *testing.T) {
 		Enable:      false,
 		TouchIDAuth: true,
 	}
-	if got := RenderSudoLocal(disabled, reattach, watchid); got != "" {
-		t.Errorf("Enable=false: got %q, want empty", got)
+	got := RenderSudoLocal(disabled, reattach, watchid)
+	if got != DisabledSudoLocal {
+		t.Errorf("Enable=false: got %q, want stub %q", got, DisabledSudoLocal)
+	}
+	if strings.Contains(got, "\nauth ") || strings.HasPrefix(got, "auth ") {
+		t.Errorf("disabled stub must not contain auth lines:\n%s", got)
+	}
+	if !IsPourOverManaged([]byte(got)) {
+		t.Error("disabled stub must be PourOver-managed")
 	}
 
 	unconfigured := config.SudoLocalPAM{
@@ -122,6 +131,38 @@ func TestHasSudoLocalInclude(t *testing.T) {
 	}
 }
 
+func TestFindModule_InjectableCandidates(t *testing.T) {
+	root := t.TempDir()
+	missing := filepath.Join(root, "missing.so")
+	found := filepath.Join(root, "pam_watchid.so")
+	if err := os.WriteFile(found, []byte("so"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, ok := FindModule([]string{missing, found})
+	if !ok || got != found {
+		t.Fatalf("FindModule = %q,%v want %q,true", got, ok, found)
+	}
+	if _, ok := FindModule([]string{missing}); ok {
+		t.Fatal("expected not found")
+	}
+}
+
+func TestDefaultWatchIDSearchPaths(t *testing.T) {
+	paths := DefaultWatchIDSearchPaths("/opt/homebrew")
+	wantFirst := "/opt/homebrew/lib/pam/pam_watchid.so"
+	if len(paths) == 0 || paths[0] != wantFirst {
+		t.Fatalf("paths[0] = %v, want %q first", paths, wantFirst)
+	}
+	joined := strings.Join(paths, "\n")
+	for _, s := range []string{
+		"/opt/homebrew/lib/pam/pam_watchid.so.2",
+		"/usr/local/lib/pam/pam_watchid.so",
+	} {
+		if !strings.Contains(joined, s) {
+			t.Errorf("missing candidate %s in %v", s, paths)
+		}
+	}
+}
 
 func nonEmptyLines(s string) []string {
 	var out []string

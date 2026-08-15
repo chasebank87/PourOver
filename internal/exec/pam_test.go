@@ -11,7 +11,7 @@ import (
 	"github.com/chasebank87/PourOver/internal/plan"
 )
 
-func TestApplyPAM_WriteAndRemove(t *testing.T) {
+func TestApplyPAM_WriteAndDisableStub(t *testing.T) {
 	root := t.TempDir()
 	sudoLocal := filepath.Join(root, "sudo_local")
 	sudoPath := filepath.Join(root, "sudo")
@@ -50,6 +50,7 @@ func TestApplyPAM_WriteAndRemove(t *testing.T) {
 		t.Fatalf("sudo missing include:\n%s", sudoGot)
 	}
 
+	// Legacy remove action writes disabled stub (does not delete).
 	removePlan := plan.Plan{Actions: []plan.Action{
 		{Type: plan.ActionPAMSudoLocalRemove, Name: sudoLocal},
 	}}
@@ -58,13 +59,17 @@ func TestApplyPAM_WriteAndRemove(t *testing.T) {
 		SudoPath:      sudoPath,
 	}, nil)
 	if err != nil {
-		t.Fatalf("ApplyPAM remove: %v", err)
+		t.Fatalf("ApplyPAM remove→stub: %v", err)
 	}
 	if n != 1 {
 		t.Fatalf("remove n = %d, want 1", n)
 	}
-	if _, err := os.Stat(sudoLocal); !os.IsNotExist(err) {
-		t.Fatalf("sudo_local still present: %v", err)
+	got, err = os.ReadFile(sudoLocal)
+	if err != nil {
+		t.Fatalf("sudo_local should remain as stub: %v", err)
+	}
+	if string(got) != pam.DisabledSudoLocal {
+		t.Fatalf("sudo_local = %q, want disabled stub", got)
 	}
 }
 

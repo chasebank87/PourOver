@@ -9,7 +9,7 @@ import (
 	"github.com/chasebank87/PourOver/internal/pam"
 )
 
-func TestExpandPAMFormulae_AddsMissingWhenFlagsEnabled(t *testing.T) {
+func TestExpandPAMFormulae_AddsReattachOnly(t *testing.T) {
 	cfg := config.SudoLocalPAM{
 		Configured:  true,
 		Enable:      true,
@@ -17,9 +17,9 @@ func TestExpandPAMFormulae_AddsMissingWhenFlagsEnabled(t *testing.T) {
 		WatchIDAuth: true,
 	}
 	got := ExpandPAMFormulae(config.Packages{Formulae: []string{"git"}}, cfg)
-	want := []string{"git", "pam-reattach", "pam-watchid"}
+	want := []string{"git", "pam-reattach"}
 	if !equalStrings(got.Formulae, want) {
-		t.Fatalf("Formulae = %v, want %v", got.Formulae, want)
+		t.Fatalf("Formulae = %v, want %v (pam-watchid is not a brew core formula)", got.Formulae, want)
 	}
 }
 
@@ -102,15 +102,18 @@ func TestBuildPAMPlan_EnablePlusImpliedFormulaInstalls(t *testing.T) {
 	merged := MergePlans(brewPlan, pamPlan)
 
 	formulae := ActionNames(merged, ActionFormulaInstall)
-	if !containsAll(formulae, "pam-reattach", "pam-watchid") {
-		t.Fatalf("formula installs = %v, want pam-reattach and pam-watchid", formulae)
+	if !containsAll(formulae, "pam-reattach") {
+		t.Fatalf("formula installs = %v, want pam-reattach", formulae)
+	}
+	if containsAll(formulae, "pam-watchid") {
+		t.Fatalf("formula installs = %v, must not auto-add pam-watchid", formulae)
 	}
 	if types := ActionTypes(pamPlan); len(types) != 1 || types[0] != ActionPAMSudoLocalWrite {
 		t.Fatalf("pam types = %v, want write only (include present)", types)
 	}
 }
 
-func TestBuildPAMPlan_EnableFalseManagedRemove(t *testing.T) {
+func TestBuildPAMPlan_EnableFalseManagedWritesStub(t *testing.T) {
 	cfg := config.SudoLocalPAM{Configured: true, Enable: false}
 	managed := pam.ManagedMarker + "\nauth sufficient pam_tid.so\n"
 	p := BuildPAMPlan(PAMDiffInput{
@@ -119,15 +122,46 @@ func TestBuildPAMPlan_EnableFalseManagedRemove(t *testing.T) {
 		SudoLocalContent: []byte(managed),
 		SudoLocalExists:  true,
 	})
-	if types := ActionTypes(p); len(types) != 1 || types[0] != ActionPAMSudoLocalRemove {
-		t.Fatalf("types = %v, want [pam_sudo_local_remove]", types)
+	if types := ActionTypes(p); len(types) != 1 || types[0] != ActionPAMSudoLocalWrite {
+		t.Fatalf("types = %v, want [pam_sudo_local_write]", types)
 	}
 	if p.Actions[0].Name != "/tmp/sudo_local" {
 		t.Fatalf("Name = %q", p.Actions[0].Name)
 	}
+	if p.Actions[0].Value != pam.DisabledSudoLocal {
+		t.Fatalf("Value = %q, want disabled stub", p.Actions[0].Value)
+	}
 }
 
-func TestBuildPAMPlan_EnableFalseUnmanagedNoRemove(t *testing.T) {
+func TestBuildPAMPlan_EnableFalseMissingWritesStub(t *testing.T) {
+	cfg := config.SudoLocalPAM{Configured: true, Enable: false}
+	p := BuildPAMPlan(PAMDiffInput{
+		Config:          cfg,
+		SudoLocalPath:   "/tmp/sudo_local",
+		SudoLocalExists: false,
+	})
+	if types := ActionTypes(p); len(types) != 1 || types[0] != ActionPAMSudoLocalWrite {
+		t.Fatalf("types = %v, want write stub when missing", types)
+	}
+	if p.Actions[0].Value != pam.DisabledSudoLocal {
+		t.Fatalf("Value = %q, want stub", p.Actions[0].Value)
+	}
+}
+
+func TestBuildPAMPlan_EnableFalseAlreadyStubNoop(t *testing.T) {
+	cfg := config.SudoLocalPAM{Configured: true, Enable: false}
+	p := BuildPAMPlan(PAMDiffInput{
+		Config:           cfg,
+		SudoLocalPath:    "/tmp/sudo_local",
+		SudoLocalContent: []byte(pam.DisabledSudoLocal),
+		SudoLocalExists:  true,
+	})
+	if len(p.Actions) != 0 {
+		t.Fatalf("actions = %+v, want none when already stub", p.Actions)
+	}
+}
+
+func TestBuildPAMPlan_EnableFalseUnmanagedNoWrite(t *testing.T) {
 	cfg := config.SudoLocalPAM{Configured: true, Enable: false}
 	p := BuildPAMPlan(PAMDiffInput{
 		Config:           cfg,

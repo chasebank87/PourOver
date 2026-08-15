@@ -266,25 +266,26 @@ Manages `/etc/pam.d/sudo_local` for Touch ID / Apple Watch / tmux reattach (nix-
 
 | Key | Required | Type | Default | Description |
 |-----|----------|------|---------|-------------|
-| `enable` | no | boolean | `true` when the table is present | When `false`, remove a PourOver-managed `sudo_local` file (marker `# pourover: managed`) |
+| `enable` | no | boolean | `true` when the table is present | When `false`, write a managed stub (marker + disabled comment, no auth lines) instead of deleting — keeps `auth include sudo_local` safe |
 | `reattach` | no | boolean | `false` | Emit `pam_reattach` line; auto-adds formula `pam-reattach` |
 | `touch_id_auth` | no | boolean | `false` | Emit `auth sufficient pam_tid.so` |
-| `watch_id_auth` | no | boolean | `false` | Emit `pam_watchid` line; auto-adds formula `pam-watchid` |
+| `watch_id_auth` | no | boolean | `false` | Emit `pam_watchid` line; resolves `pam_watchid.so` from common paths (not a Homebrew core formula — install manually, e.g. mostlygeek/pam-watchid) |
 
 **Behavior:**
 
-- Plan order includes brew first so implied PAM formulae install before PAM file writes.
+- Plan order includes brew first so implied PAM formulae (`pam-reattach` only) install before PAM file writes.
 - Desired file starts with `# pourover: managed`, then lines in nix-darwin order: optional reattach → sufficient Touch ID → sufficient Watch ID.
 - Ensures `auth include sudo_local` in `/etc/pam.d/sudo` when enabling.
 - Writes under `/etc` need **admin** (`sudo` on apply). Pre-existing non-managed `sudo_local` is backed up then replaced when enabling.
-- `enable = false` only removes the file when it is PourOver-managed; omitted table leaves any existing file alone.
+- `enable = false` writes/replaces a PourOver-managed stub (or creates one if missing/empty); unmanaged non-empty files are left alone. Omitted table leaves any existing file alone.
+- `watch_id_auth` fails plan/apply with a clear error if `pam_watchid.so` is not found under the Homebrew prefix `lib/pam` or `/opt/homebrew|/usr/local/lib/pam`.
 
 ```lua
 macos = {
   security = {
     pam = {
       sudo_local = {
-        enable = true, -- default when table present; set false to remove managed file
+        enable = true, -- default when table present; set false to write disabled stub
         reattach = true,
         touch_id_auth = true,
         watch_id_auth = true,

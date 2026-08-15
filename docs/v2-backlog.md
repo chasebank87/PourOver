@@ -86,7 +86,7 @@ Ideas and scope **explicitly deferred from v1**. When we cut v1, anything not do
 | ByHost control-center (full UUID path) | nix-darwin controlcenter | Catalog writes `com.apple.controlcenter`; ByHost path not used |
 | CustomSystemPreferences (sudo `/Library/Preferences` escape hatch) | nix-darwin | `loginwindow`/`smb`/`SoftwareUpdate` are named sections; arbitrary system domains still user-only via `custom` |
 | `pourover import macos` snapshot curated keys | — | **Done** — curated catalog → `macos.lua`; `--force` / `--dry-run`; expand via `macos_catalog.yaml` |
-| nix-darwin `security.pam.sudo_local` | MyNixOS security | **Done** — `macos.security.pam.sudo_local`; managed `/etc/pam.d/sudo_local`; auto `pam-reattach` / `pam-watchid`; admin `/etc` writes |
+| nix-darwin `security.pam.sudo_local` | MyNixOS security | **Done** — `macos.security.pam.sudo_local`; managed `/etc/pam.d/sudo_local`; auto `pam-reattach`; `pam-watchid` via path search (not brew core); admin `/etc` writes |
 | nix-darwin `launchd` / `services` / `programs` / other PAM | MyNixOS full tree | Indexed in `docs/nix-darwin-options.md`; arbitrary PAM services beyond `sudo_local` still deferred |
 | Import discovering current PAM into Lua | trusted-taps-sudo-pam follow-up | Config is hand-authored; no `import` for PAM yet |
 | TUI settings for PAM / tap trust | trusted-taps-sudo-pam follow-up | CLI/plan/apply only |

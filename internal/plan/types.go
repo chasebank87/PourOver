@@ -22,8 +22,8 @@ const (
 	ActionFileUnlink         ActionType = "file_unlink"
 	ActionFilePrune          ActionType = "file_prune" // owned path no longer declared
 	ActionDefaultsWrite      ActionType = "defaults_write"
-	ActionPAMSudoLocalWrite  ActionType = "pam_sudo_local_write"  // Value = desired sudo_local body
-	ActionPAMSudoLocalRemove ActionType = "pam_sudo_local_remove" // remove managed sudo_local
+	ActionPAMSudoLocalWrite  ActionType = "pam_sudo_local_write"  // Value = desired sudo_local body (or disabled stub)
+	ActionPAMSudoLocalRemove ActionType = "pam_sudo_local_remove" // legacy: apply writes disabled stub (does not delete)
 	ActionPAMSudoInclude     ActionType = "pam_sudo_include"      // ensure auth include sudo_local in sudo
 )
 

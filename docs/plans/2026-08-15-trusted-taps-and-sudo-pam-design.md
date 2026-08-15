@@ -16,8 +16,8 @@ Declarative parity with nix-darwin for:
 |-------|--------|
 | Scope | Both features |
 | Tap trust default | Opt-out: string or table defaults `trusted = true`; `trusted = false` skips `brew trust` |
-| PAM formulae | Auto-require `pam-reattach` / `pam-watchid` when flags enabled |
-| Disable semantics | Omitted `sudo_local` = unmanaged; `enable = false` removes managed file |
+| PAM formulae | Auto-require `pam-reattach` when reattach enabled; resolve `pam_watchid.so` via path search (not brew core) |
+| Disable semantics | Omitted `sudo_local` = unmanaged; `enable = false` writes managed stub (keeps include safe) |
 | Approach | Dedicated domains (tap schema + security reconciler), not `files.managed` hacks |
 
 ## Non-goals
@@ -66,7 +66,7 @@ macos = {
 
 ```text
 macos.security.pam.sudo_local
-  → ensure formulae (pam-reattach / pam-watchid) in brew plan
+  → ensure formula pam-reattach in brew plan when reattach; resolve pam_watchid.so from common paths when watch_id_auth
   → desired /etc/pam.d/sudo_local text
   → ensure `auth include sudo_local` in /etc/pam.d/sudo
   → apply after brew installs; admin write

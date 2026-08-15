@@ -89,7 +89,7 @@ Install the corresponding brew formula/cask in `packages`; PourOver does not gen
 
 | nix-darwin | PourOver |
 |------------|----------|
-| `security.pam.sudo_local` | `macos.security.pam.sudo_local` — manages `/etc/pam.d/sudo_local` + sudo include; auto formulae `pam-reattach` / `pam-watchid`; admin on apply |
+| `security.pam.sudo_local` | `macos.security.pam.sudo_local` — manages `/etc/pam.d/sudo_local` + sudo include; auto formula `pam-reattach`; `pam-watchid` resolved from common paths (manual install); admin on apply |
 | Other `security.*` (PKI, sandbox, …) | index-only |
 
 See [config-schema.md](config-schema.md) for Lua flags (`enable`, `reattach`, `touch_id_auth`, `watch_id_auth`).

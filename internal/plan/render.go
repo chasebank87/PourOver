@@ -80,7 +80,7 @@ func formatActionLine(a Action) string {
 	case ActionPAMSudoLocalWrite:
 		return fmt.Sprintf("pam write %s", a.Name)
 	case ActionPAMSudoLocalRemove:
-		return fmt.Sprintf("pam remove %s", a.Name)
+		return fmt.Sprintf("pam disable stub %s", a.Name)
 	case ActionPAMSudoInclude:
 		return fmt.Sprintf("pam include sudo_local in %s", a.Name)
 	default:

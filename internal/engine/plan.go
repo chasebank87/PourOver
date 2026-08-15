@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/chasebank87/PourOver/internal/config"
 	"github.com/chasebank87/PourOver/internal/discovery"
@@ -159,11 +160,14 @@ func resolvePAMModulePaths(ctx context.Context, runner discovery.Runner, cfg con
 		reattach = pam.ModulePath(prefix, "pam_reattach.so")
 	}
 	if cfg.WatchIDAuth {
-		prefix, err := discovery.BrewPrefix(ctx, runner, "pam-watchid")
-		if err != nil {
-			return "", "", err
+		// pam-watchid is not a Homebrew core formula; search common install paths.
+		brewRoot, _ := discovery.BrewPrefix(ctx, runner, "")
+		candidates := pam.DefaultWatchIDSearchPaths(brewRoot)
+		found, ok := pam.FindModule(candidates)
+		if !ok {
+			return "", "", fmt.Errorf("watch_id_auth is enabled but pam_watchid.so was not found (searched: %s); install pam-watchid manually (e.g. mostlygeek/pam-watchid) — it is not a Homebrew core formula", strings.Join(candidates, ", "))
 		}
-		watchid = pam.ModulePath(prefix, "pam_watchid.so")
+		watchid = found
 	}
 	return reattach, watchid, nil
 }

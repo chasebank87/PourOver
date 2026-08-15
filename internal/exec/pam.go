@@ -46,6 +46,8 @@ func (o PAMApplyOptions) sudoPath(actionName string) string {
 
 // ApplyPAM applies pam_sudo_local_write, pam_sudo_local_remove, and
 // pam_sudo_include actions. Call after formula installs so pam_*.so modules exist.
+// pam_sudo_local_remove is legacy: it writes the disabled stub instead of
+// deleting, so `auth include sudo_local` stays safe. New plans use write+stub.
 // Returns how many actions succeeded; error is joined failures.
 func ApplyPAM(ctx context.Context, p plan.Plan, opts PAMApplyOptions, progress Progress) (int, error) {
 	n := 0
@@ -62,7 +64,8 @@ func ApplyPAM(ctx context.Context, p plan.Plan, opts PAMApplyOptions, progress P
 		case plan.ActionPAMSudoLocalWrite:
 			err = writeSudoLocal(ctx, opts.sudoLocalPath(a.Name), a.Value)
 		case plan.ActionPAMSudoLocalRemove:
-			err = removeSudoLocal(ctx, opts.sudoLocalPath(a.Name))
+			// Prefer stub over delete: keep include-safe empty managed file.
+			err = writeSudoLocal(ctx, opts.sudoLocalPath(a.Name), pam.DisabledSudoLocal)
 		case plan.ActionPAMSudoInclude:
 			err = ensureSudoLocalInclude(ctx, opts.sudoPath(a.Name))
 		}
@@ -84,15 +87,6 @@ func writeSudoLocal(ctx context.Context, path, body string) error {
 		return err
 	}
 	return writeElevatedFile(ctx, path, []byte(body), 0o644)
-}
-
-func removeSudoLocal(ctx context.Context, path string) error {
-	if _, err := os.Lstat(path); os.IsNotExist(err) {
-		return nil
-	} else if err != nil {
-		return fmt.Errorf("pam sudo_local remove %s: %w", path, err)
-	}
-	return removeElevated(ctx, path)
 }
 
 func ensureSudoLocalInclude(ctx context.Context, path string) error {
@@ -151,6 +145,7 @@ func backupUnmanagedSudoLocal(ctx context.Context, path string) error {
 // validatePAMModulePaths ensures auth lines that reference absolute .so modules
 // point at existing files, and that optional/sufficient lines include a module.
 // System modules like pam_tid.so (no directory) are not checked on disk.
+// Versioned suffixes such as pam_watchid.so.2 are included.
 func validatePAMModulePaths(body string) error {
 	for _, line := range strings.Split(body, "\n") {
 		fields := strings.Fields(line)
@@ -168,7 +163,8 @@ func validatePAMModulePaths(body string) error {
 		if !strings.Contains(mod, "/") {
 			continue // e.g. pam_tid.so
 		}
-		if !strings.HasSuffix(mod, ".so") {
+		base := filepath.Base(mod)
+		if !strings.Contains(base, ".so") {
 			continue
 		}
 		if _, err := os.Stat(mod); err != nil {
@@ -187,20 +183,6 @@ func writeElevatedFile(ctx context.Context, path string, data []byte, mode os.Fi
 	}
 	if err := os.WriteFile(path, data, mode); err != nil {
 		return fmt.Errorf("pam write %s: %w", path, err)
-	}
-	return nil
-}
-
-func removeElevated(ctx context.Context, path string) error {
-	if needsElevation(path) {
-		cmd := exec.CommandContext(ctx, "sudo", "rm", "-f", path)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("pam remove %s (sudo): %w: %s", path, err, strings.TrimSpace(string(out)))
-		}
-		return nil
-	}
-	if err := os.Remove(path); err != nil {
-		return fmt.Errorf("pam remove %s: %w", path, err)
 	}
 	return nil
 }
