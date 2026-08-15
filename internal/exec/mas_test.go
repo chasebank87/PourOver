@@ -10,9 +10,10 @@ import (
 )
 
 type recordingMasRunner struct {
-	calls     []string
-	failIDs   map[string]bool
-	failUnins map[string]bool
+	calls       []string
+	failIDs     map[string]bool
+	failUnins   map[string]bool
+	failUpgrade map[string]bool
 }
 
 func (r *recordingMasRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
@@ -23,6 +24,9 @@ func (r *recordingMasRunner) Run(ctx context.Context, args ...string) ([]byte, e
 	}
 	if len(args) == 2 && args[0] == "uninstall" && r.failUnins[args[1]] {
 		return nil, fmt.Errorf("mas uninstall failed")
+	}
+	if len(args) == 2 && args[0] == "upgrade" && r.failUpgrade[args[1]] {
+		return nil, fmt.Errorf("mas upgrade failed")
 	}
 	return nil, nil
 }

@@ -25,9 +25,18 @@ func UpgradeCask(ctx context.Context, runner discovery.Runner, name string) erro
 	return nil
 }
 
-// ApplyUpgrades runs formula_upgrade and cask_upgrade actions in plan order.
+// UpgradeMas runs `mas upgrade <id>`.
+func UpgradeMas(ctx context.Context, runner discovery.MasRunner, id string) error {
+	if _, err := runner.Run(ctx, "upgrade", id); err != nil {
+		return fmt.Errorf("mas upgrade %s: %w", id, err)
+	}
+	return nil
+}
+
+// ApplyUpgrades runs formula_upgrade, cask_upgrade, and mas_upgrade actions in plan order.
 // Per-package failures are collected; remaining upgrades still run.
-func ApplyUpgrades(ctx context.Context, runner discovery.Runner, p plan.Plan, progress Progress) (int, error) {
+// When masRunner is nil and a mas_upgrade is encountered, NewExecMasRunner is used.
+func ApplyUpgrades(ctx context.Context, runner discovery.Runner, masRunner discovery.MasRunner, p plan.Plan, progress Progress) (int, error) {
 	n := 0
 	var errs []error
 	for _, a := range p.Actions {
@@ -39,6 +48,12 @@ func ApplyUpgrades(ctx context.Context, runner discovery.Runner, p plan.Plan, pr
 		case plan.ActionCaskUpgrade:
 			report(progress, a)
 			err = UpgradeCask(ctx, runner, a.Name)
+		case plan.ActionMasUpgrade:
+			if masRunner == nil {
+				masRunner = discovery.NewExecMasRunner()
+			}
+			report(progress, a)
+			err = UpgradeMas(ctx, masRunner, a.Value)
 		default:
 			continue
 		}

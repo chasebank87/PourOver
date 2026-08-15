@@ -51,7 +51,7 @@ func TestBuildUpgradePlan_FromFixture(t *testing.T) {
 		outdatedCasks:    "raycast\n",
 		outdatedSet:      true,
 	}
-	p, err := BuildUpgradePlan(context.Background(), configPath, runner)
+	p, err := BuildUpgradePlan(context.Background(), configPath, runner, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

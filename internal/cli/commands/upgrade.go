@@ -72,7 +72,7 @@ func runUpgrade(cmd *cobra.Command, dryRun, autoYes, skipSelf, quiet bool) error
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
-	upgradePlan, err := engine.BuildUpgradePlan(cmd.Context(), configPath, runner)
+	upgradePlan, err := engine.BuildUpgradePlan(cmd.Context(), configPath, runner, nil)
 	if err != nil {
 		return err
 	}
@@ -148,5 +148,5 @@ func runUpgrade(cmd *cobra.Command, dryRun, autoYes, skipSelf, quiet bool) error
 
 // buildUpgradePlanForTest is used by tests with a custom runner.
 func buildUpgradePlanForTest(ctx context.Context, configPath string, runner discovery.Runner) (plan.Plan, error) {
-	return engine.BuildUpgradePlan(ctx, configPath, runner)
+	return engine.BuildUpgradePlan(ctx, configPath, runner, nil)
 }

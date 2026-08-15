@@ -209,7 +209,7 @@ func runUpgradeFlow(
 	send func(tea.Msg),
 	sendDone func(string, error),
 ) {
-	upPlan, err := engine.BuildUpgradePlan(ctx, m.configPath, runner)
+	upPlan, err := engine.BuildUpgradePlan(ctx, m.configPath, runner, nil)
 	if err != nil {
 		sendDone("", err)
 		return
