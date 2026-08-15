@@ -14,6 +14,9 @@ const (
 	ActionCaskRemove         ActionType = "cask_remove"
 	ActionCaskUpgrade        ActionType = "cask_upgrade"
 	ActionCaskRename         ActionType = "cask_rename" // advise: Name is old token, Value is new token
+	ActionMasInstall         ActionType = "mas_install"
+	ActionMasRemove          ActionType = "mas_remove"
+	ActionMasUpgrade         ActionType = "mas_upgrade"
 	ActionLinkCreate         ActionType = "link_create"
 	ActionLinkUpdate         ActionType = "link_update"
 	ActionLinkReplace        ActionType = "link_replace" // backup existing target, then create link
