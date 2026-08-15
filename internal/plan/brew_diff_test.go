@@ -243,6 +243,26 @@ func TestBuildBrewPlan_RemovesOnlyRequestedUndeclared(t *testing.T) {
 	}
 }
 
+func TestBuildBrewPlan_SkipsOnRequestDepsOfDesired(t *testing.T) {
+	// mongodb-database-tools is installed-on-request but required by declared mongodb-community.
+	plan := BuildBrewPlan(
+		config.Packages{Formulae: []string{"mongodb-community"}},
+		discovery.BrewState{
+			Formulae: []string{
+				"mongodb-community", "mongodb-database-tools", "openssl@3", "wget",
+			},
+			FormulaeRequested: []string{"mongodb-community", "mongodb-database-tools", "wget"},
+			ProtectedFormulae: []string{
+				"mongodb/brew/mongodb-database-tools",
+				"openssl@3",
+			},
+		},
+	)
+	if names := ActionNames(plan, ActionFormulaRemove); len(names) != 1 || names[0] != "wget" {
+		t.Fatalf("formula removes = %v, want only [wget] (tools protected as dep)", names)
+	}
+}
+
 func TestBuildBrewPlan_ColumnarListDoesNotFalseInstall(t *testing.T) {
 	// After whitespace-splitting a remote multi-column `brew list --cask` grid,
 	// already-installed declared casks must not be planned for install.

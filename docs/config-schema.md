@@ -156,7 +156,7 @@ files = {
 | `file_replace` | no | string | `"error"` | `error`, `backup` (`force` is an alias for `backup`) |
 | `files_mode` | no | string | `"safe"` | `safe`, `strict`, `non_destructive` |
 
-- **safe** — prompt before uninstalling undeclared Homebrew packages/taps (only formulae installed on request; dependency-only packages are ignored; `homebrew/core` / `homebrew/cask` never untapped). A package listed under `formulae` or `casks` counts as declared for either type.
+- **safe** — prompt before uninstalling undeclared Homebrew packages/taps (only formulae installed on request; dependency-only packages are ignored; formulae that are runtime deps of *declared* formulae are never removed, even if also installed on request; `homebrew/core` / `homebrew/cask` never untapped). A package listed under `formulae` or `casks` counts as declared for either type.
 - **strict** — uninstall undeclared packages/taps without prompting
 - **non_destructive** — never uninstall undeclared packages/taps
 

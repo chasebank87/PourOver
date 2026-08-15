@@ -16,6 +16,10 @@ type BrewState struct {
 	// Used for undeclared-package remove planning. Nil means "same as Formulae"
 	// (test / fallback behavior).
 	FormulaeRequested []string
+	// ProtectedFormulae are runtime dependencies of desired formulae (from
+	// `brew deps --union`). They are never planned for removal even when also
+	// installed-on-request. Matched by short name (tap prefix stripped).
+	ProtectedFormulae []string
 	// Casks is every installed cask.
 	Casks []string
 	// OutdatedFormulae / OutdatedCasks are set when DiscoverOutdated has run.
@@ -81,4 +85,14 @@ func DeclarableTaps(taps []string) []string {
 
 func brewToken(name string) string {
 	return strings.ToLower(strings.TrimSpace(name))
+}
+
+// PackageKey normalizes a brew token for presence/remove matching: lowercase
+// with tap prefix stripped (`mongodb/brew/foo` → `foo`).
+func PackageKey(name string) string {
+	t := brewToken(name)
+	if i := strings.LastIndex(t, "/"); i >= 0 {
+		return t[i+1:]
+	}
+	return t
 }

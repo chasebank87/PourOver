@@ -19,6 +19,8 @@ import (
 //
 // Action order is stable: tap adds, tap trusts, formula installs, cask installs,
 // tap removes, formula removes, cask removes; each group sorted alphabetically.
+// Formula removes never include runtime deps of desired formulae
+// (BrewState.ProtectedFormulae from `brew deps --union`).
 func BuildBrewPlan(desired config.Packages, current discovery.BrewState) Plan {
 	var actions []Action
 
@@ -64,7 +66,11 @@ func BuildBrewPlan(desired config.Packages, current discovery.BrewState) Plan {
 	for _, name := range sortedMissingFromSet(current.RemovableTaps(), sliceSet(desired.TapNames())) {
 		actions = append(actions, Action{Type: ActionTapRemove, Name: brewToken(name)})
 	}
+	protected := packageKeySet(current.ProtectedFormulae)
 	for _, name := range sortedMissingFromSet(current.RemovableFormulae(), desiredAny) {
+		if _, ok := protected[discovery.PackageKey(name)]; ok {
+			continue
+		}
 		actions = append(actions, Action{Type: ActionFormulaRemove, Name: name})
 	}
 	for _, name := range sortedMissingFromSet(current.Casks, desiredAny) {
@@ -107,6 +113,18 @@ func sliceSet(items []string) map[string]struct{} {
 	set := make(map[string]struct{}, len(items))
 	for _, item := range items {
 		set[brewToken(item)] = struct{}{}
+	}
+	return set
+}
+
+func packageKeySet(items []string) map[string]struct{} {
+	set := make(map[string]struct{}, len(items))
+	for _, item := range items {
+		key := discovery.PackageKey(item)
+		if key == "" {
+			continue
+		}
+		set[key] = struct{}{}
 	}
 	return set
 }

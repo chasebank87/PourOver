@@ -199,3 +199,31 @@ func parseTrustTapsJSON(out []byte) []string {
 	}
 	return doc.Taps
 }
+
+// FormulaDependencyClosure returns the union of runtime dependencies for the
+// given formulae via `brew deps --union`. Empty input yields nil.
+// On brew failure, returns (nil, nil) so planning can continue (same spirit as
+// cask rename detection): callers may over-plan removes rather than hard-fail.
+func FormulaDependencyClosure(ctx context.Context, runner Runner, formulae []string) ([]string, error) {
+	var args []string
+	seen := map[string]struct{}{}
+	for _, name := range formulae {
+		token := brewToken(name)
+		if token == "" {
+			continue
+		}
+		if _, ok := seen[token]; ok {
+			continue
+		}
+		seen[token] = struct{}{}
+		args = append(args, token)
+	}
+	if len(args) == 0 {
+		return nil, nil
+	}
+	out, err := runner.Run(ctx, append([]string{"deps", "--union"}, args...)...)
+	if err != nil {
+		return nil, nil
+	}
+	return parseBrewList(out), nil
+}

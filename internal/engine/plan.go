@@ -40,6 +40,11 @@ func BuildPlanWith(ctx context.Context, configPath string, runner discovery.Runn
 	}
 	pamCfg := manifest.MacOS.Security.PAM.SudoLocal
 	packages := plan.ExpandPAMFormulae(manifest.Packages, pamCfg)
+	deps, err := discovery.FormulaDependencyClosure(ctx, runner, packages.Formulae)
+	if err != nil {
+		return plan.Plan{}, fmt.Errorf("formula deps: %w", err)
+	}
+	brewState.ProtectedFormulae = deps
 	brewPlan := plan.BuildBrewPlan(packages, brewState)
 	brewPlan, err = plan.AdviseCaskRenames(ctx, runner, brewPlan, brewState.Casks)
 	if err != nil {

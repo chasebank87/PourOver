@@ -173,6 +173,45 @@ func TestNeedsExplicitTrust(t *testing.T) {
 	}
 }
 
+func TestPackageKey(t *testing.T) {
+	if got := PackageKey("mongodb/brew/mongodb-database-tools"); got != "mongodb-database-tools" {
+		t.Fatalf("got %q", got)
+	}
+	if got := PackageKey("Git"); got != "git" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestFormulaDependencyClosure(t *testing.T) {
+	runner := &fakeRunner{
+		responses: map[string][]byte{
+			"deps --union mongodb-community": []byte("openssl@3\nmongodb/brew/mongodb-database-tools\n"),
+		},
+	}
+	got, err := FormulaDependencyClosure(context.Background(), runner, []string{"mongodb-community", "mongodb-community"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0] != "openssl@3" || got[1] != "mongodb/brew/mongodb-database-tools" {
+		t.Fatalf("got %#v", got)
+	}
+}
+
+func TestFormulaDependencyClosure_Empty(t *testing.T) {
+	got, err := FormulaDependencyClosure(context.Background(), &fakeRunner{}, nil)
+	if err != nil || got != nil {
+		t.Fatalf("got %#v err=%v", got, err)
+	}
+}
+
+func TestFormulaDependencyClosure_BrewErrorBestEffort(t *testing.T) {
+	runner := &fakeRunner{err: fmt.Errorf("brew failed")}
+	got, err := FormulaDependencyClosure(context.Background(), runner, []string{"git"})
+	if err != nil || got != nil {
+		t.Fatalf("got %#v err=%v, want nil,nil", got, err)
+	}
+}
+
 func TestParseTrustTapsJSON(t *testing.T) {
 	got := parseTrustTapsJSON([]byte(`{"taps":["a/b","c/d"],"formulae":[]}`))
 	if len(got) != 2 || got[0] != "a/b" {
