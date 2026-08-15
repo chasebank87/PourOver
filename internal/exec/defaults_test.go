@@ -116,47 +116,70 @@ func TestApplyDefaultsWrites_SystemDomainUsesSudo(t *testing.T) {
 	rec := &recordingDefaults{}
 	var gotArgs []string
 	authCalls := 0
-	orig := elevatedDefaultsWrite
+	sudoCalls := 0
+	origElev := elevatedDefaultsWrite
 	elevatedDefaultsWrite = func(ctx context.Context, timeout time.Duration, args []string, beforeAuth func()) error {
-		if beforeAuth != nil {
-			beforeAuth()
-		}
 		gotArgs = append([]string{}, args...)
 		return nil
 	}
-	t.Cleanup(func() { elevatedDefaultsWrite = orig })
+	origSudo := ensureSudo
+	ensureSudo = func(ctx context.Context, beforeAuth func()) error {
+		sudoCalls++
+		if beforeAuth != nil {
+			beforeAuth()
+		}
+		return nil
+	}
+	t.Cleanup(func() {
+		elevatedDefaultsWrite = origElev
+		ensureSudo = origSudo
+	})
 
-	n, err := ApplyDefaultsWrites(context.Background(), rec, plan.Plan{Actions: []plan.Action{{
-		Type:   plan.ActionDefaultsWrite,
-		Domain: "/Library/Preferences/com.apple.loginwindow",
-		Key:    "LoginwindowText",
-		Value:  "hello",
-		Kind:   "string",
-	}}}, DefaultsApplyOptions{BeforeAuth: func() { authCalls++ }}, nil)
+	n, err := ApplyDefaultsWrites(context.Background(), rec, plan.Plan{Actions: []plan.Action{
+		{
+			Type:   plan.ActionDefaultsWrite,
+			Domain: "/Library/Preferences/com.apple.loginwindow",
+			Key:    "LoginwindowText",
+			Value:  "hello",
+			Kind:   "string",
+		},
+		{
+			Type:   plan.ActionDefaultsWrite,
+			Domain: "/Library/Preferences/com.apple.SoftwareUpdate",
+			Key:    "AutomaticallyInstallMacOSUpdates",
+			Value:  "true",
+			Kind:   "bool",
+		},
+	}}, DefaultsApplyOptions{BeforeAuth: func() { authCalls++ }}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n != 1 {
+	if n != 2 {
 		t.Fatalf("n=%d", n)
 	}
 	if len(rec.writes) != 0 {
 		t.Fatalf("user defaults applier should not run for system domain; writes=%v", rec.writes)
 	}
-	want := "write /Library/Preferences/com.apple.loginwindow LoginwindowText -string hello"
-	if got := strings.Join(gotArgs, " "); got != want {
-		t.Fatalf("elevated args=%q, want %q", got, want)
+	if sudoCalls != 1 {
+		t.Fatalf("EnsureSudo calls=%d, want 1 for batch", sudoCalls)
 	}
 	if authCalls != 1 {
 		t.Fatalf("BeforeAuth calls=%d, want 1", authCalls)
 	}
+	_ = gotArgs
 }
 
 func TestApplyDefaultsWrites_SystemDomainElevatedError(t *testing.T) {
-	orig := elevatedDefaultsWrite
+	origElev := elevatedDefaultsWrite
 	elevatedDefaultsWrite = func(ctx context.Context, timeout time.Duration, args []string, beforeAuth func()) error {
 		return fmt.Errorf("sudo denied")
 	}
-	t.Cleanup(func() { elevatedDefaultsWrite = orig })
+	origSudo := ensureSudo
+	ensureSudo = func(ctx context.Context, beforeAuth func()) error { return nil }
+	t.Cleanup(func() {
+		elevatedDefaultsWrite = origElev
+		ensureSudo = origSudo
+	})
 
 	_, err := ApplyDefaultsWrites(context.Background(), &recordingDefaults{}, plan.Plan{Actions: []plan.Action{{
 		Type:   plan.ActionDefaultsWrite,

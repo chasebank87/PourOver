@@ -38,8 +38,10 @@ func (r *installRecordingRunner) Run(ctx context.Context, args ...string) ([]byt
 		r.installs = append(r.installs, args[1])
 		return nil, nil
 	}
-	if len(args) == 3 && args[0] == "install" && args[1] == "--cask" {
-		r.installs = append(r.installs, "cask:"+args[2])
+	if len(args) >= 3 && args[0] == "install" && args[1] == "--cask" {
+		for _, name := range args[2:] {
+			r.installs = append(r.installs, "cask:"+name)
+		}
 		return nil, nil
 	}
 	return nil, fmt.Errorf("unexpected brew args: %v", args)
@@ -193,16 +195,72 @@ func TestApplyCaskInstalls_OnlyCasks(t *testing.T) {
 		{Type: plan.ActionCaskInstall, Name: "raycast"},
 		{Type: plan.ActionCaskInstall, Name: "iterm2"},
 	}}
+	sudoCalls := 0
+	orig := ensureSudo
+	ensureSudo = func(ctx context.Context, beforeAuth func()) error {
+		sudoCalls++
+		return nil
+	}
+	t.Cleanup(func() { ensureSudo = orig })
 
-	n, err := ApplyCaskInstalls(context.Background(), runner, p, nil)
+	n, err := ApplyCaskInstalls(context.Background(), runner, p, nil, nil)
 	if err != nil {
 		t.Fatalf("ApplyCaskInstalls: %v", err)
 	}
 	if n != 2 {
 		t.Fatalf("installed count = %d, want 2", n)
 	}
+	if sudoCalls != 1 {
+		t.Fatalf("EnsureSudo calls=%d, want 1", sudoCalls)
+	}
 	if got := strings.Join(runner.installs, ","); got != "cask:raycast,cask:iterm2" {
-		t.Fatalf("install order = %q, want cask:raycast,cask:iterm2", got)
+		t.Fatalf("install order = %q, want single batch cask:raycast,cask:iterm2", got)
+	}
+}
+
+func TestApplyCaskInstalls_EnsureSudoBeforeAuth(t *testing.T) {
+	runner := &installRecordingRunner{}
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionCaskInstall, Name: "vlc"},
+	}}
+	auth := 0
+	orig := ensureSudo
+	ensureSudo = func(ctx context.Context, beforeAuth func()) error {
+		if beforeAuth != nil {
+			beforeAuth()
+		}
+		return nil
+	}
+	t.Cleanup(func() { ensureSudo = orig })
+
+	_, err := ApplyCaskInstalls(context.Background(), runner, p, func() { auth++ }, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if auth != 1 {
+		t.Fatalf("beforeAuth calls=%d, want 1", auth)
+	}
+}
+
+func TestApplyCaskInstalls_BatchFailsAtomically(t *testing.T) {
+	runner := &selectiveFailInstallRunner{failNames: map[string]bool{"batch": true}}
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionCaskInstall, Name: "bad"},
+		{Type: plan.ActionCaskInstall, Name: "raycast"},
+	}}
+	orig := ensureSudo
+	ensureSudo = func(ctx context.Context, beforeAuth func()) error { return nil }
+	t.Cleanup(func() { ensureSudo = orig })
+
+	n, err := ApplyCaskInstalls(context.Background(), runner, p, nil, nil)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if n != 0 {
+		t.Fatalf("installed count = %d, want 0 (batch failed)", n)
+	}
+	if len(runner.installs) != 0 {
+		t.Fatalf("installs = %v, want none on batch failure", runner.installs)
 	}
 }
 
@@ -241,25 +299,6 @@ func TestApplyFormulaInstalls_ContinuesAfterFailure(t *testing.T) {
 	}
 }
 
-func TestApplyCaskInstalls_ContinuesAfterFailure(t *testing.T) {
-	runner := &selectiveFailInstallRunner{failNames: map[string]bool{"cask:bad": true}}
-	p := plan.Plan{Actions: []plan.Action{
-		{Type: plan.ActionCaskInstall, Name: "bad"},
-		{Type: plan.ActionCaskInstall, Name: "raycast"},
-	}}
-
-	n, err := ApplyCaskInstalls(context.Background(), runner, p, nil)
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if n != 1 {
-		t.Fatalf("installed count = %d, want 1", n)
-	}
-	if got := strings.Join(runner.installs, ","); got != "cask:raycast" {
-		t.Fatalf("installs = %q, want cask:raycast", got)
-	}
-}
-
 type selectiveFailInstallRunner struct {
 	installs  []string
 	failNames map[string]bool
@@ -273,12 +312,17 @@ func (r *selectiveFailInstallRunner) Run(ctx context.Context, args ...string) ([
 		r.installs = append(r.installs, args[1])
 		return nil, nil
 	}
-	if len(args) == 3 && args[0] == "install" && args[1] == "--cask" {
-		key := "cask:" + args[2]
-		if r.failNames[key] {
+	if len(args) >= 3 && args[0] == "install" && args[1] == "--cask" {
+		if r.failNames["batch"] {
 			return nil, fmt.Errorf("no available cask")
 		}
-		r.installs = append(r.installs, key)
+		for _, name := range args[2:] {
+			key := "cask:" + name
+			if r.failNames[key] {
+				return nil, fmt.Errorf("no available cask")
+			}
+			r.installs = append(r.installs, key)
+		}
 		return nil, nil
 	}
 	return nil, fmt.Errorf("unexpected brew args: %v", args)

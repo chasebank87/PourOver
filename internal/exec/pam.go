@@ -52,8 +52,15 @@ func (o PAMApplyOptions) sudoPath(actionName string) string {
 // pam_sudo_include actions. Call after formula installs so pam_*.so modules exist.
 // pam_sudo_local_remove is legacy: it writes the disabled stub instead of
 // deleting, so `auth include sudo_local` stays safe. New plans use write+stub.
+// Admin credentials are cached once with sudo -v when any write targets /etc.
 // Returns how many actions succeeded; error is joined failures.
 func ApplyPAM(ctx context.Context, p plan.Plan, opts PAMApplyOptions, progress Progress) (int, error) {
+	if pamNeedsElevation(p, opts) {
+		if err := EnsureSudo(ctx, opts.BeforeAuth); err != nil {
+			return 0, err
+		}
+	}
+
 	n := 0
 	var errs []error
 	for _, a := range p.Actions {
@@ -63,15 +70,16 @@ func ApplyPAM(ctx context.Context, p plan.Plan, opts PAMApplyOptions, progress P
 			continue
 		}
 		report(progress, a)
+		// beforeAuth already ran via EnsureSudo for the batch; do not re-park UI.
 		var err error
 		switch a.Type {
 		case plan.ActionPAMSudoLocalWrite:
-			err = writeSudoLocal(ctx, opts.sudoLocalPath(a.Name), a.Value, opts.BeforeAuth)
+			err = writeSudoLocal(ctx, opts.sudoLocalPath(a.Name), a.Value, nil)
 		case plan.ActionPAMSudoLocalRemove:
 			// Prefer stub over delete: keep include-safe empty managed file.
-			err = writeSudoLocal(ctx, opts.sudoLocalPath(a.Name), pam.DisabledSudoLocal, opts.BeforeAuth)
+			err = writeSudoLocal(ctx, opts.sudoLocalPath(a.Name), pam.DisabledSudoLocal, nil)
 		case plan.ActionPAMSudoInclude:
-			err = ensureSudoLocalInclude(ctx, opts.sudoPath(a.Name), opts.BeforeAuth)
+			err = ensureSudoLocalInclude(ctx, opts.sudoPath(a.Name), nil)
 		}
 		if err != nil {
 			reportFailure(progress, err)
@@ -81,6 +89,24 @@ func ApplyPAM(ctx context.Context, p plan.Plan, opts PAMApplyOptions, progress P
 		n++
 	}
 	return n, errors.Join(errs...)
+}
+
+func pamNeedsElevation(p plan.Plan, opts PAMApplyOptions) bool {
+	for _, a := range p.Actions {
+		var path string
+		switch a.Type {
+		case plan.ActionPAMSudoLocalWrite, plan.ActionPAMSudoLocalRemove:
+			path = opts.sudoLocalPath(a.Name)
+		case plan.ActionPAMSudoInclude:
+			path = opts.sudoPath(a.Name)
+		default:
+			continue
+		}
+		if needsElevation(path) {
+			return true
+		}
+	}
+	return false
 }
 
 func writeSudoLocal(ctx context.Context, path, body string, beforeAuth func()) error {

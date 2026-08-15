@@ -196,3 +196,63 @@ func TestWriteElevatedFile_CallsBeforeAuthForEtc(t *testing.T) {
 		t.Fatal("BeforeAuth must not run for non-/etc paths")
 	}
 }
+
+func TestApplyPAM_EnsureSudoOnceForEtc(t *testing.T) {
+	origElevated := elevatedWrite
+	elevatedWrite = func(ctx context.Context, path string, data []byte, mode os.FileMode) error {
+		return nil
+	}
+	t.Cleanup(func() { elevatedWrite = origElevated })
+
+	sudoCalls := 0
+	auth := 0
+	origSudo := ensureSudo
+	ensureSudo = func(ctx context.Context, beforeAuth func()) error {
+		sudoCalls++
+		if beforeAuth != nil {
+			beforeAuth()
+		}
+		return nil
+	}
+	t.Cleanup(func() { ensureSudo = origSudo })
+
+	body := pam.ManagedMarker + "\nauth sufficient pam_tid.so\n"
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionPAMSudoLocalWrite, Name: "/etc/pam.d/sudo_local", Value: body},
+		{Type: plan.ActionPAMSudoInclude, Name: "/etc/pam.d/sudo"},
+	}}
+	n, err := ApplyPAM(context.Background(), p, PAMApplyOptions{
+		BeforeAuth: func() { auth++ },
+	}, nil)
+	if err != nil {
+		t.Fatalf("ApplyPAM: %v", err)
+	}
+	if n != 2 {
+		t.Fatalf("n=%d, want 2", n)
+	}
+	if sudoCalls != 1 {
+		t.Fatalf("EnsureSudo calls=%d, want 1", sudoCalls)
+	}
+	if auth != 1 {
+		t.Fatalf("beforeAuth calls=%d, want 1", auth)
+	}
+}
+
+func TestApplyPAM_NoEnsureSudoForTempPaths(t *testing.T) {
+	root := t.TempDir()
+	sudoLocal := filepath.Join(root, "sudo_local")
+	body := pam.ManagedMarker + "\nauth sufficient pam_tid.so\n"
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionPAMSudoLocalWrite, Name: sudoLocal, Value: body},
+	}}
+	orig := ensureSudo
+	ensureSudo = func(ctx context.Context, beforeAuth func()) error {
+		t.Fatal("EnsureSudo should not run for non-/etc PAM paths")
+		return nil
+	}
+	t.Cleanup(func() { ensureSudo = orig })
+
+	if _, err := ApplyPAM(context.Background(), p, PAMApplyOptions{SudoLocalPath: sudoLocal}, nil); err != nil {
+		t.Fatalf("ApplyPAM: %v", err)
+	}
+}

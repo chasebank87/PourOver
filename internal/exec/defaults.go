@@ -75,9 +75,11 @@ type DefaultsApplyOptions struct {
 
 // ApplyDefaultsWrites runs defaults_write actions then restarts affected UI apps.
 // Domains under /Library/Preferences are written via `sudo defaults` (admin).
+// Admin credentials are cached once with sudo -v before the first system write.
 func ApplyDefaultsWrites(ctx context.Context, applier DefaultsApplier, p plan.Plan, opts DefaultsApplyOptions, progress Progress) (int, error) {
 	n := 0
 	domains := map[string]struct{}{}
+	sudoReady := false
 	for _, a := range p.Actions {
 		if a.Type != plan.ActionDefaultsWrite {
 			continue
@@ -88,7 +90,13 @@ func ApplyDefaultsWrites(ctx context.Context, applier DefaultsApplier, p plan.Pl
 			return n, err
 		}
 		if isSystemDefaultsDomain(a.Domain) {
-			if err := elevatedDefaultsWrite(ctx, opts.Timeout, args, opts.BeforeAuth); err != nil {
+			if !sudoReady {
+				if err := EnsureSudo(ctx, opts.BeforeAuth); err != nil {
+					return n, err
+				}
+				sudoReady = true
+			}
+			if err := elevatedDefaultsWrite(ctx, opts.Timeout, args, nil); err != nil {
 				return n, fmt.Errorf("writing system preference %s %s: %w", a.Domain, a.Key, err)
 			}
 		} else if _, err := applier.Defaults(ctx, args...); err != nil {
@@ -114,13 +122,11 @@ func isSystemDefaultsDomain(domain string) bool {
 var elevatedDefaultsWrite = sudoDefaultsWrite
 
 func sudoDefaultsWrite(ctx context.Context, timeout time.Duration, args []string, beforeAuth func()) error {
+	// beforeAuth is usually nil here: ApplyDefaultsWrites calls EnsureSudo once
+	// for the batch. Callers that invoke this directly may still pass beforeAuth.
 	if beforeAuth != nil {
 		beforeAuth()
-	} else {
-		tty.SyncPromptLine()
 	}
-	// Belt-and-suspenders: BeforeAuth already syncs, but ensure the tty cursor
-	// is column 0 immediately before sudo opens /dev/tty for Password:.
 	tty.SyncPromptLine()
 	if timeout == 0 {
 		timeout = discovery.DefaultDefaultsTimeout

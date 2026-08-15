@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/chasebank87/PourOver/internal/discovery"
 	"github.com/chasebank87/PourOver/internal/plan"
@@ -19,8 +20,17 @@ func InstallMas(ctx context.Context, runner discovery.MasRunner, id string) erro
 
 // RemoveMas runs `mas uninstall <id>`.
 func RemoveMas(ctx context.Context, runner discovery.MasRunner, id string) error {
-	if _, err := runner.Run(ctx, "uninstall", id); err != nil {
-		return fmt.Errorf("mas uninstall %s: %w", id, err)
+	return RemoveMasApps(ctx, runner, []string{id})
+}
+
+// RemoveMasApps runs `mas uninstall` for all App Store IDs in one invocation.
+func RemoveMasApps(ctx context.Context, runner discovery.MasRunner, ids []string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	args := append([]string{"uninstall"}, ids...)
+	if _, err := runner.Run(ctx, args...); err != nil {
+		return fmt.Errorf("mas uninstall %s: %w", strings.Join(ids, " "), err)
 	}
 	return nil
 }

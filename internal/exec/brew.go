@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/chasebank87/PourOver/internal/discovery"
 	"github.com/chasebank87/PourOver/internal/plan"
@@ -49,8 +50,18 @@ func InstallFormula(ctx context.Context, runner discovery.Runner, name string) e
 
 // InstallCask runs `brew install --cask <name>`.
 func InstallCask(ctx context.Context, runner discovery.Runner, name string) error {
-	if _, err := runner.Run(ctx, "install", "--cask", name); err != nil {
-		return fmt.Errorf("brew install --cask %s: %w", name, err)
+	return InstallCasks(ctx, runner, []string{name})
+}
+
+// InstallCasks runs `brew install --cask` for all names in one invocation so
+// Homebrew only elevates once for the batch.
+func InstallCasks(ctx context.Context, runner discovery.Runner, names []string) error {
+	if len(names) == 0 {
+		return nil
+	}
+	args := append([]string{"install", "--cask"}, names...)
+	if _, err := runner.Run(ctx, args...); err != nil {
+		return fmt.Errorf("brew install --cask %s: %w", strings.Join(names, " "), err)
 	}
 	return nil
 }
@@ -117,24 +128,36 @@ func ApplyFormulaInstalls(ctx context.Context, runner discovery.Runner, p plan.P
 	return n, errors.Join(errs...)
 }
 
-// ApplyCaskInstalls runs brew install --cask for each cask_install action in plan order.
-// Failures are collected so later casks still install. Returns successes and joined errors.
-func ApplyCaskInstalls(ctx context.Context, runner discovery.Runner, p plan.Plan, progress Progress) (int, error) {
-	n := 0
-	var errs []error
+// ApplyCaskInstalls runs brew install --cask for all cask_install actions in one
+// invocation. Admin credentials are cached once with sudo -v before the batch.
+// beforeAuth parks fancy UI before that prompt. Returns successes and any error.
+func ApplyCaskInstalls(ctx context.Context, runner discovery.Runner, p plan.Plan, beforeAuth func(), progress Progress) (int, error) {
+	var casks []plan.Action
 	for _, a := range p.Actions {
-		if a.Type != plan.ActionCaskInstall {
-			continue
+		if a.Type == plan.ActionCaskInstall {
+			casks = append(casks, a)
 		}
-		report(progress, a)
-		if err := InstallCask(ctx, runner, a.Name); err != nil {
-			reportFailure(progress, err)
-			errs = append(errs, err)
-			continue
-		}
-		n++
 	}
-	return n, errors.Join(errs...)
+	if len(casks) == 0 {
+		return 0, nil
+	}
+
+	if err := EnsureSudo(ctx, beforeAuth); err != nil {
+		return 0, err
+	}
+
+	for _, a := range casks {
+		report(progress, a)
+	}
+	names := make([]string, len(casks))
+	for i, a := range casks {
+		names[i] = a.Name
+	}
+	if err := InstallCasks(ctx, runner, names); err != nil {
+		reportFailure(progress, err)
+		return 0, err
+	}
+	return len(casks), nil
 }
 
 // UnsupportedApplyActions returns plan actions that apply does not run yet.

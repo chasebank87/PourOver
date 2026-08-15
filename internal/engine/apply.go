@@ -84,7 +84,7 @@ func Apply(ctx context.Context, runner discovery.Runner, p plan.Plan, opts Apply
 	}
 
 	phase("casks")
-	casks, err := exec.ApplyCaskInstalls(ctx, mutRunner, p, progress)
+	casks, err := exec.ApplyCaskInstalls(ctx, mutRunner, p, opts.BeforeAuth, progress)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -96,7 +96,7 @@ func Apply(ctx context.Context, runner discovery.Runner, p plan.Plan, opts Apply
 	}
 
 	phase("removes")
-	removed, err := exec.ApplyRemoves(ctx, mutRunner, resolveMasRunner(masRunner), p, opts.Mode, confirmRemoves(opts), progress)
+	removed, err := exec.ApplyRemoves(ctx, mutRunner, resolveMasRunner(masRunner), p, opts.Mode, confirmRemoves(opts), opts.BeforeAuth, progress)
 	if err != nil {
 		errs = append(errs, err)
 	}
