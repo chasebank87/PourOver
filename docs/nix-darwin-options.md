@@ -19,14 +19,14 @@ Status:
 | [`documentation`](https://mynixos.com/nix-darwin/options/documentation) | Install man/info/doc from nix packages | index-only | Nix-only |
 | [`environment`](https://mynixos.com/nix-darwin/options/environment) | `/etc`, PATH, launch agents, system packages | mapped in part | `files.links` for user files; nix store PATH is Nix-only |
 | [`fonts`](https://mynixos.com/nix-darwin/options/fonts) | Fonts into `/Library/Fonts/Nix Fonts` | index-only | Install font casks via `packages.casks` |
-| [`homebrew`](https://mynixos.com/nix-darwin/options/homebrew) | Formulae, casks, taps, mas, brew bundle | mapped | `packages.formulae`, `packages.casks`, `packages.taps` (mas/cargo/go/vscode not yet) |
+| [`homebrew`](https://mynixos.com/nix-darwin/options/homebrew) | Formulae, casks, taps, mas, brew bundle | mapped | `packages.formulae`, `packages.casks`, `packages.taps` (string or `{ name, trusted? }`; mas/cargo/go/vscode not yet) |
 | [`launchd`](https://mynixos.com/nix-darwin/options/launchd) | Agents and daemons | index-only | — |
 | [`networking`](https://mynixos.com/nix-darwin/options/networking) | Hostname, DNS, computer name | index-only | Often `scutil` / System Settings, not `defaults` |
 | [`nix`](https://mynixos.com/nix-darwin/options/nix) | Nix daemon and nix.conf | index-only | PourOver is not Nix |
 | [`nixpkgs`](https://mynixos.com/nix-darwin/options/nixpkgs) | nixpkgs config | index-only | — |
 | [`power`](https://mynixos.com/nix-darwin/options/power) | Sleep, restart after freeze/power loss | index-only | Typically `pmset` |
 | [`programs`](https://mynixos.com/nix-darwin/options/programs) | zsh, tmux, vim, direnv, 1Password, … | index-only | Install with brew; configure with `files.links` |
-| [`security`](https://mynixos.com/nix-darwin/options/security) | PAM, sudo, PKI, sandbox | index-only | — |
+| [`security`](https://mynixos.com/nix-darwin/options/security) | PAM, sudo, PKI, sandbox | mapped in part | `macos.security.pam.sudo_local` (Touch ID / Watch / reattach); other security options index-only |
 | [`services`](https://mynixos.com/nix-darwin/options/services) | yabai, skhd, postgres, tailscale, … (42) | index-only | Install the app/cask; no launchd module yet |
 | [`system`](https://mynixos.com/nix-darwin/options/system) | stateVersion, primaryUser, activation, **defaults** | mixed | See `system.defaults` below |
 | [`time`](https://mynixos.com/nix-darwin/options/time) | Time zone | index-only | `systemsetup` / System Settings |
@@ -38,7 +38,7 @@ Status:
 |------------|----------|
 | `homebrew.brews` | `packages.formulae` |
 | `homebrew.casks` | `packages.casks` |
-| `homebrew.taps` | `packages.taps` |
+| `homebrew.taps` | `packages.taps` — string or `{ name, trusted? }` (`trusted` defaults `true`; `false` skips `brew trust`) |
 | `homebrew.masApps` | not implemented |
 | `homebrew.enable` / brew bundle flags | installer bootstraps Homebrew; `pourover apply` runs `brew` |
 
@@ -85,6 +85,15 @@ Install the corresponding brew formula/cask in `packages`; PourOver does not gen
 
 [MyNixOS environment](https://mynixos.com/nix-darwin/options/environment): systemPackages, paths, variables, shells, loginShellInit, `etc`, LaunchAgents/Daemons. User dotfiles → `files.links`.
 
-## `security` / `networking` / `power` / `time` / `users` / `launchd`
+## `security` (mapped in part)
 
-See the top-level table. None of these are `defaults write` catalogs; they stay index-only until PourOver grows matching apply domains.
+| nix-darwin | PourOver |
+|------------|----------|
+| `security.pam.sudo_local` | `macos.security.pam.sudo_local` — manages `/etc/pam.d/sudo_local` + sudo include; auto formulae `pam-reattach` / `pam-watchid`; admin on apply |
+| Other `security.*` (PKI, sandbox, …) | index-only |
+
+See [config-schema.md](config-schema.md) for Lua flags (`enable`, `reattach`, `touch_id_auth`, `watch_id_auth`).
+
+## `networking` / `power` / `time` / `users` / `launchd`
+
+See the top-level table. These are not `defaults write` catalogs; they stay index-only until PourOver grows matching apply domains.

@@ -10,7 +10,7 @@ Config lives in `~/.pourover/` by default (`pourover.lua` + optional Lua modules
 | `files` | no | table | Dotfiles and other paths to reconcile |
 | `policy` | no | table | Safety and behavior options |
 | `backup` | no | table | Snapshot / iCloud settings |
-| `macos` | no | table | macOS `defaults` preferences (nix-darwin-style) |
+| `macos` | no | table | macOS `defaults` preferences and optional `security.pam.sudo_local` |
 
 Empty or omitted sections are treated as empty lists / defaults.
 
@@ -20,15 +20,36 @@ Unknown top-level or nested keys in Lua are ignored for v1 (not an error). Seman
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `taps` | array of strings | Homebrew taps to ensure are present (`owner/repo`) |
+| `taps` | array of strings or tables | Homebrew taps to ensure are present (`owner/repo`); see below |
 | `formulae` | array of strings | Homebrew formulae to install |
 | `casks` | array of strings | Homebrew casks to install |
 
+### `packages.taps`
+
+Each entry is either:
+
+- a **string** tap name (`"owner/repo"`) — treated as `{ name = "…", trusted = true }`
+- a **table** `{ name = "owner/repo", trusted = true|false }` — `trusted` defaults to **`true`** when omitted
+
+`trusted = false` still ensures the tap is present (`brew tap`) but skips `brew trust --tap` and does not emit `tap_trust` drift for that tap.
+
 Names must be **lowercase Homebrew tokens** (`"raycast"`, not `"Raycast"`; `"homebrew/cask-fonts"`, not `"Homebrew/Cask-Fonts"`). Capital letters fail `Validate` / `pourover doctor` / `plan` / `apply` so a mistyped token cannot install under one casing and then look undeclared later.
 
-Apply order: **tap adds (with `brew trust --tap` for non-official taps, then `brew update`) → trust already-tapped untrusted taps → formula/cask installs → removes** (untap follows `policy.uninstall_mode`; `homebrew/core` and `homebrew/cask` are never untapped). Official `homebrew/*` taps are always trusted by Homebrew and are not passed to `brew trust`. After any new tap, PourOver runs `brew update` once so packages from that tap are installable.
+Apply order: **tap adds (with `brew trust --tap` only when `trusted` and the tap needs explicit trust, then `brew update`) → trust already-tapped untrusted taps (same gate) → formula/cask installs → removes** (untap follows `policy.uninstall_mode`; `homebrew/core` and `homebrew/cask` are never untapped). Official `homebrew/*` taps are always trusted by Homebrew and are not passed to `brew trust`. After any new tap, PourOver runs `brew update` once so packages from that tap are installable.
 
-`pourover import --packages` merges `brew tap` / `brew list` into `packages.lua` (add-only by default; `--force` replaces). Core taps (`homebrew/core`, `homebrew/cask`) are omitted from import output.
+```lua
+packages = {
+  taps = {
+    "homebrew/cask-fonts",
+    { name = "oven-sh/bun", trusted = true },
+    { name = "heroku/brew", trusted = false },
+  },
+  formulae = { "git" },
+  casks = { "raycast" },
+}
+```
+
+`pourover import --packages` merges `brew tap` / `brew list` into `packages.lua` (add-only by default; `--force` replaces). Import emits plain tap **strings** (implicit `trusted = true`). Core taps (`homebrew/core`, `homebrew/cask`) are omitted from import output.
 
 ## `files`
 
@@ -207,12 +228,12 @@ Setup: `pourover config git setup <url>`. Emergency restore: `pourover config gi
 
 ## `macos`
 
-Declarative preferences via `defaults write` (nix-darwin `system.defaults`). **Unset keys are unmanaged.**
+Declarative preferences via `defaults write` (nix-darwin `system.defaults`) plus optional security PAM. **Unset keys / omitted PAM tables are unmanaged.**
 
 Searchable key list and Lua syntax: [`docs/macos-defaults.md`](macos-defaults.md).
 Full nix-darwin option tree: [`docs/nix-darwin-options.md`](nix-darwin-options.md).
 
-Generate from the live Mac: `pourover import macos` snapshots curated catalog keys into `macos.lua` (add-only merge by default; `--force` replaces curated sections; `--dry-run` previews). Expanding coverage means editing `internal/config/macos_catalog.yaml`, not scraping arbitrary domains.
+Generate from the live Mac: `pourover import macos` snapshots curated catalog keys into `macos.lua` (add-only merge by default; `--force` replaces curated sections; `--dry-run` previews). Expanding coverage means editing `internal/config/macos_catalog.yaml`, not scraping arbitrary domains. PAM is not imported yet.
 
 ### `macos.defaults`
 
@@ -238,6 +259,43 @@ macos = {
 ```
 
 `loginwindow` / `smb` / `SoftwareUpdate` write machine plists (admin on apply). Wallpaper and Finder sidebar Favorites are not applied. Dock `persistent-apps` / `persistent-others` accept path arrays (nix-darwin-style tiles).
+
+### `macos.security.pam.sudo_local`
+
+Manages `/etc/pam.d/sudo_local` for Touch ID / Apple Watch / tmux reattach (nix-darwin `security.pam.sudo_local`). **Omitted `sudo_local` table = unmanaged** (no PAM plan actions).
+
+| Key | Required | Type | Default | Description |
+|-----|----------|------|---------|-------------|
+| `enable` | no | boolean | `true` when the table is present | When `false`, remove a PourOver-managed `sudo_local` file (marker `# pourover: managed`) |
+| `reattach` | no | boolean | `false` | Emit `pam_reattach` line; auto-adds formula `pam-reattach` |
+| `touch_id_auth` | no | boolean | `false` | Emit `auth sufficient pam_tid.so` |
+| `watch_id_auth` | no | boolean | `false` | Emit `pam_watchid` line; auto-adds formula `pam-watchid` |
+
+**Behavior:**
+
+- Plan order includes brew first so implied PAM formulae install before PAM file writes.
+- Desired file starts with `# pourover: managed`, then lines in nix-darwin order: optional reattach → sufficient Touch ID → sufficient Watch ID.
+- Ensures `auth include sudo_local` in `/etc/pam.d/sudo` when enabling.
+- Writes under `/etc` need **admin** (`sudo` on apply). Pre-existing non-managed `sudo_local` is backed up then replaced when enabling.
+- `enable = false` only removes the file when it is PourOver-managed; omitted table leaves any existing file alone.
+
+```lua
+macos = {
+  security = {
+    pam = {
+      sudo_local = {
+        enable = true, -- default when table present; set false to remove managed file
+        reattach = true,
+        touch_id_auth = true,
+        watch_id_auth = true,
+      },
+    },
+  },
+  defaults = {
+    dock = { autohide = true },
+  },
+}
+```
 
 ## Minimal example
 

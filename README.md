@@ -2,7 +2,7 @@
 
 Declarative Homebrew and dotfile management for macOS.
 
-PourOver loads `~/.pourover/pourover.lua`, plans the diff against your machine, and applies Homebrew packages, macOS `defaults` preferences, and symlink file links.
+PourOver loads `~/.pourover/pourover.lua`, plans the diff against your machine, and applies Homebrew packages (including taps with optional `trusted` flags), macOS `defaults`, optional Touch ID / Watch sudo PAM (`macos.security.pam.sudo_local`), and symlink file links.
 
 **macOS only, forever.** Linux and other platforms are out of scope.
 
@@ -106,6 +106,26 @@ pourover import macos --dry-run  # preview without writing
 
 - [docs/macos-defaults.md](docs/macos-defaults.md) — every supported `system.defaults` key and Lua syntax
 - [docs/nix-darwin-options.md](docs/nix-darwin-options.md) — full [MyNixOS nix-darwin](https://mynixos.com/nix-darwin/options) option tree and PourOver status
+- [docs/config-schema.md](docs/config-schema.md) — packages (tap `trusted`), files, policy, backup, and `macos.security.pam.sudo_local`
+
+Optional sudo Touch ID / Apple Watch (writes `/etc/pam.d`; needs admin on apply):
+
+```lua
+macos = {
+  security = {
+    pam = {
+      sudo_local = {
+        enable = true,
+        reattach = true,
+        touch_id_auth = true,
+        watch_id_auth = false,
+      },
+    },
+  },
+}
+```
+
+Taps may be plain strings or `{ name, trusted = false }` to skip `brew trust` (default `trusted = true`).
 
 Keep packages (and PourOver itself) up to date — similar to `brew update` + `brew upgrade` for outdated packages only:
 

@@ -36,6 +36,7 @@ Ideas and scope **explicitly deferred from v1**. When we cut v1, anything not do
 | Item | Deferred from | Notes |
 |------|---------------|-------|
 | Homebrew **taps** in discovery/plan/apply | D4 | **Done** — `packages.taps`; import/plan/apply; core taps never untapped |
+| Tap `trusted` opt-out (`string` or `{ name, trusted? }`) | nix-darwin homebrew.taps | **Done** — default `trusted=true`; `false` skips `brew trust` / `tap_trust` |
 | Brew bundle / Brewfile import | — | Optional input format |
 | `brew pin` / version pinning | — | Nix-like pinning is out of scope for v1 |
 
@@ -85,7 +86,10 @@ Ideas and scope **explicitly deferred from v1**. When we cut v1, anything not do
 | ByHost control-center (full UUID path) | nix-darwin controlcenter | Catalog writes `com.apple.controlcenter`; ByHost path not used |
 | CustomSystemPreferences (sudo `/Library/Preferences` escape hatch) | nix-darwin | `loginwindow`/`smb`/`SoftwareUpdate` are named sections; arbitrary system domains still user-only via `custom` |
 | `pourover import macos` snapshot curated keys | — | **Done** — curated catalog → `macos.lua`; `--force` / `--dry-run`; expand via `macos_catalog.yaml` |
-| nix-darwin `launchd` / `services` / `programs` / PAM | MyNixOS full tree | Indexed in `docs/nix-darwin-options.md` |
+| nix-darwin `security.pam.sudo_local` | MyNixOS security | **Done** — `macos.security.pam.sudo_local`; managed `/etc/pam.d/sudo_local`; auto `pam-reattach` / `pam-watchid`; admin `/etc` writes |
+| nix-darwin `launchd` / `services` / `programs` / other PAM | MyNixOS full tree | Indexed in `docs/nix-darwin-options.md`; arbitrary PAM services beyond `sudo_local` still deferred |
+| Import discovering current PAM into Lua | trusted-taps-sudo-pam follow-up | Config is hand-authored; no `import` for PAM yet |
+| TUI settings for PAM / tap trust | trusted-taps-sudo-pam follow-up | CLI/plan/apply only |
 
 ---
 
