@@ -110,10 +110,12 @@ Global flags: `--config`, `--verbose` / `-v`, `--json`.
 
 | Flag | Default | Meaning |
 |------|---------|---------|
-| `--packages` | on | Write `packages.lua` from `brew list` |
-| `--files` | on | Import `~/.config/*` and common home dotfiles into `files.links` |
+| `--packages` | on | Merge installed brew formulae/casks into `packages.lua` |
+| `--files` | on | Merge common home/`~/.config` paths into `files.links` |
 | `--dry-run` | off | Preview only |
-| `--force` | off | Overwrite non-empty packages/links sections |
+| `--force` | off | Replace packages/links with the discovered set (default is add-only merge) |
+
+Re-import without `--force` only adds newly discovered packages and file targets; existing declarations are kept.
 
 ## Policies
 

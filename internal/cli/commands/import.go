@@ -25,7 +25,11 @@ func NewImportCmd() *cobra.Command {
 		Short: "Import existing brew packages and files into PourOver config",
 		Long: `Import discovers installed Homebrew packages and common config/dotfile
 paths, then writes packages.lua and files.links under ~/.pourover.
-Use --dry-run to preview. Use --force to overwrite non-empty sections.`,
+
+By default a re-import merges: newly discovered packages and file targets are
+added; existing declarations are kept (nothing is removed from config).
+Use --force to replace packages/links with the discovered set only.
+Use --dry-run to preview.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runImport(cmd, importFlags{
 				packages: doPackages,
@@ -38,7 +42,7 @@ Use --dry-run to preview. Use --force to overwrite non-empty sections.`,
 	cmd.Flags().BoolVar(&doPackages, "packages", true, "import installed brew formulae and casks into packages.lua")
 	cmd.Flags().BoolVar(&doFiles, "files", true, "import existing config/dotfile paths into files.links")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "preview import without writing config or retargeting files")
-	cmd.Flags().BoolVar(&force, "force", false, "overwrite non-empty packages/links sections")
+	cmd.Flags().BoolVar(&force, "force", false, "replace packages/links with the discovered set (default: merge/add-only)")
 	return cmd
 }
 
@@ -90,22 +94,20 @@ func runImport(cmd *cobra.Command, flags importFlags) error {
 	policy := config.Policy{UninstallMode: config.UninstallModeSafe}
 	backup := config.Backup{}
 	existingLinks := []config.FileLink{}
+	var existingFormulae, existingCasks []string
 	if _, err := os.Stat(configPath); err == nil {
 		if m, loadErr := config.LoadManifest(configPath); loadErr == nil {
 			policy = m.Policy
 			backup = m.Backup
 			existingLinks = append([]config.FileLink(nil), m.Files.Links...)
-			if flags.packages && len(m.Packages.Formulae)+len(m.Packages.Casks) > 0 && !flags.force {
-				return fmt.Errorf("packages already declared in config (use --force to overwrite)")
-			}
-			if flags.files && len(m.Files.Links) > 0 && !flags.force {
-				return fmt.Errorf("files.links already declared in config (use --force to overwrite)")
-			}
+			existingFormulae = append([]string(nil), m.Packages.Formulae...)
+			existingCasks = append([]string(nil), m.Packages.Casks...)
 		}
 	}
 
 	out := cmd.OutOrStdout()
 	links := existingLinks
+	filesChanged := false
 
 	if flags.packages {
 		runner := discovery.NewExecRunner()
@@ -113,9 +115,27 @@ func runImport(cmd *cobra.Command, flags importFlags) error {
 		if err != nil {
 			return fmt.Errorf("discover brew: %w", err)
 		}
-		body := configimport.FormatPackagesLua(state.FormulaeRequested, state.Casks)
+		var formulae, casks []string
+		var addedF, addedC []string
+		if flags.force {
+			formulae = append([]string(nil), state.FormulaeRequested...)
+			casks = append([]string(nil), state.Casks...)
+			fmt.Fprintf(out, "packages: replace with %d formulae, %d casks -> %s\n",
+				len(formulae), len(casks), filepath.Join(cfgDir, "packages.lua"))
+		} else {
+			formulae, addedF = configimport.MergePackageLists(existingFormulae, state.FormulaeRequested)
+			casks, addedC = configimport.MergePackageLists(existingCasks, state.Casks)
+			fmt.Fprintf(out, "packages: +%d formulae, +%d casks (total %d formulae, %d casks) -> %s\n",
+				len(addedF), len(addedC), len(formulae), len(casks), filepath.Join(cfgDir, "packages.lua"))
+			for _, name := range addedF {
+				fmt.Fprintf(out, "  + formula %s\n", name)
+			}
+			for _, name := range addedC {
+				fmt.Fprintf(out, "  + cask %s\n", name)
+			}
+		}
 		pkgPath := filepath.Join(cfgDir, "packages.lua")
-		fmt.Fprintf(out, "packages: %d formulae, %d casks -> %s\n", len(state.FormulaeRequested), len(state.Casks), pkgPath)
+		body := configimport.FormatPackagesLua(formulae, casks)
 		if !flags.dryRun {
 			if err := os.WriteFile(pkgPath, []byte(body), 0o644); err != nil {
 				return err
@@ -132,8 +152,17 @@ func runImport(cmd *cobra.Command, flags importFlags) error {
 		if err != nil {
 			return err
 		}
+		declared := configimport.LinkTargets(existingLinks)
 		var imported []config.FileLink
 		for _, c := range candidates {
+			if !flags.force {
+				if _, ok := declared[c.TargetDecl]; ok {
+					if verbose {
+						fmt.Fprintf(cmd.ErrOrStderr(), "skip existing link %s\n", c.TargetDecl)
+					}
+					continue
+				}
+			}
 			fmt.Fprintf(out, "file: %s -> %s\n", c.TargetDecl, c.RelSource)
 			if flags.dryRun {
 				imported = append(imported, config.FileLink{Source: c.RelSource, Target: c.TargetDecl})
@@ -145,10 +174,18 @@ func runImport(cmd *cobra.Command, flags importFlags) error {
 			}
 			imported = append(imported, link)
 		}
-		links = imported
+		if flags.force {
+			links = imported
+			fmt.Fprintf(out, "files: replace with %d link(s)\n", len(links))
+		} else {
+			var added []config.FileLink
+			links, added = configimport.MergeFileLinks(existingLinks, imported)
+			fmt.Fprintf(out, "files: +%d link(s) (total %d)\n", len(added), len(links))
+		}
+		filesChanged = true
 	}
 
-	if flags.files {
+	if filesChanged {
 		rootBody := configimport.FormatRootLua(links, policy, backup)
 		fmt.Fprintf(out, "writing %s\n", configPath)
 		if !flags.dryRun {
