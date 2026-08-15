@@ -109,7 +109,7 @@ func runImport(cmd *cobra.Command, flags importFlags) error {
 	}
 
 	out := cmd.OutOrStdout()
-	printImportResult(out, result)
+	printImportResult(out, cmd.ErrOrStderr(), verbose, result)
 
 	if flags.dryRun {
 		fmt.Fprintln(out, "Dry run only; no files were modified.")
@@ -122,7 +122,7 @@ func runImport(cmd *cobra.Command, flags importFlags) error {
 	return nil
 }
 
-func printImportResult(out io.Writer, result engine.ImportResult) {
+func printImportResult(out, errOut io.Writer, verbose bool, result engine.ImportResult) {
 	if result.PackagesDone {
 		if result.ForceReplace {
 			fmt.Fprintf(out, "packages: replace with %d taps, %d formulae, %d casks -> %s\n",
@@ -143,6 +143,11 @@ func printImportResult(out io.Writer, result engine.ImportResult) {
 		}
 	}
 	if result.FilesDone {
+		if verbose {
+			for _, target := range result.SkippedLinks {
+				fmt.Fprintf(errOut, "skip existing link %s\n", target)
+			}
+		}
 		for _, line := range result.FileLines {
 			fmt.Fprintf(out, "file: %s -> %s\n", line.TargetDecl, line.RelSource)
 		}

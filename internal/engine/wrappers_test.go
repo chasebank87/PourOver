@@ -206,6 +206,57 @@ return {
 	}
 }
 
+func TestImport_SkippedLinks(t *testing.T) {
+	cfgDir := t.TempDir()
+	home := t.TempDir()
+	if err := os.WriteFile(filepath.Join(home, ".zshrc"), []byte("alias x=1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, ".gitconfig"), []byte("[user]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(cfgDir, "pourover.lua")
+	if err := os.WriteFile(filepath.Join(cfgDir, "packages.lua"), []byte(`return { taps = {}, formulae = {}, casks = {} }`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(configPath, []byte(`local packages = require("packages")
+return {
+  packages = packages,
+  files = { links = { { source = "config/home/zshrc", target = "~/.zshrc" } } },
+  policy = { uninstall_mode = "safe" },
+}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := Import(context.Background(), nil, ImportOptions{
+		ConfigDir:  cfgDir,
+		ConfigPath: configPath,
+		Packages:   false,
+		Files:      true,
+		DryRun:     true,
+		Force:      false,
+		Home:       home,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.SkippedLinks) != 1 || result.SkippedLinks[0] != "~/.zshrc" {
+		t.Fatalf("SkippedLinks = %v, want [~/.zshrc]", result.SkippedLinks)
+	}
+	foundGit := false
+	for _, line := range result.FileLines {
+		if line.TargetDecl == "~/.gitconfig" {
+			foundGit = true
+		}
+		if line.TargetDecl == "~/.zshrc" {
+			t.Fatal("declared ~/.zshrc should not appear in FileLines")
+		}
+	}
+	if !foundGit {
+		t.Fatalf("FileLines = %+v, want ~/.gitconfig", result.FileLines)
+	}
+}
+
 type recordingUpgradeRunner struct {
 	upgrades []string
 }

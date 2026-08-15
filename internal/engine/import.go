@@ -44,11 +44,12 @@ type ImportResult struct {
 	AddedFormulae []string
 	AddedCasks    []string
 
-	FilesDone  bool
-	FileLines  []ImportFileLine
-	Links      []config.FileLink
-	AddedLinks []config.FileLink
-	WroteRoot  bool
+	FilesDone    bool
+	FileLines    []ImportFileLine
+	SkippedLinks []string // target decls skipped because already declared (merge mode)
+	Links        []config.FileLink
+	AddedLinks   []config.FileLink
+	WroteRoot    bool
 }
 
 // Import discovers brew packages and/or home config files and writes PourOver config.
@@ -139,9 +140,11 @@ func Import(ctx context.Context, runner discovery.Runner, opts ImportOptions) (I
 		declared := configimport.LinkTargets(existingLinks)
 		var imported []config.FileLink
 		var lines []ImportFileLine
+		var skipped []string
 		for _, c := range candidates {
 			if !opts.Force {
 				if _, ok := declared[c.TargetDecl]; ok {
+					skipped = append(skipped, c.TargetDecl)
 					continue
 				}
 			}
@@ -164,6 +167,7 @@ func Import(ctx context.Context, runner discovery.Runner, opts ImportOptions) (I
 		}
 		result.FilesDone = true
 		result.FileLines = lines
+		result.SkippedLinks = skipped
 		result.Links = links
 		result.AddedLinks = added
 		filesChanged = true
