@@ -241,11 +241,16 @@ func (m HomeModel) activate() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	item := m.items[m.cursor]
-	if item.id == menuQuit {
+	switch item.id {
+	case menuQuit:
 		return m, tea.Quit
+	case menuPlan:
+		pm := NewPlanModel(m.configPath, m)
+		return pm, pm.Init()
+	default:
+		m.stub = stubTitle(item)
+		return m, nil
 	}
-	m.stub = stubTitle(item)
-	return m, nil
 }
 
 func stubTitle(item menuItem) string {

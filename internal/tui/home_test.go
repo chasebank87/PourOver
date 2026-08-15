@@ -112,12 +112,12 @@ func TestHomeUpdate_QQuits(t *testing.T) {
 
 func TestHomeUpdate_EnterOpensStubEscReturns(t *testing.T) {
 	m := newTestHome()
-	m.cursor = 0 // Plan
+	m.cursor = 1 // Apply (still stubbed until 1.5)
 
 	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	hm := next.(HomeModel)
 	if hm.stub == "" {
-		t.Fatal("expected stub screen after selecting Plan")
+		t.Fatal("expected stub screen after selecting Apply")
 	}
 
 	next, _ = hm.Update(tea.KeyMsg{Type: tea.KeyEsc})
