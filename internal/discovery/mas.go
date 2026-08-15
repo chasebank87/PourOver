@@ -5,10 +5,16 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 )
+
+// masListVersionSuffix matches a trailing " (version)" from `mas list` output
+// (e.g. "Server (5.7.1)"). Only the final parenthetical is stripped so names
+// like "App (Beta) Edition" keep mid-name parentheses.
+var masListVersionSuffix = regexp.MustCompile(`\s+\([^)]+\)$`)
 
 // DefaultMasTimeout is the maximum time allowed for a single mas discovery invocation.
 const DefaultMasTimeout = 30 * time.Second
@@ -123,8 +129,9 @@ func DiscoverMasOutdated(ctx context.Context, r MasRunner) ([]int64, error) {
 	return parseMasOutdated(out), nil
 }
 
-// parseMasList parses `mas list` stdout: "ID Name…" per line.
-// Blank lines and lines whose first field is not an integer ID are skipped.
+// parseMasList parses `mas list` stdout: "ID Name… [(version)]" per line.
+// Trailing " (version)" is stripped from Name. Blank lines and lines whose
+// first field is not an integer ID are skipped.
 func parseMasList(out []byte) []MasInstalled {
 	var apps []MasInstalled
 	for _, line := range strings.Split(string(out), "\n") {
@@ -178,5 +185,9 @@ func parseMasIDNameLine(line string) (id int64, name string, ok bool) {
 	if rest == "" {
 		return 0, "", false
 	}
-	return id, rest, true
+	name = masListVersionSuffix.ReplaceAllString(rest, "")
+	if name == "" {
+		return 0, "", false
+	}
+	return id, name, true
 }

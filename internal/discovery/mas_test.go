@@ -2,8 +2,11 @@ package discovery
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -22,6 +25,7 @@ func TestParseMasList_FromFixture(t *testing.T) {
 	want := []MasInstalled{
 		{ID: 497799835, Name: "Xcode"},
 		{ID: 1569813296, Name: "1Password for Safari"},
+		{ID: 883878097, Name: "Server"},
 	}
 	if len(got) != len(want) {
 		t.Fatalf("got %#v, want %#v", got, want)
@@ -47,6 +51,28 @@ func TestParseMasList_SkipsNonIDLines(t *testing.T) {
 	got := parseMasList(raw)
 	if len(got) != 1 || got[0].ID != 497799835 || got[0].Name != "Xcode" {
 		t.Fatalf("got %#v", got)
+	}
+}
+
+func TestParseMasList_StripsTrailingVersionOnly(t *testing.T) {
+	raw := []byte("883878097 Server (5.7.1)\n" +
+		"111 App (Beta) Edition\n" +
+		"222 Foo (Bar) Baz (1.2)\n" +
+		"333 Plain Name\n")
+	got := parseMasList(raw)
+	want := []MasInstalled{
+		{ID: 883878097, Name: "Server"},
+		{ID: 111, Name: "App (Beta) Edition"},
+		{ID: 222, Name: "Foo (Bar) Baz"},
+		{ID: 333, Name: "Plain Name"},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %#v, want %#v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got[%d] = %#v, want %#v", i, got[i], want[i])
+		}
 	}
 }
 
@@ -93,8 +119,8 @@ func TestDiscoverMas_FromFixtures(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DiscoverMas: %v", err)
 	}
-	if len(state.Apps) != 2 {
-		t.Fatalf("Apps = %#v, want 2", state.Apps)
+	if len(state.Apps) != 3 {
+		t.Fatalf("Apps = %#v, want 3", state.Apps)
 	}
 	if state.Apps[0].ID != 497799835 || state.Apps[0].Name != "Xcode" {
 		t.Errorf("Apps[0] = %#v", state.Apps[0])
@@ -102,8 +128,30 @@ func TestDiscoverMas_FromFixtures(t *testing.T) {
 	if state.Apps[1].ID != 1569813296 || state.Apps[1].Name != "1Password for Safari" {
 		t.Errorf("Apps[1] = %#v", state.Apps[1])
 	}
+	if state.Apps[2].ID != 883878097 || state.Apps[2].Name != "Server" {
+		t.Errorf("Apps[2] = %#v", state.Apps[2])
+	}
 	if state.Outdated != nil {
 		t.Fatalf("Outdated = %#v, want nil (not discovered)", state.Outdated)
+	}
+}
+
+func TestDiscoverMas_RunnerError(t *testing.T) {
+	base := fmt.Errorf("mas unavailable")
+	runner := &fakeRunner{
+		errFor: map[string]error{
+			"list": base,
+		},
+	}
+	_, err := DiscoverMas(context.Background(), runner)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !errors.Is(err, base) {
+		t.Fatalf("error not wrapped: %v", err)
+	}
+	if !strings.Contains(err.Error(), "list mas apps") {
+		t.Fatalf("error = %q, want list mas apps prefix", err)
 	}
 }
 
@@ -158,6 +206,25 @@ func TestDiscoverMasOutdated_Empty(t *testing.T) {
 	}
 	if got != nil {
 		t.Fatalf("got %#v, want nil", got)
+	}
+}
+
+func TestDiscoverMasOutdated_RunnerError(t *testing.T) {
+	base := fmt.Errorf("mas unavailable")
+	runner := &fakeRunner{
+		errFor: map[string]error{
+			"outdated": base,
+		},
+	}
+	_, err := DiscoverMasOutdated(context.Background(), runner)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !errors.Is(err, base) {
+		t.Fatalf("error not wrapped: %v", err)
+	}
+	if !strings.Contains(err.Error(), "list outdated mas apps") {
+		t.Fatalf("error = %q, want list outdated mas apps prefix", err)
 	}
 }
 
