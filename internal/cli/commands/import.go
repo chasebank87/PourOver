@@ -25,9 +25,10 @@ func NewImportCmd() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "import",
-		Short: "Import existing brew packages and files into PourOver config",
-		Long: `Import discovers installed Homebrew packages and common config/dotfile
-paths, then writes packages.lua and files.links under ~/.pourover.
+		Short: "Import existing brew/mas packages and files into PourOver config",
+		Long: `Import discovers installed Homebrew packages, Mac App Store apps
+(via mas list), and common config/dotfile paths, then writes packages.lua
+and files.links under ~/.pourover.
 
 By default a re-import merges: newly discovered packages and file targets are
 added; existing declarations are kept (nothing is removed from config).
@@ -42,7 +43,7 @@ Use --dry-run to preview.`,
 			})
 		},
 	}
-	cmd.Flags().BoolVar(&doPackages, "packages", true, "import installed brew formulae and casks into packages.lua")
+	cmd.Flags().BoolVar(&doPackages, "packages", true, "import installed brew formulae/casks and App Store apps into packages.lua")
 	cmd.Flags().BoolVar(&doFiles, "files", true, "import existing config/dotfile paths into files.links")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "preview import without writing config or retargeting files")
 	cmd.Flags().BoolVar(&force, "force", false, "replace packages/links with the discovered set (default: merge/add-only)")
@@ -128,12 +129,12 @@ func runImport(cmd *cobra.Command, flags importFlags) error {
 func printImportResult(out, errOut io.Writer, verbose bool, result engine.ImportResult) {
 	if result.PackagesDone {
 		if result.ForceReplace {
-			fmt.Fprintf(out, "packages: replace with %d taps, %d formulae, %d casks -> %s\n",
-				len(result.Taps), len(result.Formulae), len(result.Casks), result.PackagesPath)
+			fmt.Fprintf(out, "packages: replace with %d taps, %d formulae, %d casks, %d mas -> %s\n",
+				len(result.Taps), len(result.Formulae), len(result.Casks), len(result.Mas), result.PackagesPath)
 		} else {
-			fmt.Fprintf(out, "packages: +%d taps, +%d formulae, +%d casks (total %d taps, %d formulae, %d casks) -> %s\n",
-				len(result.AddedTaps), len(result.AddedFormulae), len(result.AddedCasks),
-				len(result.Taps), len(result.Formulae), len(result.Casks), result.PackagesPath)
+			fmt.Fprintf(out, "packages: +%d taps, +%d formulae, +%d casks, +%d mas (total %d taps, %d formulae, %d casks, %d mas) -> %s\n",
+				len(result.AddedTaps), len(result.AddedFormulae), len(result.AddedCasks), len(result.AddedMas),
+				len(result.Taps), len(result.Formulae), len(result.Casks), len(result.Mas), result.PackagesPath)
 			for _, name := range result.AddedTaps {
 				fmt.Fprintf(out, "  + tap %s\n", name)
 			}
@@ -142,6 +143,9 @@ func printImportResult(out, errOut io.Writer, verbose bool, result engine.Import
 			}
 			for _, name := range result.AddedCasks {
 				fmt.Fprintf(out, "  + cask %s\n", name)
+			}
+			for _, app := range result.AddedMas {
+				fmt.Fprintf(out, "  + mas %s (%d)\n", app.Name, app.ID)
 			}
 		}
 	}

@@ -29,8 +29,9 @@ func NewUpgradeCmd() *cobra.Command {
 		Use:   "upgrade",
 		Short: "Update pourover, upgrade declared packages, then reapply",
 		Long: `Upgrade first self-updates the pourover binary from GitHub Releases
-(like brew update), then runs brew upgrade for each declared formula/cask
-that is installed and outdated, then rebuilds the apply plan and reconciles.
+(like brew update), then upgrades each declared formula/cask (brew) and
+Mac App Store app (mas) that is installed and outdated, then rebuilds the
+apply plan and reconciles.
 Use --dry-run to preview package upgrade and apply actions (skips self-update).
 Use --skip-self-update to only upgrade packages.
 By default each action is printed as it runs on interactive terminals with a

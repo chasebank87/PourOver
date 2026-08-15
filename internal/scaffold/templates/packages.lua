@@ -1,5 +1,6 @@
--- Homebrew packages declared for PourOver.
+-- Homebrew and Mac App Store packages declared for PourOver.
 -- Use lowercase Homebrew tokens (e.g. "raycast", not "Raycast").
+-- MAS apps use display name → App Store ID; omit `mas` to leave App Store unmanaged.
 return {
   taps = {
     -- "homebrew/cask-fonts",
@@ -11,4 +12,7 @@ return {
     -- "raycast",
     -- "warp",
   },
+  -- mas = {
+  --   Xcode = 497799835,
+  -- },
 }
