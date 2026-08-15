@@ -117,3 +117,51 @@ func TestApplyFileLinks_FailsIfTargetIsRegularFile(t *testing.T) {
 		t.Fatal("expected error for regular file target")
 	}
 }
+
+func TestCreateLink_CreatesParentDirs(t *testing.T) {
+	root := t.TempDir()
+	src := filepath.Join(root, "src")
+	if err := os.Mkdir(src, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	tgt := filepath.Join(root, "nested", "dir", "link")
+	if err := CreateLink(tgt, src); err != nil {
+		t.Fatalf("CreateLink: %v", err)
+	}
+	got, err := os.Readlink(tgt)
+	if err != nil || got != src {
+		t.Fatalf("Readlink = %q err=%v", got, err)
+	}
+}
+
+func TestApplyFileLinks_ContinuesAfterFailure(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "cfg")
+	srcOK := filepath.Join(configDir, "ok")
+	srcBad := filepath.Join(configDir, "bad")
+	if err := os.MkdirAll(srcOK, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(srcBad, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	blocked := filepath.Join(root, "blocked")
+	if err := os.WriteFile(blocked, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	okTgt := filepath.Join(root, "missing-parent", "zshrc")
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionLinkCreate, Name: blocked, Source: "bad"},
+		{Type: plan.ActionLinkCreate, Name: okTgt, Source: "ok"},
+	}}
+	n, err := ApplyFileLinks(p, configDir, nil)
+	if err == nil {
+		t.Fatal("expected error from blocked target")
+	}
+	if n != 1 {
+		t.Fatalf("n=%d, want 1 successful link after failure", n)
+	}
+	if got, err := os.Readlink(okTgt); err != nil || got != srcOK {
+		t.Fatalf("ok link = %q err=%v, want %q", got, err, srcOK)
+	}
+}

@@ -1,6 +1,7 @@
 package exec
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,7 +11,11 @@ import (
 )
 
 // CreateLink creates a symlink at targetPath pointing to sourcePath.
+// Parent directories of targetPath are created when missing.
 func CreateLink(targetPath, sourcePath string) error {
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+		return fmt.Errorf("create link %s: parent dir: %w", targetPath, err)
+	}
 	if err := os.Symlink(sourcePath, targetPath); err != nil {
 		return fmt.Errorf("create link %s -> %s: %w", targetPath, sourcePath, err)
 	}
@@ -35,6 +40,7 @@ func UpdateLink(targetPath, sourcePath string) error {
 
 // ApplyFileLinks runs link_create and link_update actions.
 // Source paths are resolved relative to configDir; target paths expand ~.
+// Per-link failures are collected so later links still run (same soft-fail model as brew).
 func ApplyFileLinks(p plan.Plan, configDir string, progress Progress) (int, error) {
 	configDir, err := filepath.Abs(configDir)
 	if err != nil {
@@ -42,6 +48,7 @@ func ApplyFileLinks(p plan.Plan, configDir string, progress Progress) (int, erro
 	}
 
 	n := 0
+	var errs []error
 	for _, a := range p.Actions {
 		switch a.Type {
 		case plan.ActionLinkCreate, plan.ActionLinkUpdate:
@@ -53,11 +60,15 @@ func ApplyFileLinks(p plan.Plan, configDir string, progress Progress) (int, erro
 
 		sourcePath, err := resolveLinkSource(a.Source, configDir)
 		if err != nil {
-			return n, err
+			reportFailure(progress, err)
+			errs = append(errs, err)
+			continue
 		}
 		targetPath, err := resolveLinkTarget(a.Name)
 		if err != nil {
-			return n, err
+			reportFailure(progress, err)
+			errs = append(errs, err)
+			continue
 		}
 
 		switch a.Type {
@@ -67,11 +78,13 @@ func ApplyFileLinks(p plan.Plan, configDir string, progress Progress) (int, erro
 			err = UpdateLink(targetPath, sourcePath)
 		}
 		if err != nil {
-			return n, err
+			reportFailure(progress, err)
+			errs = append(errs, err)
+			continue
 		}
 		n++
 	}
-	return n, nil
+	return n, errors.Join(errs...)
 }
 
 func resolveLinkSource(source, configDir string) (string, error) {
