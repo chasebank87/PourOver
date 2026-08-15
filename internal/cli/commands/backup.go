@@ -5,8 +5,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/chasebank87/PourOver/internal/backup"
 	"github.com/chasebank87/PourOver/internal/config"
+	"github.com/chasebank87/PourOver/internal/engine"
 	"github.com/chasebank87/PourOver/internal/paths"
 	"github.com/spf13/cobra"
 )
@@ -45,14 +45,18 @@ func runBackup(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(cmd.ErrOrStderr(), "state dir %s\n", stateDir)
 	}
 
-	result, err := backup.SnapshotAndMirror(stateDir, manifest, time.Now())
+	result, err := engine.Backup(cmd.Context(), engine.BackupOptions{
+		StateDir: stateDir,
+		Manifest: manifest,
+		Now:      time.Now,
+	})
 	if err != nil {
 		return err
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "Snapshot written to %s\n", result.LocalSnapshot)
 	if result.MirroredTo != "" {
 		fmt.Fprintf(cmd.OutOrStdout(), "Mirrored to %s\n", result.MirroredTo)
-	} else if manifest.Backup.ICloud.Enabled {
+	} else if result.ICloudEnabled {
 		fmt.Fprintln(cmd.OutOrStdout(), "iCloud mirror skipped (path unavailable)")
 	}
 	return nil
@@ -95,16 +99,18 @@ func runRestore(cmd *cobra.Command, snapshot string, fromICloud bool) error {
 	if err != nil {
 		return err
 	}
-	snapPath, err := backup.ResolveSnapshotPath(stateDir, manifest, snapshot, fromICloud)
+	result, err := engine.Restore(cmd.Context(), engine.RestoreOptions{
+		StateDir:   stateDir,
+		Manifest:   manifest,
+		Snapshot:   snapshot,
+		FromICloud: fromICloud,
+	})
 	if err != nil {
 		return err
 	}
 	if verbose {
-		fmt.Fprintf(cmd.ErrOrStderr(), "restoring from %s\n", snapPath)
+		fmt.Fprintf(cmd.ErrOrStderr(), "restoring from %s\n", result.SnapshotPath)
 	}
-	if err := backup.RestoreSnapshot(snapPath, stateDir); err != nil {
-		return err
-	}
-	fmt.Fprintf(cmd.OutOrStdout(), "Restored state from %s into %s\n", snapPath, stateDir)
+	fmt.Fprintf(cmd.OutOrStdout(), "Restored state from %s into %s\n", result.SnapshotPath, result.StateDir)
 	return nil
 }

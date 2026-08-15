@@ -10,6 +10,7 @@ import (
 
 	"github.com/chasebank87/PourOver/internal/config"
 	"github.com/chasebank87/PourOver/internal/configgit"
+	"github.com/chasebank87/PourOver/internal/engine"
 	"github.com/spf13/cobra"
 )
 
@@ -134,8 +135,24 @@ func TestDoctorGitDisabled(t *testing.T) {
 	if err := os.WriteFile(configPath, []byte(`return { policy = { uninstall_mode = "safe" } }`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	checks := gitDoctorCheck(configPath, mustLoadDoctor(t, configPath))
-	if len(checks) != 1 || checks[0].Name != "git" || !checks[0].OK || checks[0].Detail != "disabled" {
-		t.Fatalf("%+v", checks)
+	report, err := engine.Doctor(engine.DoctorInputs{
+		ConfigPath: configPath,
+		StateDir:   filepath.Join(root, "state"),
+		Manifest:   mustLoadDoctor(t, configPath),
+		BrewOK:     true,
+		PouroverOK: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var git *engine.DoctorCheck
+	for i := range report.Checks {
+		if report.Checks[i].Name == "git" {
+			git = &report.Checks[i]
+			break
+		}
+	}
+	if git == nil || !git.OK || git.Detail != "disabled" {
+		t.Fatalf("%+v", report.Checks)
 	}
 }

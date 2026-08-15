@@ -11,7 +11,7 @@ import (
 
 	"github.com/chasebank87/PourOver/internal/config"
 	"github.com/chasebank87/PourOver/internal/discovery"
-	"github.com/chasebank87/PourOver/internal/exec"
+	"github.com/chasebank87/PourOver/internal/engine"
 	"github.com/chasebank87/PourOver/internal/paths"
 	"github.com/chasebank87/PourOver/internal/plan"
 	"github.com/chasebank87/PourOver/internal/policy"
@@ -72,23 +72,10 @@ func runUpgrade(cmd *cobra.Command, dryRun, autoYes, skipSelf, quiet bool) error
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
-	brewState, err := discovery.DiscoverBrew(cmd.Context(), runner)
+	upgradePlan, err := engine.BuildUpgradePlan(cmd.Context(), configPath, runner)
 	if err != nil {
-		return fmt.Errorf("discover brew: %w", err)
+		return err
 	}
-	outdated, err := discovery.DiscoverOutdated(cmd.Context(), runner)
-	if err != nil {
-		return fmt.Errorf("discover outdated: %w", err)
-	}
-	brewState.OutdatedFormulae = outdated.Formulae
-	if brewState.OutdatedFormulae == nil {
-		brewState.OutdatedFormulae = []string{}
-	}
-	brewState.OutdatedCasks = outdated.Casks
-	if brewState.OutdatedCasks == nil {
-		brewState.OutdatedCasks = []string{}
-	}
-	upgradePlan := plan.BuildUpgradePlan(manifest.Packages, brewState)
 
 	if dryRun {
 		applyPlan, err := buildPlan(cmd.Context(), configPath, runner)
@@ -101,7 +88,7 @@ func runUpgrade(cmd *cobra.Command, dryRun, autoYes, skipSelf, quiet bool) error
 
 	out := cmd.ErrOrStderr()
 	var session *ui.Session
-	var progress exec.Progress
+	var progress engine.Progress
 	var brewOut io.Writer = out
 	fancy := ui.Enabled(out, quiet) && len(upgradePlan.Actions) > 0
 	if fancy {
@@ -111,19 +98,30 @@ func runUpgrade(cmd *cobra.Command, dryRun, autoYes, skipSelf, quiet bool) error
 		progress = session.ProgressAdapter()
 		brewOut = session
 	} else {
-		progress = applyProgress(out, quiet)
+		if p := applyProgress(out, quiet); p != nil {
+			progress = engine.Progress(p)
+		}
 	}
-	mutRunner := brewRunnerWithProgress(runner, brewOut, quiet)
+
 	var upgradeErr error
 	if len(upgradePlan.Actions) == 0 {
 		fmt.Fprintln(out, "No package upgrades.")
 	} else {
-		n, err := exec.ApplyUpgrades(cmd.Context(), mutRunner, upgradePlan, progress)
+		result, err := engine.UpgradePackages(cmd.Context(), runner, upgradePlan, engine.UpgradeOptions{
+			Quiet:    quiet,
+			Progress: progress,
+			Stdout:   brewOut,
+			Stderr:   brewOut,
+		})
 		upgradeErr = err
 		if session != nil {
-			session.Finish(ui.Summary{Upgraded: n, Failures: session.FailureCount()})
-		} else if n > 0 {
-			fmt.Fprintf(out, "Upgraded %d package(s).\n", n)
+			failures := result.Failures
+			if failures == 0 {
+				failures = session.FailureCount()
+			}
+			session.Finish(ui.Summary{Upgraded: result.Upgraded, Failures: failures})
+		} else if result.Upgraded > 0 {
+			fmt.Fprintf(out, "Upgraded %d package(s).\n", result.Upgraded)
 		}
 	}
 
@@ -150,25 +148,5 @@ func runUpgrade(cmd *cobra.Command, dryRun, autoYes, skipSelf, quiet bool) error
 
 // buildUpgradePlanForTest is used by tests with a custom runner.
 func buildUpgradePlanForTest(ctx context.Context, configPath string, runner discovery.Runner) (plan.Plan, error) {
-	manifest, err := config.LoadManifest(configPath)
-	if err != nil {
-		return plan.Plan{}, err
-	}
-	brewState, err := discovery.DiscoverBrew(ctx, runner)
-	if err != nil {
-		return plan.Plan{}, err
-	}
-	outdated, err := discovery.DiscoverOutdated(ctx, runner)
-	if err != nil {
-		return plan.Plan{}, err
-	}
-	brewState.OutdatedFormulae = outdated.Formulae
-	if brewState.OutdatedFormulae == nil {
-		brewState.OutdatedFormulae = []string{}
-	}
-	brewState.OutdatedCasks = outdated.Casks
-	if brewState.OutdatedCasks == nil {
-		brewState.OutdatedCasks = []string{}
-	}
-	return plan.BuildUpgradePlan(manifest.Packages, brewState), nil
+	return engine.BuildUpgradePlan(ctx, configPath, runner)
 }

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/chasebank87/PourOver/internal/config"
+	"github.com/chasebank87/PourOver/internal/engine"
 )
 
 func TestRunDoctor_AllOK(t *testing.T) {
@@ -30,14 +31,14 @@ func TestRunDoctor_AllOK(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	report, err := runDoctorChecks(doctorInputs{
-		configPath:  configPath,
-		stateDir:    stateDir,
-		manifest:    mustLoadDoctor(t, configPath),
-		brewOK:      true,
-		brewErr:     "",
-		pouroverOK:  true,
-		pouroverErr: "",
+	report, err := engine.Doctor(engine.DoctorInputs{
+		ConfigPath:  configPath,
+		StateDir:    stateDir,
+		Manifest:    mustLoadDoctor(t, configPath),
+		BrewOK:      true,
+		BrewErr:     "",
+		PouroverOK:  true,
+		PouroverErr: "",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -53,14 +54,14 @@ func TestRunDoctor_BrewMissing(t *testing.T) {
 	if err := os.WriteFile(configPath, []byte(`return { packages = { formulae = {} }, policy = { uninstall_mode = "safe" } }`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	report, err := runDoctorChecks(doctorInputs{
-		configPath:  configPath,
-		stateDir:    filepath.Join(root, "state"),
-		manifest:    mustLoadDoctor(t, configPath),
-		brewOK:      false,
-		brewErr:     "brew not found",
-		pouroverOK:  true,
-		pouroverErr: "",
+	report, err := engine.Doctor(engine.DoctorInputs{
+		ConfigPath:  configPath,
+		StateDir:    filepath.Join(root, "state"),
+		Manifest:    mustLoadDoctor(t, configPath),
+		BrewOK:      false,
+		BrewErr:     "brew not found",
+		PouroverOK:  true,
+		PouroverErr: "",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -88,12 +89,12 @@ func TestRunDoctor_CapitalizedPackageName(t *testing.T) {
 }`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	report, err := runDoctorChecks(doctorInputs{
-		configPath: configPath,
-		stateDir:   filepath.Join(root, "state"),
-		manifest:   config.Manifest{},
-		brewOK:     true,
-		pouroverOK: true,
+	report, err := engine.Doctor(engine.DoctorInputs{
+		ConfigPath: configPath,
+		StateDir:   filepath.Join(root, "state"),
+		Manifest:   config.Manifest{},
+		BrewOK:     true,
+		PouroverOK: true,
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -2,12 +2,13 @@ package commands
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
 	"github.com/chasebank87/PourOver/internal/config"
-	"github.com/chasebank87/PourOver/internal/configimport"
 	"github.com/chasebank87/PourOver/internal/discovery"
+	"github.com/chasebank87/PourOver/internal/engine"
 	"github.com/chasebank87/PourOver/internal/paths"
 	"github.com/spf13/cobra"
 )
@@ -91,116 +92,24 @@ func runImport(cmd *cobra.Command, flags importFlags) error {
 		}
 	}
 
-	policy := config.Policy{UninstallMode: config.UninstallModeSafe}
-	backup := config.Backup{}
-	existingLinks := []config.FileLink{}
-	var existingTaps, existingFormulae, existingCasks []string
-	if _, err := os.Stat(configPath); err == nil {
-		if m, loadErr := config.LoadManifest(configPath); loadErr == nil {
-			policy = m.Policy
-			backup = m.Backup
-			existingLinks = append([]config.FileLink(nil), m.Files.Links...)
-			existingTaps = append([]string(nil), m.Packages.Taps...)
-			existingFormulae = append([]string(nil), m.Packages.Formulae...)
-			existingCasks = append([]string(nil), m.Packages.Casks...)
-		}
+	var runner discovery.Runner
+	if flags.packages {
+		runner = discovery.NewExecRunner()
+	}
+	result, err := engine.Import(cmd.Context(), runner, engine.ImportOptions{
+		ConfigDir:  cfgDir,
+		ConfigPath: configPath,
+		Packages:   flags.packages,
+		Files:      flags.files,
+		DryRun:     flags.dryRun,
+		Force:      flags.force,
+	})
+	if err != nil {
+		return err
 	}
 
 	out := cmd.OutOrStdout()
-	links := existingLinks
-	filesChanged := false
-
-	if flags.packages {
-		runner := discovery.NewExecRunner()
-		state, err := discovery.DiscoverBrew(cmd.Context(), runner)
-		if err != nil {
-			return fmt.Errorf("discover brew: %w", err)
-		}
-		discoveredTaps := discovery.DeclarableTaps(state.Taps)
-		var taps, formulae, casks []string
-		var addedT, addedF, addedC []string
-		if flags.force {
-			taps = append([]string(nil), discoveredTaps...)
-			formulae = append([]string(nil), state.FormulaeRequested...)
-			casks = append([]string(nil), state.Casks...)
-			fmt.Fprintf(out, "packages: replace with %d taps, %d formulae, %d casks -> %s\n",
-				len(taps), len(formulae), len(casks), filepath.Join(cfgDir, "packages.lua"))
-		} else {
-			taps, addedT = configimport.MergePackageLists(existingTaps, discoveredTaps)
-			formulae, addedF = configimport.MergePackageLists(existingFormulae, state.FormulaeRequested)
-			casks, addedC = configimport.MergePackageLists(existingCasks, state.Casks)
-			fmt.Fprintf(out, "packages: +%d taps, +%d formulae, +%d casks (total %d taps, %d formulae, %d casks) -> %s\n",
-				len(addedT), len(addedF), len(addedC), len(taps), len(formulae), len(casks), filepath.Join(cfgDir, "packages.lua"))
-			for _, name := range addedT {
-				fmt.Fprintf(out, "  + tap %s\n", name)
-			}
-			for _, name := range addedF {
-				fmt.Fprintf(out, "  + formula %s\n", name)
-			}
-			for _, name := range addedC {
-				fmt.Fprintf(out, "  + cask %s\n", name)
-			}
-		}
-		pkgPath := filepath.Join(cfgDir, "packages.lua")
-		body := configimport.FormatPackagesLuaFull(taps, formulae, casks)
-		if !flags.dryRun {
-			if err := os.WriteFile(pkgPath, []byte(body), 0o644); err != nil {
-				return err
-			}
-		}
-	}
-
-	if flags.files {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return err
-		}
-		candidates, err := configimport.ExistingImportable(configimport.DefaultHomeCandidates(home))
-		if err != nil {
-			return err
-		}
-		declared := configimport.LinkTargets(existingLinks)
-		var imported []config.FileLink
-		for _, c := range candidates {
-			if !flags.force {
-				if _, ok := declared[c.TargetDecl]; ok {
-					if verbose {
-						fmt.Fprintf(cmd.ErrOrStderr(), "skip existing link %s\n", c.TargetDecl)
-					}
-					continue
-				}
-			}
-			fmt.Fprintf(out, "file: %s -> %s\n", c.TargetDecl, c.RelSource)
-			if flags.dryRun {
-				imported = append(imported, config.FileLink{Source: c.RelSource, Target: c.TargetDecl})
-				continue
-			}
-			link, err := configimport.ImportFile(cfgDir, c, true)
-			if err != nil {
-				return fmt.Errorf("import %s: %w", c.TargetPath, err)
-			}
-			imported = append(imported, link)
-		}
-		if flags.force {
-			links = imported
-			fmt.Fprintf(out, "files: replace with %d link(s)\n", len(links))
-		} else {
-			var added []config.FileLink
-			links, added = configimport.MergeFileLinks(existingLinks, imported)
-			fmt.Fprintf(out, "files: +%d link(s) (total %d)\n", len(added), len(links))
-		}
-		filesChanged = true
-	}
-
-	if filesChanged {
-		rootBody := configimport.FormatRootLua(links, policy, backup)
-		fmt.Fprintf(out, "writing %s\n", configPath)
-		if !flags.dryRun {
-			if err := os.WriteFile(configPath, []byte(rootBody), 0o644); err != nil {
-				return err
-			}
-		}
-	}
+	printImportResult(out, result)
 
 	if flags.dryRun {
 		fmt.Fprintln(out, "Dry run only; no files were modified.")
@@ -211,4 +120,39 @@ func runImport(cmd *cobra.Command, flags importFlags) error {
 		}
 	}
 	return nil
+}
+
+func printImportResult(out io.Writer, result engine.ImportResult) {
+	if result.PackagesDone {
+		if result.ForceReplace {
+			fmt.Fprintf(out, "packages: replace with %d taps, %d formulae, %d casks -> %s\n",
+				len(result.Taps), len(result.Formulae), len(result.Casks), result.PackagesPath)
+		} else {
+			fmt.Fprintf(out, "packages: +%d taps, +%d formulae, +%d casks (total %d taps, %d formulae, %d casks) -> %s\n",
+				len(result.AddedTaps), len(result.AddedFormulae), len(result.AddedCasks),
+				len(result.Taps), len(result.Formulae), len(result.Casks), result.PackagesPath)
+			for _, name := range result.AddedTaps {
+				fmt.Fprintf(out, "  + tap %s\n", name)
+			}
+			for _, name := range result.AddedFormulae {
+				fmt.Fprintf(out, "  + formula %s\n", name)
+			}
+			for _, name := range result.AddedCasks {
+				fmt.Fprintf(out, "  + cask %s\n", name)
+			}
+		}
+	}
+	if result.FilesDone {
+		for _, line := range result.FileLines {
+			fmt.Fprintf(out, "file: %s -> %s\n", line.TargetDecl, line.RelSource)
+		}
+		if result.ForceReplace {
+			fmt.Fprintf(out, "files: replace with %d link(s)\n", len(result.Links))
+		} else {
+			fmt.Fprintf(out, "files: +%d link(s) (total %d)\n", len(result.AddedLinks), len(result.Links))
+		}
+	}
+	if result.WroteRoot {
+		fmt.Fprintf(out, "writing %s\n", result.ConfigPath)
+	}
 }
