@@ -73,6 +73,7 @@ Existing brew packages / configs already on the Mac:
 ```bash
 pourover init          # if needed
 pourover import        # seed packages.lua + file links (use --force to overwrite)
+pourover import macos  # snapshot curated defaults into macos.lua
 pourover plan
 pourover apply
 ```
@@ -93,7 +94,15 @@ macos = {
 }
 ```
 
-Keys are **not** in the default init config. Search:
+Keys are **not** in the default init config. Snapshot the curated catalog from the live Mac:
+
+```bash
+pourover import macos            # merge into macos.lua (add-only)
+pourover import macos --force    # replace curated sections with the snapshot
+pourover import macos --dry-run  # preview without writing
+```
+
+`import macos` writes `macos.lua` and wires `require("macos")` into `pourover.lua`. System-scope keys (`loginwindow`, `smb`, `SoftwareUpdate`) need admin on apply. Expand coverage by editing `internal/config/macos_catalog.yaml`. Search:
 
 - [docs/macos-defaults.md](docs/macos-defaults.md) — every supported `system.defaults` key and Lua syntax
 - [docs/nix-darwin-options.md](docs/nix-darwin-options.md) — full [MyNixOS nix-darwin](https://mynixos.com/nix-darwin/options) option tree and PourOver status
@@ -121,7 +130,7 @@ already current even if Caskroom metadata is stale — use `brew upgrade --cask 
 |---------|---------|
 | `tui` | Open the interactive TUI (also auto-launches on interactive no-args) |
 | `init` | Scaffold config |
-| `import` | Import installed brew packages and common files into config |
+| `import` | Import installed brew packages and common files into config (`import macos` for defaults → `macos.lua`) |
 | `config` | Manage iCloud mirror and git config sync (`config icloud`, `config git`, `push`/`pull`) |
 | `plan` | Show pending actions (`--json` for machine-readable) |
 | `apply` | Reconcile system (`--dry-run`, `--yes`, `--quiet`) |
@@ -145,6 +154,8 @@ Global flags: `--config`, `--verbose` / `-v`, `--json`.
 | `--force` | off | Replace packages/links with the discovered set (default is add-only merge) |
 
 Re-import without `--force` only adds newly discovered packages, taps, and file targets; existing declarations are kept. Core taps (`homebrew/core`, `homebrew/cask`) are not written to config.
+
+`pourover import macos` is a separate subcommand (not `--macos`). It snapshots readable curated catalog keys into `macos.lua`. Same `--dry-run` / `--force` semantics: preview only, or replace curated `macos.defaults` sections instead of add-only merge.
 
 ## Policies
 

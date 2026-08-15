@@ -212,6 +212,8 @@ Declarative preferences via `defaults write` (nix-darwin `system.defaults`). **U
 Searchable key list and Lua syntax: [`docs/macos-defaults.md`](macos-defaults.md).
 Full nix-darwin option tree: [`docs/nix-darwin-options.md`](nix-darwin-options.md).
 
+Generate from the live Mac: `pourover import macos` snapshots curated catalog keys into `macos.lua` (add-only merge by default; `--force` replaces curated sections; `--dry-run` previews). Expanding coverage means editing `internal/config/macos_catalog.yaml`, not scraping arbitrary domains.
+
 ### `macos.defaults`
 
 Named tables match nix-darwin sections (`dock`, `finder`, `NSGlobalDomain`, `screencapture`, `trackpad`, …). `custom` is `CustomUserPreferences` (any domain).
@@ -235,7 +237,7 @@ macos = {
 }
 ```
 
-`loginwindow` / `smb` / `SoftwareUpdate` write machine plists (admin). Wallpaper and Finder sidebar Favorites are not applied. Dock `persistent-apps` / `persistent-others` accept path arrays (nix-darwin-style tiles).
+`loginwindow` / `smb` / `SoftwareUpdate` write machine plists (admin on apply). Wallpaper and Finder sidebar Favorites are not applied. Dock `persistent-apps` / `persistent-others` accept path arrays (nix-darwin-style tiles).
 
 ## Minimal example
 
