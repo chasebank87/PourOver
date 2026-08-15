@@ -4,6 +4,8 @@ package plan
 type ActionType string
 
 const (
+	ActionTapAdd         ActionType = "tap_add"
+	ActionTapRemove      ActionType = "tap_remove"
 	ActionFormulaInstall ActionType = "formula_install"
 	ActionFormulaRemove  ActionType = "formula_remove"
 	ActionFormulaUpgrade ActionType = "formula_upgrade"

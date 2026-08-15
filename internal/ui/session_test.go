@@ -99,7 +99,7 @@ func TestSession_SingleLiveStatusLine(t *testing.T) {
 
 	out := buf.String()
 	// Status updates use CR overlays; only the initial status should start a new line of bars.
-	if strings.Count(out, "\n░") + strings.Count(out, "\n█") > 1 {
+	if strings.Count(out, "\n░")+strings.Count(out, "\n█") > 1 {
 		t.Fatalf("stacked progress bars on new lines: %q", out)
 	}
 	if strings.Contains(out, "casks  → install formula nerdfetch") {

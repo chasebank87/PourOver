@@ -9,6 +9,7 @@ import (
 
 // Summary holds final apply/upgrade counts for Finish.
 type Summary struct {
+	Taps     int
 	Formulae int
 	Casks    int
 	Removed  int
@@ -118,12 +119,15 @@ func (s *Session) Finish(sum Summary) {
 	s.started = false
 	fmt.Fprintln(s.out, styleMuted.Render(strings.Repeat("─", 40)))
 
-	if sum.Failures == 0 && sum.Formulae == 0 && sum.Casks == 0 && sum.Removed == 0 &&
+	if sum.Failures == 0 && sum.Taps == 0 && sum.Formulae == 0 && sum.Casks == 0 && sum.Removed == 0 &&
 		sum.Upgraded == 0 && sum.Defaults == 0 && sum.Linked == 0 && sum.Skipped == 0 {
 		fmt.Fprintln(s.out, styleMuted.Render("☕ No changes."))
 		return
 	}
 
+	if sum.Taps > 0 {
+		fmt.Fprintln(s.out, styleOK.Render(fmt.Sprintf("☕ Added %d tap(s).", sum.Taps)))
+	}
 	if sum.Formulae > 0 {
 		fmt.Fprintln(s.out, styleOK.Render(fmt.Sprintf("☕ Installed %d formula(s).", sum.Formulae)))
 	}

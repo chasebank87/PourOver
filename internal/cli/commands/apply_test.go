@@ -20,6 +20,9 @@ type recordingRunner struct {
 
 func (r *recordingRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
 	r.calls = append(r.calls, append([]string(nil), args...))
+	if len(args) == 1 && args[0] == "tap" {
+		return []byte("homebrew/core\nhomebrew/cask\n"), nil
+	}
 	if len(args) == 2 && args[0] == "list" && args[1] == "--formula" {
 		return []byte("git\n"), nil
 	}
@@ -37,8 +40,11 @@ func mutationBrewArgs(args []string) bool {
 		return false
 	}
 	switch args[0] {
-	case "install", "uninstall", "remove", "reinstall", "upgrade", "tap", "untap":
+	case "install", "uninstall", "remove", "reinstall", "upgrade", "untap":
 		return true
+	case "tap":
+		// `brew tap` (list) is discovery; `brew tap name` mutates.
+		return len(args) > 1
 	default:
 		return false
 	}
@@ -73,8 +79,8 @@ func TestApplyDryRun_NoBrewMutations(t *testing.T) {
 			t.Fatalf("brew mutation during dry-run path: %v", args)
 		}
 	}
-	if len(runner.calls) != 3 {
-		t.Fatalf("brew calls = %d, want 3 discovery list calls", len(runner.calls))
+	if len(runner.calls) != 4 {
+		t.Fatalf("brew calls = %d, want 4 discovery calls (tap + lists)", len(runner.calls))
 	}
 }
 
@@ -159,6 +165,13 @@ func TestExecuteApply_FormulaInstallOnly(t *testing.T) {
 }
 
 func (r *installRecordingRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
+	if len(args) == 1 && args[0] == "tap" {
+		return []byte("homebrew/core\nhomebrew/cask\n"), nil
+	}
+	if len(args) == 2 && args[0] == "tap" {
+		r.installs = append(r.installs, "tap:"+args[1])
+		return nil, nil
+	}
 	if len(args) == 2 && args[0] == "list" && args[1] == "--formula" {
 		return r.listFormula, nil
 	}
@@ -185,6 +198,10 @@ func (r *installRecordingRunner) Run(ctx context.Context, args ...string) ([]byt
 	}
 	if len(args) == 3 && args[0] == "uninstall" && args[1] == "--cask" {
 		r.uninstalls = append(r.uninstalls, "cask:"+args[2])
+		return nil, nil
+	}
+	if len(args) == 2 && args[0] == "untap" {
+		r.uninstalls = append(r.uninstalls, "untap:"+args[1])
 		return nil, nil
 	}
 	return nil, fmt.Errorf("unexpected brew args: %v", args)
@@ -525,7 +542,13 @@ type failingInstallRunner struct {
 }
 
 func (r *failingInstallRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
+	if len(args) == 1 && args[0] == "tap" {
+		return []byte("homebrew/core\nhomebrew/cask\n"), nil
+	}
 	if len(args) == 2 && args[0] == "list" && args[1] == "--formula" {
+		return r.listFormula, nil
+	}
+	if len(args) == 3 && args[0] == "list" && args[1] == "--formula" && args[2] == "--installed-on-request" {
 		return r.listFormula, nil
 	}
 	if len(args) == 2 && args[0] == "list" && args[1] == "--cask" {
@@ -592,7 +615,13 @@ type orderRecordingRunner struct {
 }
 
 func (r *orderRecordingRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
+	if len(args) == 1 && args[0] == "tap" {
+		return []byte("homebrew/core\nhomebrew/cask\n"), nil
+	}
 	if len(args) == 2 && args[0] == "list" && args[1] == "--formula" {
+		return r.listFormula, nil
+	}
+	if len(args) == 3 && args[0] == "list" && args[1] == "--formula" && args[2] == "--installed-on-request" {
 		return r.listFormula, nil
 	}
 	if len(args) == 2 && args[0] == "list" && args[1] == "--cask" {
@@ -619,4 +648,3 @@ func TestNewApplyCmd_HasDryRunFlag(t *testing.T) {
 		t.Errorf("--dry-run usage = %q, want mention of plan", flag.Usage)
 	}
 }
-

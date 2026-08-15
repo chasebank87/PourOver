@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// DiscoverBrew lists installed formulae and casks via the runner.
+// DiscoverBrew lists installed taps, formulae, and casks via the runner.
 //
 // Formulae includes all installed formulae (for presence checks).
 // FormulaeRequested is formulae that may be removed when undeclared:
@@ -14,6 +14,10 @@ import (
 // if that fails. Never falls back to the full formula list (that would treat
 // dependencies as undeclared packages to uninstall).
 func DiscoverBrew(ctx context.Context, runner Runner) (BrewState, error) {
+	tapsOut, err := runner.Run(ctx, "tap")
+	if err != nil {
+		return BrewState{}, fmt.Errorf("list taps: %w", err)
+	}
 	formulaeOut, err := runner.Run(ctx, "list", "--formula")
 	if err != nil {
 		return BrewState{}, fmt.Errorf("list formulae: %w", err)
@@ -37,6 +41,7 @@ func DiscoverBrew(ctx context.Context, runner Runner) (BrewState, error) {
 	}
 
 	return BrewState{
+		Taps:              parseBrewList(tapsOut),
 		Formulae:          parseBrewList(formulaeOut),
 		FormulaeRequested: requested,
 		Casks:             parseBrewList(casksOut),

@@ -225,6 +225,10 @@ func decodePackages(L *lua.LState, root *lua.LTable, key string) (Packages, erro
 		return Packages{}, nil
 	}
 
+	taps, err := fieldStringSlice(L, tbl, "taps")
+	if err != nil {
+		return Packages{}, fmt.Errorf("packages.%w", err)
+	}
 	formulae, err := fieldStringSlice(L, tbl, "formulae")
 	if err != nil {
 		return Packages{}, fmt.Errorf("packages.%w", err)
@@ -233,7 +237,7 @@ func decodePackages(L *lua.LState, root *lua.LTable, key string) (Packages, erro
 	if err != nil {
 		return Packages{}, fmt.Errorf("packages.%w", err)
 	}
-	return Packages{Formulae: formulae, Casks: casks}, nil
+	return Packages{Taps: taps, Formulae: formulae, Casks: casks}, nil
 }
 
 func decodeFiles(L *lua.LState, root *lua.LTable, key string) (Files, error) {

@@ -15,6 +15,10 @@ type removeRecordingRunner struct {
 }
 
 func (r *removeRecordingRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
+	if len(args) == 2 && args[0] == "untap" {
+		r.uninstalls = append(r.uninstalls, "untap:"+args[1])
+		return nil, nil
+	}
 	if len(args) == 2 && args[0] == "uninstall" {
 		r.uninstalls = append(r.uninstalls, args[1])
 		return nil, nil
@@ -144,4 +148,22 @@ func TestApplyRemoves_ByMode(t *testing.T) {
 			t.Fatalf("n=%d prompted=%v, want no work", n, prompted)
 		}
 	})
+}
+
+func TestApplyRemoves_UntapStrict(t *testing.T) {
+	runner := &removeRecordingRunner{}
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionTapRemove, Name: "homebrew/cask-fonts"},
+		{Type: plan.ActionFormulaRemove, Name: "wget"},
+	}}
+	n, err := ApplyRemoves(context.Background(), runner, p, config.UninstallModeStrict, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 {
+		t.Fatalf("n=%d, want 2", n)
+	}
+	if got := strings.Join(runner.uninstalls, ","); got != "untap:homebrew/cask-fonts,wget" {
+		t.Fatalf("uninstalls = %q", got)
+	}
 }

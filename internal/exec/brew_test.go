@@ -16,6 +16,10 @@ type installRecordingRunner struct {
 }
 
 func (r *installRecordingRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
+	if len(args) == 2 && args[0] == "tap" {
+		r.installs = append(r.installs, "tap:"+args[1])
+		return nil, nil
+	}
 	if len(args) == 2 && args[0] == "list" && args[1] == "--formula" {
 		return r.listFormula, nil
 	}
@@ -40,6 +44,25 @@ func TestInstallFormula_RunsBrewInstall(t *testing.T) {
 	}
 	if len(runner.installs) != 1 || runner.installs[0] != "fzf" {
 		t.Fatalf("installs = %v, want [fzf]", runner.installs)
+	}
+}
+
+func TestApplyTapAdds_OnlyTaps(t *testing.T) {
+	runner := &installRecordingRunner{}
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionTapAdd, Name: "homebrew/cask-fonts"},
+		{Type: plan.ActionFormulaInstall, Name: "fzf"},
+		{Type: plan.ActionTapAdd, Name: "nikitabobko/tap"},
+	}}
+	n, err := ApplyTapAdds(context.Background(), runner, p, nil)
+	if err != nil {
+		t.Fatalf("ApplyTapAdds: %v", err)
+	}
+	if n != 2 {
+		t.Fatalf("count = %d, want 2", n)
+	}
+	if got := strings.Join(runner.installs, ","); got != "tap:homebrew/cask-fonts,tap:nikitabobko/tap" {
+		t.Fatalf("order = %q", got)
 	}
 }
 

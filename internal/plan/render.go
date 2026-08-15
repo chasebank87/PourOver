@@ -35,6 +35,10 @@ func RenderJSON(p Plan) ([]byte, error) {
 
 func formatActionLine(a Action) string {
 	switch a.Type {
+	case ActionTapAdd:
+		return fmt.Sprintf("tap %s", a.Name)
+	case ActionTapRemove:
+		return fmt.Sprintf("untap %s", a.Name)
 	case ActionFormulaInstall:
 		return fmt.Sprintf("install formula %s", a.Name)
 	case ActionFormulaRemove:

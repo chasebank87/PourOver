@@ -30,7 +30,15 @@ func RemoveCask(ctx context.Context, runner discovery.Runner, name string) error
 	return nil
 }
 
-// ApplyRemoves runs formula/cask remove actions according to uninstall mode.
+// RemoveTap runs `brew untap <name>`.
+func RemoveTap(ctx context.Context, runner discovery.Runner, name string) error {
+	if _, err := runner.Run(ctx, "untap", name); err != nil {
+		return fmt.Errorf("brew untap %s: %w", name, err)
+	}
+	return nil
+}
+
+// ApplyRemoves runs formula/cask/tap remove actions according to uninstall mode.
 //
 //   - non_destructive: skip all removes (no prompt)
 //   - strict: remove without prompting
@@ -40,7 +48,7 @@ func RemoveCask(ctx context.Context, runner discovery.Runner, name string) error
 func ApplyRemoves(ctx context.Context, runner discovery.Runner, p plan.Plan, mode config.UninstallMode, confirm ConfirmRemoves, progress Progress) (int, error) {
 	var removes []plan.Action
 	for _, a := range p.Actions {
-		if a.Type == plan.ActionFormulaRemove || a.Type == plan.ActionCaskRemove {
+		if a.Type == plan.ActionFormulaRemove || a.Type == plan.ActionCaskRemove || a.Type == plan.ActionTapRemove {
 			removes = append(removes, a)
 		}
 	}
@@ -82,6 +90,8 @@ func ApplyRemoves(ctx context.Context, runner discovery.Runner, p plan.Plan, mod
 			err = RemoveFormula(ctx, runner, a.Name)
 		case plan.ActionCaskRemove:
 			err = RemoveCask(ctx, runner, a.Name)
+		case plan.ActionTapRemove:
+			err = RemoveTap(ctx, runner, a.Name)
 		}
 		if err != nil {
 			reportFailure(progress, err)

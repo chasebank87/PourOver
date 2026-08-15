@@ -16,6 +16,9 @@ type stubBrewRunner struct {
 }
 
 func (s *stubBrewRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
+	if len(args) == 1 && args[0] == "tap" {
+		return []byte("homebrew/core\nhomebrew/cask\n"), nil
+	}
 	if len(args) == 2 && args[0] == "list" && args[1] == "--formula" {
 		return []byte(s.formulae), nil
 	}

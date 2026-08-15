@@ -24,6 +24,44 @@ func TestBuildBrewPlan_InstallsOnly(t *testing.T) {
 	}
 }
 
+func TestBuildBrewPlan_TapAddBeforeInstalls(t *testing.T) {
+	plan := BuildBrewPlan(
+		config.Packages{
+			Taps:     []string{"homebrew/cask-fonts"},
+			Formulae: []string{"font-hack"},
+		},
+		discovery.BrewState{
+			Taps:     []string{"homebrew/core", "homebrew/cask"},
+			Formulae: nil,
+		},
+	)
+	got := ActionTypes(plan)
+	want := []ActionType{ActionTapAdd, ActionFormulaInstall}
+	if len(got) != len(want) {
+		t.Fatalf("types = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("types[%d] = %v, want %v", i, got[i], want[i])
+		}
+	}
+	if names := ActionNames(plan, ActionTapAdd); len(names) != 1 || names[0] != "homebrew/cask-fonts" {
+		t.Fatalf("tap adds = %v", names)
+	}
+}
+
+func TestBuildBrewPlan_NeverUntapCore(t *testing.T) {
+	plan := BuildBrewPlan(
+		config.Packages{},
+		discovery.BrewState{
+			Taps: []string{"homebrew/core", "homebrew/cask", "homebrew/cask-fonts"},
+		},
+	)
+	if names := ActionNames(plan, ActionTapRemove); len(names) != 1 || names[0] != "homebrew/cask-fonts" {
+		t.Fatalf("tap removes = %v, want only cask-fonts", names)
+	}
+}
+
 func TestBuildBrewPlan_RemovesOnly(t *testing.T) {
 	plan := BuildBrewPlan(
 		config.Packages{Formulae: []string{"git"}},
@@ -57,10 +95,12 @@ func TestBuildBrewPlan_NoChanges(t *testing.T) {
 
 func TestBuildBrewPlan_DeterministicOrder(t *testing.T) {
 	desired := config.Packages{
+		Taps:     []string{"zzz/tap", "aaa/tap"},
 		Formulae: []string{"zebra", "alpha", "mid"},
 		Casks:    []string{"zzz", "aaa"},
 	}
 	current := discovery.BrewState{
+		Taps:     []string{"homebrew/core", "old/tap"},
 		Formulae: []string{"remove-z", "remove-a"},
 		Casks:    []string{"old-cask"},
 	}
@@ -68,14 +108,16 @@ func TestBuildBrewPlan_DeterministicOrder(t *testing.T) {
 	plan := BuildBrewPlan(desired, current)
 
 	wantTypes := []ActionType{
+		ActionTapAdd, ActionTapAdd,
 		ActionFormulaInstall, ActionFormulaInstall, ActionFormulaInstall,
 		ActionCaskInstall, ActionCaskInstall,
+		ActionTapRemove,
 		ActionFormulaRemove, ActionFormulaRemove,
 		ActionCaskRemove,
 	}
 	got := ActionTypes(plan)
 	if len(got) != len(wantTypes) {
-		t.Fatalf("len(actions) = %d, want %d", len(got), len(wantTypes))
+		t.Fatalf("len(actions) = %d, want %d; got %v", len(got), len(wantTypes), got)
 	}
 	for i := range wantTypes {
 		if got[i] != wantTypes[i] {
@@ -83,6 +125,9 @@ func TestBuildBrewPlan_DeterministicOrder(t *testing.T) {
 		}
 	}
 
+	if want := []string{"aaa/tap", "zzz/tap"}; !slicesEqual(ActionNames(plan, ActionTapAdd), want) {
+		t.Errorf("tap adds = %v, want %v", ActionNames(plan, ActionTapAdd), want)
+	}
 	if !IsSorted(ActionNames(plan, ActionFormulaInstall)) {
 		t.Errorf("formula installs not sorted: %v", ActionNames(plan, ActionFormulaInstall))
 	}
@@ -91,6 +136,9 @@ func TestBuildBrewPlan_DeterministicOrder(t *testing.T) {
 	}
 	if want := []string{"aaa", "zzz"}; !slicesEqual(ActionNames(plan, ActionCaskInstall), want) {
 		t.Errorf("cask installs = %v, want %v", ActionNames(plan, ActionCaskInstall), want)
+	}
+	if want := []string{"old/tap"}; !slicesEqual(ActionNames(plan, ActionTapRemove), want) {
+		t.Errorf("tap removes = %v, want %v", ActionNames(plan, ActionTapRemove), want)
 	}
 	if want := []string{"remove-a", "remove-z"}; !slicesEqual(ActionNames(plan, ActionFormulaRemove), want) {
 		t.Errorf("formula removes = %v, want %v", ActionNames(plan, ActionFormulaRemove), want)

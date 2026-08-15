@@ -14,6 +14,9 @@ func TestLoadManifest_WithRequireModule(t *testing.T) {
 		t.Fatalf("LoadManifest: %v", err)
 	}
 
+	if len(manifest.Packages.Taps) != 1 || manifest.Packages.Taps[0] != "homebrew/cask-fonts" {
+		t.Errorf("packages.taps = %#v", manifest.Packages.Taps)
+	}
 	if len(manifest.Packages.Formulae) != 2 || manifest.Packages.Formulae[0] != "jq" {
 		t.Errorf("packages.formulae = %#v", manifest.Packages.Formulae)
 	}

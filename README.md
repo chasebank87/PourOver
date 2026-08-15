@@ -110,18 +110,18 @@ Global flags: `--config`, `--verbose` / `-v`, `--json`.
 
 | Flag | Default | Meaning |
 |------|---------|---------|
-| `--packages` | on | Merge installed brew formulae/casks into `packages.lua` |
+| `--packages` | on | Merge installed brew taps/formulae/casks into `packages.lua` |
 | `--files` | on | Merge common home/`~/.config` paths into `files.links` |
 | `--dry-run` | off | Preview only |
 | `--force` | off | Replace packages/links with the discovered set (default is add-only merge) |
 
-Re-import without `--force` only adds newly discovered packages and file targets; existing declarations are kept.
+Re-import without `--force` only adds newly discovered packages, taps, and file targets; existing declarations are kept. Core taps (`homebrew/core`, `homebrew/cask`) are not written to config.
 
 ## Policies
 
 `policy.uninstall_mode` in Lua:
 
-- **safe** (default) — prompt once before uninstalling undeclared packages that were installed on request (dependency-only formulae are ignored)
+- **safe** (default) — prompt once before uninstalling undeclared packages/taps that were installed on request (dependency-only formulae are ignored; core taps never untapped)
 - **strict** — uninstall without prompting
 - **non_destructive** — never uninstall undeclared packages
 

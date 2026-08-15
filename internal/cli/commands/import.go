@@ -94,12 +94,13 @@ func runImport(cmd *cobra.Command, flags importFlags) error {
 	policy := config.Policy{UninstallMode: config.UninstallModeSafe}
 	backup := config.Backup{}
 	existingLinks := []config.FileLink{}
-	var existingFormulae, existingCasks []string
+	var existingTaps, existingFormulae, existingCasks []string
 	if _, err := os.Stat(configPath); err == nil {
 		if m, loadErr := config.LoadManifest(configPath); loadErr == nil {
 			policy = m.Policy
 			backup = m.Backup
 			existingLinks = append([]config.FileLink(nil), m.Files.Links...)
+			existingTaps = append([]string(nil), m.Packages.Taps...)
 			existingFormulae = append([]string(nil), m.Packages.Formulae...)
 			existingCasks = append([]string(nil), m.Packages.Casks...)
 		}
@@ -115,18 +116,24 @@ func runImport(cmd *cobra.Command, flags importFlags) error {
 		if err != nil {
 			return fmt.Errorf("discover brew: %w", err)
 		}
-		var formulae, casks []string
-		var addedF, addedC []string
+		discoveredTaps := discovery.DeclarableTaps(state.Taps)
+		var taps, formulae, casks []string
+		var addedT, addedF, addedC []string
 		if flags.force {
+			taps = append([]string(nil), discoveredTaps...)
 			formulae = append([]string(nil), state.FormulaeRequested...)
 			casks = append([]string(nil), state.Casks...)
-			fmt.Fprintf(out, "packages: replace with %d formulae, %d casks -> %s\n",
-				len(formulae), len(casks), filepath.Join(cfgDir, "packages.lua"))
+			fmt.Fprintf(out, "packages: replace with %d taps, %d formulae, %d casks -> %s\n",
+				len(taps), len(formulae), len(casks), filepath.Join(cfgDir, "packages.lua"))
 		} else {
+			taps, addedT = configimport.MergePackageLists(existingTaps, discoveredTaps)
 			formulae, addedF = configimport.MergePackageLists(existingFormulae, state.FormulaeRequested)
 			casks, addedC = configimport.MergePackageLists(existingCasks, state.Casks)
-			fmt.Fprintf(out, "packages: +%d formulae, +%d casks (total %d formulae, %d casks) -> %s\n",
-				len(addedF), len(addedC), len(formulae), len(casks), filepath.Join(cfgDir, "packages.lua"))
+			fmt.Fprintf(out, "packages: +%d taps, +%d formulae, +%d casks (total %d taps, %d formulae, %d casks) -> %s\n",
+				len(addedT), len(addedF), len(addedC), len(taps), len(formulae), len(casks), filepath.Join(cfgDir, "packages.lua"))
+			for _, name := range addedT {
+				fmt.Fprintf(out, "  + tap %s\n", name)
+			}
 			for _, name := range addedF {
 				fmt.Fprintf(out, "  + formula %s\n", name)
 			}
@@ -135,7 +142,7 @@ func runImport(cmd *cobra.Command, flags importFlags) error {
 			}
 		}
 		pkgPath := filepath.Join(cfgDir, "packages.lua")
-		body := configimport.FormatPackagesLua(formulae, casks)
+		body := configimport.FormatPackagesLuaFull(taps, formulae, casks)
 		if !flags.dryRun {
 			if err := os.WriteFile(pkgPath, []byte(body), 0o644); err != nil {
 				return err

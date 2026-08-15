@@ -26,7 +26,7 @@ Ideas and scope **explicitly deferred from v1**. When we cut v1, anything not do
 
 | Item | Deferred from | Notes |
 |------|---------------|-------|
-| Homebrew **taps** in discovery/plan/apply | D4 | Apply order in design includes taps; not implemented in v1 |
+| Homebrew **taps** in discovery/plan/apply | D4 | **Done** — `packages.taps`; import/plan/apply; core taps never untapped |
 | Brew bundle / Brewfile import | — | Optional input format |
 | `brew pin` / version pinning | — | Nix-like pinning is out of scope for v1 |
 

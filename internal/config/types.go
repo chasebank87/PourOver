@@ -49,8 +49,9 @@ type SettingValue struct {
 	String string      `json:"string,omitempty"`
 }
 
-// Packages lists Homebrew formulae and casks to reconcile.
+// Packages lists Homebrew taps, formulae, and casks to reconcile.
 type Packages struct {
+	Taps     []string `json:"taps,omitempty"`
 	Formulae []string `json:"formulae,omitempty"`
 	Casks    []string `json:"casks,omitempty"`
 }

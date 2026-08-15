@@ -31,6 +31,7 @@ func TestParseBrewList_MultipleLines(t *testing.T) {
 func TestDiscoverBrew_FromFixtures(t *testing.T) {
 	runner := &fakeRunner{
 		responses: map[string][]byte{
+			"tap":                                   readFixture(t, "list-tap.txt"),
 			"list --formula":                        readFixture(t, "list-formula.txt"),
 			"list --cask":                           readFixture(t, "list-cask.txt"),
 			"list --formula --installed-on-request": []byte("git\nfzf\n"),
@@ -41,6 +42,9 @@ func TestDiscoverBrew_FromFixtures(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DiscoverBrew: %v", err)
 	}
+	if len(state.Taps) != 4 || state.Taps[0] != "homebrew/core" {
+		t.Errorf("taps = %#v", state.Taps)
+	}
 	if len(state.Formulae) != 3 || state.Formulae[0] != "git" {
 		t.Errorf("formulae = %#v", state.Formulae)
 	}
@@ -50,11 +54,18 @@ func TestDiscoverBrew_FromFixtures(t *testing.T) {
 	if len(state.FormulaeRequested) != 2 || state.FormulaeRequested[0] != "git" {
 		t.Errorf("formulae requested = %#v", state.FormulaeRequested)
 	}
+	if got := DeclarableTaps(state.Taps); len(got) != 2 || got[0] != "homebrew/cask-fonts" {
+		t.Errorf("DeclarableTaps = %#v", got)
+	}
+	if got := state.RemovableTaps(); len(got) != 2 {
+		t.Errorf("RemovableTaps = %#v", got)
+	}
 }
 
 func TestDiscoverBrew_EmptyLists(t *testing.T) {
 	runner := &fakeRunner{
 		responses: map[string][]byte{
+			"tap":                                   readFixture(t, "list-formula-empty.txt"),
 			"list --formula":                        readFixture(t, "list-formula-empty.txt"),
 			"list --cask":                           readFixture(t, "list-formula-empty.txt"),
 			"list --formula --installed-on-request": readFixture(t, "list-formula-empty.txt"),
@@ -65,8 +76,8 @@ func TestDiscoverBrew_EmptyLists(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DiscoverBrew: %v", err)
 	}
-	if state.Formulae != nil || state.Casks != nil {
-		t.Fatalf("expected nil formulae/casks, got formulae=%#v casks=%#v", state.Formulae, state.Casks)
+	if state.Taps != nil || state.Formulae != nil || state.Casks != nil {
+		t.Fatalf("expected nil taps/formulae/casks, got taps=%#v formulae=%#v casks=%#v", state.Taps, state.Formulae, state.Casks)
 	}
 	if state.FormulaeRequested == nil {
 		t.Fatal("FormulaeRequested should be non-nil empty after discovery")
@@ -79,6 +90,7 @@ func TestDiscoverBrew_EmptyLists(t *testing.T) {
 func TestDiscoverBrew_OnRequestFailsUsesLeaves(t *testing.T) {
 	runner := &fakeRunner{
 		responses: map[string][]byte{
+			"tap":            []byte("homebrew/core\n"),
 			"list --formula": []byte("git\ngettext\npcre2\n"),
 			"list --cask":    []byte("raycast\n"),
 			"leaves":         []byte("git\n"),
@@ -99,6 +111,7 @@ func TestDiscoverBrew_OnRequestFailsUsesLeaves(t *testing.T) {
 func TestDiscoverBrew_OnRequestAndLeavesFailSkipsFormulaRemoves(t *testing.T) {
 	runner := &fakeRunner{
 		responses: map[string][]byte{
+			"tap":            []byte(""),
 			"list --formula": []byte("git\ngettext\n"),
 			"list --cask":    []byte(""),
 		},
@@ -113,6 +126,15 @@ func TestDiscoverBrew_OnRequestAndLeavesFailSkipsFormulaRemoves(t *testing.T) {
 	}
 	if len(state.FormulaeRequested) != 0 {
 		t.Fatalf("FormulaeRequested = %#v, want empty (no dep uninstalls)", state.FormulaeRequested)
+	}
+}
+
+func TestIsCoreTap(t *testing.T) {
+	if !IsCoreTap("homebrew/core") || !IsCoreTap("Homebrew/Cask") {
+		t.Fatal("expected core taps")
+	}
+	if IsCoreTap("homebrew/cask-fonts") || IsCoreTap("nikitabobko/tap") {
+		t.Fatal("expected non-core")
 	}
 }
 

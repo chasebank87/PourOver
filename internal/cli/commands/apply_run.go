@@ -120,8 +120,15 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 
 	var errs []error
 
-	// Phase 1: Homebrew (installs then removes). Per-package failures continue;
+	// Phase 1: Homebrew (taps, installs, then removes). Per-package failures continue;
 	// phase errors are collected so later phases still run.
+	if session != nil {
+		session.SetPhase("taps")
+	}
+	taps, err := exec.ApplyTapAdds(cmd.Context(), mutRunner, p, progress)
+	if err != nil {
+		errs = append(errs, err)
+	}
 	if session != nil {
 		session.SetPhase("formulae")
 	}
@@ -164,7 +171,7 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 		errs = append(errs, err)
 	}
 
-	n := formulae + casks + removed + written + linked
+	n := taps + formulae + casks + removed + written + linked
 
 	if session != nil {
 		if len(skipped) > 0 {
@@ -174,6 +181,7 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 			}
 		}
 		session.Finish(ui.Summary{
+			Taps:     taps,
 			Formulae: formulae,
 			Casks:    casks,
 			Removed:  removed,
@@ -183,6 +191,9 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 			Failures: session.FailureCount(),
 		})
 	} else {
+		if taps > 0 {
+			fmt.Fprintf(out, "Added %d tap(s).\n", taps)
+		}
 		if formulae > 0 {
 			fmt.Fprintf(out, "Installed %d formula(s).\n", formulae)
 		}

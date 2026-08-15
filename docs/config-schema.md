@@ -6,7 +6,7 @@ Config lives in `~/.pourover/` by default (`pourover.lua` + optional Lua modules
 
 | Key | Required | Type | Description |
 |-----|----------|------|-------------|
-| `packages` | no | table | Homebrew formulae and casks |
+| `packages` | no | table | Homebrew taps, formulae, and casks |
 | `files` | no | table | Dotfiles and other paths to reconcile |
 | `policy` | no | table | Safety and behavior options |
 | `backup` | no | table | Snapshot / iCloud settings |
@@ -20,12 +20,15 @@ Unknown top-level or nested keys in Lua are ignored for v1 (not an error). Seman
 
 | Key | Type | Description |
 |-----|------|-------------|
+| `taps` | array of strings | Homebrew taps to ensure are present (`owner/repo`) |
 | `formulae` | array of strings | Homebrew formulae to install |
 | `casks` | array of strings | Homebrew casks to install |
 
-Names must be **lowercase Homebrew tokens** (`"raycast"`, not `"Raycast"`). Capital letters fail `Validate` / `pourover doctor` / `plan` / `apply` so a mistyped token cannot install under one casing and then look undeclared later.
+Names must be **lowercase Homebrew tokens** (`"raycast"`, not `"Raycast"`; `"homebrew/cask-fonts"`, not `"Homebrew/Cask-Fonts"`). Capital letters fail `Validate` / `pourover doctor` / `plan` / `apply` so a mistyped token cannot install under one casing and then look undeclared later.
 
-`pourover import --packages` rewrites `packages.lua` from `brew list` (use `--force` if packages are already declared).
+Apply order: **tap adds → formula/cask installs → removes** (untap follows `policy.uninstall_mode`; `homebrew/core` and `homebrew/cask` are never untapped).
+
+`pourover import --packages` merges `brew tap` / `brew list` into `packages.lua` (add-only by default; `--force` replaces). Core taps (`homebrew/core`, `homebrew/cask`) are omitted from import output.
 
 ## `files`
 
@@ -69,9 +72,9 @@ files = {
 |-----|----------|------|---------|--------|
 | `uninstall_mode` | no | string | `"safe"` | `safe`, `strict`, `non_destructive` |
 
-- **safe** — prompt before uninstalling undeclared Homebrew packages (only formulae installed on request; dependency-only packages are ignored). A package listed under `formulae` or `casks` counts as declared for either type.
-- **strict** — uninstall undeclared packages without prompting
-- **non_destructive** — never uninstall undeclared packages
+- **safe** — prompt before uninstalling undeclared Homebrew packages/taps (only formulae installed on request; dependency-only packages are ignored; `homebrew/core` / `homebrew/cask` never untapped). A package listed under `formulae` or `casks` counts as declared for either type.
+- **strict** — uninstall undeclared packages/taps without prompting
+- **non_destructive** — never uninstall undeclared packages/taps
 
 ## `backup`
 

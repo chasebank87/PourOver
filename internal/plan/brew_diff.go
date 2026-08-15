@@ -9,26 +9,33 @@ import (
 	"github.com/chasebank87/PourOver/internal/discovery"
 )
 
-// BuildBrewPlan computes install/remove actions for formulae and casks.
+// BuildBrewPlan computes install/remove actions for taps, formulae, and casks.
 // Package names are matched case-insensitively (Homebrew tokens are lowercase).
 //
 // Presence is cross-type: a package declared as a formula but installed as a
 // cask (or vice versa) counts as installed and is not removed as undeclared.
 // Formula removes only consider formulae installed on request (not dependencies).
+// Tap removes never include homebrew/core or homebrew/cask.
 //
-// Action order is stable: formula installs, cask installs, formula removes, cask removes;
-// each group sorted alphabetically by name.
+// Action order is stable: tap adds, formula installs, cask installs,
+// tap removes, formula removes, cask removes; each group sorted alphabetically.
 func BuildBrewPlan(desired config.Packages, current discovery.BrewState) Plan {
 	var actions []Action
 
 	desiredAny := sliceSet(append(append([]string{}, desired.Formulae...), desired.Casks...))
 	installedAny := sliceSet(append(append([]string{}, current.Formulae...), current.Casks...))
 
+	for _, name := range sortedMissingFromSet(desired.Taps, sliceSet(current.Taps)) {
+		actions = append(actions, Action{Type: ActionTapAdd, Name: brewToken(name)})
+	}
 	for _, name := range sortedMissingFromSet(desired.Formulae, installedAny) {
 		actions = append(actions, Action{Type: ActionFormulaInstall, Name: brewToken(name)})
 	}
 	for _, name := range sortedMissingFromSet(desired.Casks, installedAny) {
 		actions = append(actions, Action{Type: ActionCaskInstall, Name: brewToken(name)})
+	}
+	for _, name := range sortedMissingFromSet(current.RemovableTaps(), sliceSet(desired.Taps)) {
+		actions = append(actions, Action{Type: ActionTapRemove, Name: brewToken(name)})
 	}
 	for _, name := range sortedMissingFromSet(current.RemovableFormulae(), desiredAny) {
 		actions = append(actions, Action{Type: ActionFormulaRemove, Name: name})
