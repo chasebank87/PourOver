@@ -387,6 +387,12 @@ func writeManagedBytes(targetPath string, data []byte, mode os.FileMode, o Manag
 		mode = 0o644
 	}
 
+	// Replace directory-symlink ancestors with real dirs before MkdirAll, otherwise
+	// writes would follow ~/.config/nvim -> ~/.pourover/config/nvim (still live).
+	if err := materializeSymlinkAncestors(targetPath, o, op); err != nil {
+		return err
+	}
+
 	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
 		return fmt.Errorf("%s %s: parent dir: %w", op, targetPath, err)
 	}
@@ -444,6 +450,65 @@ func writeManagedBytes(targetPath string, data []byte, mode os.FileMode, o Manag
 	}
 	cleanup = false
 	return nil
+}
+
+// materializeSymlinkAncestors replaces symlink directories on the path to target
+// with real directories so subsequent writes do not follow into the config tree.
+// The leaf itself is left alone (handled by the caller). Skips OS volume aliases.
+func materializeSymlinkAncestors(targetPath string, o ManagedCopyOptions, op string) error {
+	targetPath = filepath.Clean(targetPath)
+	var links []string
+	p := filepath.Dir(targetPath)
+	for p != "" && p != "." && !stopAncestorWalk(p) {
+		info, err := os.Lstat(p)
+		if err != nil {
+			if os.IsNotExist(err) {
+				parent := filepath.Dir(p)
+				if parent == p {
+					break
+				}
+				p = parent
+				continue
+			}
+			return fmt.Errorf("%s %s: %w", op, targetPath, err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			links = append(links, p)
+		}
+		parent := filepath.Dir(p)
+		if parent == p {
+			break
+		}
+		p = parent
+	}
+	// Root-most first so we replace ~/.config/nvim before nested lookups.
+	for i := len(links) - 1; i >= 0; i-- {
+		link := links[i]
+		if o.BackupFirst {
+			if _, err := BackupAside(o.StateDir, link, o.Now); err != nil {
+				return fmt.Errorf("%s %s: materialize %s: %w", op, targetPath, link, err)
+			}
+		} else if err := os.Remove(link); err != nil {
+			return fmt.Errorf("%s %s: remove symlink ancestor %s: %w", op, targetPath, link, err)
+		}
+		if err := os.MkdirAll(link, 0o755); err != nil {
+			return fmt.Errorf("%s %s: mkdir %s: %w", op, targetPath, link, err)
+		}
+	}
+	return nil
+}
+
+// stopAncestorWalk mirrors generation.stopAncestorWalk: do not materialize
+// macOS volume aliases such as /var → /private/var.
+func stopAncestorWalk(path string) bool {
+	switch filepath.Clean(path) {
+	case "/", ".",
+		"/var", "/tmp", "/etc", "/private", "/home", "/Volumes",
+		"/System", "/Library", "/Applications", "/Users", "/opt", "/usr":
+		return true
+	default:
+		return false
+	}
 }
 
 // ApplyFileUnlinks runs file_unlink actions with apply-time safety checks.

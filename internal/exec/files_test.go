@@ -440,6 +440,55 @@ func TestApplyFileLinks_ReplaceBacksUpThenWrites(t *testing.T) {
 	}
 }
 
+func TestApplyFileLinks_MaterializesDirectorySymlinkRoot(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "cfg")
+	srcDir := filepath.Join(configDir, "nvim")
+	if err := os.MkdirAll(srcDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(srcDir, "init.lua"), []byte("-- init\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	liveRoot := filepath.Join(root, "home", ".config")
+	if err := os.MkdirAll(liveRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	liveNvim := filepath.Join(liveRoot, "nvim")
+	if err := os.Symlink(srcDir, liveNvim); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(liveNvim, "init.lua")
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionLinkUpdate, Name: target, Source: "nvim/init.lua"},
+	}}
+	n, err := ApplyFileLinks(p, FileApplyOptions{ConfigDir: configDir}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("n=%d", n)
+	}
+	info, err := os.Lstat(liveNvim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		t.Fatal("nvim root should be a real directory after apply")
+	}
+	if !info.IsDir() {
+		t.Fatal("nvim root should be a directory")
+	}
+	got, err := os.ReadFile(target)
+	if err != nil || string(got) != "-- init\n" {
+		t.Fatalf("got %q err=%v", got, err)
+	}
+	src, err := os.ReadFile(filepath.Join(srcDir, "init.lua"))
+	if err != nil || string(src) != "-- init\n" {
+		t.Fatalf("source mutated: %q err=%v", src, err)
+	}
+}
+
 func TestApplyManagedCopies_BackupUnexpectedDirectory(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, "cfg")
