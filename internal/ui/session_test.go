@@ -84,24 +84,51 @@ func TestSession_WriteAuthPromptHint(t *testing.T) {
 	if !strings.Contains(got, "Password:") {
 		t.Fatalf("missing prompt: %q", got)
 	}
-	// Progress uses newlines, not CR overlays.
-	if strings.Contains(got, "\r") {
-		t.Fatalf("auth path should not use CR overlay: %q", got)
-	}
 }
 
-func TestSession_StatusUsesNewlines(t *testing.T) {
+func TestSession_SingleLiveStatusLine(t *testing.T) {
 	ForcePlain()
 	var buf bytes.Buffer
 	s := NewSession(&buf, "apply")
-	s.Start(2)
-	s.Step("install cask foo")
+	s.Start(3)
+	s.SetPhase("formulae")
+	s.Step("install formula nerdfetch")
+	s.SetPhase("casks") // must not reprint a second bar with stale formula label
+	s.Step("install cask cheatsheet")
+	s.Step("install cask cinebench")
+
 	out := buf.String()
-	if !strings.Contains(out, "→ install cask foo") {
-		t.Fatalf("missing status arrow: %q", out)
+	// Status updates use CR overlays; only the initial status should start a new line of bars.
+	if strings.Count(out, "\n░") + strings.Count(out, "\n█") > 1 {
+		t.Fatalf("stacked progress bars on new lines: %q", out)
 	}
-	if strings.Contains(out, "\r") {
-		t.Fatalf("status should not use CR: %q", out)
+	if strings.Contains(out, "casks  → install formula nerdfetch") {
+		t.Fatalf("phase change reprinted stale action: %q", out)
+	}
+	if !strings.Contains(out, "install cask cinebench") {
+		t.Fatalf("missing latest action: %q", out)
+	}
+	if !strings.Contains(out, "\r") {
+		t.Fatalf("expected CR overlays for live status: %q", out)
+	}
+}
+
+func TestSession_ParkBeforeBrewWrite(t *testing.T) {
+	ForcePlain()
+	var buf bytes.Buffer
+	s := NewSession(&buf, "apply")
+	s.Start(1)
+	s.Step("install cask foo")
+	if _, err := s.Write([]byte("☕ Fetching downloads\n")); err != nil {
+		t.Fatal(err)
+	}
+	s.Step("install cask bar")
+	out := buf.String()
+	if !strings.Contains(out, "☕ Fetching downloads") {
+		t.Fatalf("brew line missing: %q", out)
+	}
+	if !strings.Contains(out, "install cask bar") {
+		t.Fatalf("status after brew missing: %q", out)
 	}
 }
 

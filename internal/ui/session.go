@@ -19,21 +19,23 @@ type Summary struct {
 	Failures int
 }
 
-// Session renders a PourOver header, action progress, and streams brew logs underneath.
-// Progress is printed as normal lines (not carriage-return overlays) so sudo/password
-// prompts from Homebrew stay on their own clean line.
+// Session renders a PourOver header, one live progress line, and streams brew
+// logs underneath. The progress line is updated in place with CR; it is parked
+// (cleared onto its own finished line) before brew output or auth prompts so
+// Password: is never glued onto the bar.
 type Session struct {
 	out  io.Writer
 	mode string
 
-	mu      sync.Mutex
-	total   int
-	done    int
-	phase   string
-	current string
-	started bool
-	failed  int
-	width   int
+	mu         sync.Mutex
+	total      int
+	done       int
+	phase      string
+	current    string
+	started    bool
+	failed     int
+	width      int
+	liveStatus bool // true when the cursor sits on the CR status line
 }
 
 // NewSession creates a UI session writing to out. mode is "apply" or "upgrade".
@@ -52,18 +54,17 @@ func (s *Session) Start(total int) {
 	s.done = 0
 	s.failed = 0
 	s.started = true
+	s.liveStatus = false
 	s.renderHeaderLocked()
 	s.renderStatusLocked()
 }
 
-// SetPhase updates the phase label shown in the status block.
+// SetPhase updates the phase label. It does not redraw by itself so a phase
+// change does not reprint a stale action under a new phase name.
 func (s *Session) SetPhase(phase string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.phase = phase
-	if s.started {
-		s.renderStatusLocked()
-	}
 }
 
 // Step marks the next action as in-progress and advances the completed count
@@ -86,27 +87,26 @@ func (s *Session) Fail(err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.failed++
+	s.parkStatusLocked()
 	fmt.Fprintln(s.out, styleFail.Render("☕ failed: "+err.Error()))
 }
 
 // Write implements io.Writer for brew restyled output.
-// It streams logs as-is without redrawing the progress bar, so interactive
-// prompts (Password:) are not glued onto the status line.
+// Parks the live progress line first so logs and Password: prompts stay clean.
 func (s *Session) Write(p []byte) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if len(p) == 0 {
 		return 0, nil
 	}
-	// Ensure prompts start on a fresh line when brew omits a leading newline.
+	s.parkStatusLocked()
 	if looksLikeAuthPrompt(string(p)) {
-		fmt.Fprint(s.out, "\n")
 		fmt.Fprint(s.out, styleAccentPrompt.Render("☕ authentication required — enter your password if prompted\n"))
 	}
 	return s.out.Write(p)
 }
 
-// Finish prints a colored summary.
+// Finish parks the status line and prints a colored summary.
 func (s *Session) Finish(sum Summary) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -114,6 +114,7 @@ func (s *Session) Finish(sum Summary) {
 		s.done++
 		s.current = ""
 	}
+	s.parkStatusLocked()
 	s.started = false
 	fmt.Fprintln(s.out, styleMuted.Render(strings.Repeat("─", 40)))
 
@@ -156,7 +157,7 @@ func (s *Session) renderHeaderLocked() {
 	fmt.Fprintln(s.out, styleMuted.Render(strings.Repeat("─", 40)))
 }
 
-func (s *Session) renderStatusLocked() {
+func (s *Session) statusLineLocked() string {
 	bar := renderBar(s.done, s.total, s.width)
 	count := fmt.Sprintf("%d/%d", s.done, s.total)
 	phase := s.phase
@@ -167,14 +168,32 @@ func (s *Session) renderStatusLocked() {
 	if cur == "" {
 		cur = "…"
 	}
-	fmt.Fprintln(s.out)
-	fmt.Fprintf(s.out, "%s  %s  %s\n",
+	return fmt.Sprintf("%s  %s  %s  %s",
 		styleBarOn.Render(bar),
 		styleMuted.Render(count),
 		styleMode.Render(phase),
+		styleMuted.Render("→ "+cur),
 	)
-	fmt.Fprintln(s.out, styleMuted.Render("→ "+cur))
-	fmt.Fprintln(s.out)
+}
+
+func (s *Session) renderStatusLocked() {
+	line := s.statusLineLocked()
+	if s.liveStatus {
+		fmt.Fprintf(s.out, "\r\033[2K%s", line)
+		return
+	}
+	fmt.Fprintf(s.out, "%s", line)
+	s.liveStatus = true
+}
+
+// parkStatusLocked clears the live CR status line and advances to a new line
+// so subsequent brew/log output is not appended beside the bar.
+func (s *Session) parkStatusLocked() {
+	if !s.liveStatus {
+		return
+	}
+	fmt.Fprint(s.out, "\r\033[2K")
+	s.liveStatus = false
 }
 
 func renderBar(done, total, width int) string {
