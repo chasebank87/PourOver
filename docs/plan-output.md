@@ -43,7 +43,7 @@ defaults write com.apple.dock autohide = true
 link create ~/.config/nvim <- config/nvim
 ```
 
-`pourover upgrade --dry-run` merges upgrade actions ahead of the normal apply plan.
+`pourover upgrade --dry-run` merges upgrade actions (outdated declared packages only) ahead of the normal apply plan.
 
 Plan order: upgrade actions (upgrade command only), then brew install/remove, then macOS `defaults_write`, then file link actions.
 

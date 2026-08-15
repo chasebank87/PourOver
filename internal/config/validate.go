@@ -147,6 +147,13 @@ func validateSettingValue(v SettingValue, field string) error {
 	switch v.Kind {
 	case SettingBool, SettingInt, SettingFloat, SettingString:
 		return nil
+	case SettingArray:
+		for i, p := range v.Array {
+			if strings.TrimSpace(p) == "" {
+				return fmt.Errorf("%s[%d]: path must not be empty", field, i+1)
+			}
+		}
+		return nil
 	case "":
 		return fmt.Errorf("%s: missing value kind", field)
 	default:

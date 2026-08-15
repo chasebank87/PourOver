@@ -2,6 +2,7 @@ package exec
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -116,6 +117,17 @@ func defaultsWriteArgs(a plan.Action) ([]string, error) {
 		return []string{"write", a.Domain, a.Key, "-float", val}, nil
 	case config.SettingString:
 		return []string{"write", a.Domain, a.Key, "-string", val}, nil
+	case config.SettingArray:
+		var paths []string
+		if err := json.Unmarshal([]byte(val), &paths); err != nil {
+			return nil, fmt.Errorf("defaults_write %s %s: invalid array value: %w", a.Domain, a.Key, err)
+		}
+		plist, err := config.EncodeDockPersistentPlist(a.Key, paths)
+		if err != nil {
+			return nil, fmt.Errorf("defaults_write %s %s: %w", a.Domain, a.Key, err)
+		}
+		// Pass XML plist as the value (no -type flag); defaults parses it as an array.
+		return []string{"write", a.Domain, a.Key, plist}, nil
 	default:
 		return nil, fmt.Errorf("defaults_write %s %s: unsupported kind %q", a.Domain, a.Key, a.Kind)
 	}

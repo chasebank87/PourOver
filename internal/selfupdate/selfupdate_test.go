@@ -90,6 +90,33 @@ func TestCheckAndApply_UpdatesBinary(t *testing.T) {
 	if string(got) != "new-binary" {
 		t.Fatalf("binary = %q", got)
 	}
+	alias := filepath.Join(dir, "pour")
+	target, err := os.Readlink(alias)
+	if err != nil {
+		t.Fatalf("pour alias: %v", err)
+	}
+	if target != "pourover" {
+		t.Fatalf("pour -> %q, want pourover", target)
+	}
+}
+
+func TestEnsurePourAlias_SkipsRegularFile(t *testing.T) {
+	dir := t.TempDir()
+	exe := filepath.Join(dir, "pourover")
+	if err := os.WriteFile(exe, []byte("x"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	alias := filepath.Join(dir, "pour")
+	if err := os.WriteFile(alias, []byte("other"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := ensurePourAlias(exe); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(alias)
+	if err != nil || string(data) != "other" {
+		t.Fatalf("clobbered pour file: %q err=%v", data, err)
+	}
 }
 
 func TestCheckAndApply_AlreadyCurrent(t *testing.T) {

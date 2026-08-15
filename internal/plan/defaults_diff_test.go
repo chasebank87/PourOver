@@ -36,6 +36,24 @@ func TestBuildDefaultsPlan(t *testing.T) {
 	}
 }
 
+func TestBuildDefaultsPlan_PersistentApps(t *testing.T) {
+	p := BuildDefaultsPlan([]discovery.SettingStatus{{
+		Desired: config.DesiredSetting{
+			Domain: config.DomainDock,
+			Key:    config.DockPersistentAppsKey,
+			Value:  config.SettingValue{Kind: config.SettingArray, Array: []string{"/Applications/Safari.app"}},
+		},
+		Drift: true,
+	}})
+	if len(p.Actions) != 1 {
+		t.Fatalf("actions=%v", p.Actions)
+	}
+	a := p.Actions[0]
+	if a.Kind != "array" || a.Value != `["/Applications/Safari.app"]` {
+		t.Fatalf("action=%#v", a)
+	}
+}
+
 func TestRenderText_DefaultsWrite(t *testing.T) {
 	text := RenderText(Plan{Actions: []Action{{
 		Type:   ActionDefaultsWrite,

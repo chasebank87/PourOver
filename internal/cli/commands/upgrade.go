@@ -30,7 +30,7 @@ func NewUpgradeCmd() *cobra.Command {
 		Short: "Update pourover, upgrade declared packages, then reapply",
 		Long: `Upgrade first self-updates the pourover binary from GitHub Releases
 (like brew update), then runs brew upgrade for each declared formula/cask
-that is already installed, then rebuilds the apply plan and reconciles.
+that is installed and outdated, then rebuilds the apply plan and reconciles.
 Use --dry-run to preview package upgrade and apply actions (skips self-update).
 Use --skip-self-update to only upgrade packages.
 By default each action is printed as it runs on interactive terminals with a
@@ -75,6 +75,18 @@ func runUpgrade(cmd *cobra.Command, dryRun, autoYes, skipSelf, quiet bool) error
 	brewState, err := discovery.DiscoverBrew(cmd.Context(), runner)
 	if err != nil {
 		return fmt.Errorf("discover brew: %w", err)
+	}
+	outdated, err := discovery.DiscoverOutdated(cmd.Context(), runner)
+	if err != nil {
+		return fmt.Errorf("discover outdated: %w", err)
+	}
+	brewState.OutdatedFormulae = outdated.Formulae
+	if brewState.OutdatedFormulae == nil {
+		brewState.OutdatedFormulae = []string{}
+	}
+	brewState.OutdatedCasks = outdated.Casks
+	if brewState.OutdatedCasks == nil {
+		brewState.OutdatedCasks = []string{}
 	}
 	upgradePlan := plan.BuildUpgradePlan(manifest.Packages, brewState)
 
@@ -145,6 +157,18 @@ func buildUpgradePlanForTest(ctx context.Context, configPath string, runner disc
 	brewState, err := discovery.DiscoverBrew(ctx, runner)
 	if err != nil {
 		return plan.Plan{}, err
+	}
+	outdated, err := discovery.DiscoverOutdated(ctx, runner)
+	if err != nil {
+		return plan.Plan{}, err
+	}
+	brewState.OutdatedFormulae = outdated.Formulae
+	if brewState.OutdatedFormulae == nil {
+		brewState.OutdatedFormulae = []string{}
+	}
+	brewState.OutdatedCasks = outdated.Casks
+	if brewState.OutdatedCasks == nil {
+		brewState.OutdatedCasks = []string{}
 	}
 	return plan.BuildUpgradePlan(manifest.Packages, brewState), nil
 }

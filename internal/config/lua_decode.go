@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"strings"
 
 	lua "github.com/yuin/gopher-lua"
 )
@@ -211,9 +212,43 @@ func decodeSettingValue(v lua.LValue, field string) (SettingValue, error) {
 		return SettingValue{Kind: SettingFloat, Float: n}, nil
 	case lua.LTString:
 		return SettingValue{Kind: SettingString, String: v.String()}, nil
+	case lua.LTTable:
+		paths, err := decodeStringArrayTable(v.(*lua.LTable), field)
+		if err != nil {
+			return SettingValue{}, err
+		}
+		return SettingValue{Kind: SettingArray, Array: paths}, nil
 	default:
-		return SettingValue{}, fmt.Errorf("%s: expected bool, number, or string, got %s", field, v.Type())
+		return SettingValue{}, fmt.Errorf("%s: expected bool, number, string, or array, got %s", field, v.Type())
 	}
+}
+
+func decodeStringArrayTable(tbl *lua.LTable, field string) ([]string, error) {
+	var paths []string
+	var walkErr error
+	tbl.ForEach(func(k, v lua.LValue) {
+		if walkErr != nil {
+			return
+		}
+		if k.Type() != lua.LTNumber {
+			walkErr = fmt.Errorf("%s: array keys must be numbers, got %s", field, k.Type())
+			return
+		}
+		if v.Type() != lua.LTString {
+			walkErr = fmt.Errorf("%s[%v]: expected string path, got %s", field, k, v.Type())
+			return
+		}
+		s := strings.TrimSpace(v.String())
+		if s == "" {
+			walkErr = fmt.Errorf("%s[%v]: path must not be empty", field, k)
+			return
+		}
+		paths = append(paths, s)
+	})
+	if walkErr != nil {
+		return nil, walkErr
+	}
+	return paths, nil
 }
 
 func decodePackages(L *lua.LState, root *lua.LTable, key string) (Packages, error) {

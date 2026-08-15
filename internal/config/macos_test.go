@@ -23,6 +23,8 @@ return {
         orientation = "left",
         ["show-recents"] = false,
         tilesize = 48,
+        ["persistent-apps"] = { "/Applications/Safari.app" },
+        ["persistent-others"] = { "~/Downloads" },
       },
       finder = {
         ShowPathbar = true,
@@ -64,6 +66,14 @@ return {
 	}
 	if m.MacOS.Defaults.Sections["dock"]["tilesize"].Int != 48 {
 		t.Fatalf("tilesize = %#v", m.MacOS.Defaults.Sections["dock"]["tilesize"])
+	}
+	apps := m.MacOS.Defaults.Sections["dock"]["persistent-apps"]
+	if apps.Kind != SettingArray || len(apps.Array) != 1 || apps.Array[0] != "/Applications/Safari.app" {
+		t.Fatalf("persistent-apps = %#v", apps)
+	}
+	others := m.MacOS.Defaults.Sections["dock"]["persistent-others"]
+	if others.Kind != SettingArray || len(others.Array) != 1 || others.Array[0] != "~/Downloads" {
+		t.Fatalf("persistent-others = %#v", others)
 	}
 	if !m.MacOS.Defaults.Sections["finder"]["ShowPathbar"].Bool {
 		t.Fatal("ShowPathbar missing")
@@ -160,8 +170,8 @@ func TestCatalog_LoadsAndHasNixDarwinSections(t *testing.T) {
 	if !IsCuratedKey("dock", "autohide") {
 		t.Fatal("dock.autohide missing")
 	}
-	if IsCuratedKey("dock", "persistent-apps") {
-		t.Fatal("persistent-apps should not be in scalar catalog")
+	if !IsCuratedKey("dock", "persistent-apps") || !IsCuratedKey("dock", "persistent-others") {
+		t.Fatal("dock persistent-apps/others should be curated")
 	}
 }
 

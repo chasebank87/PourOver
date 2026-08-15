@@ -138,6 +138,12 @@ func asDefaultsExit(err error, target **DefaultsExitError) bool {
 // ParseDefaultsRead converts `defaults read` stdout into a SettingValue of the expected kind.
 func ParseDefaultsRead(raw string, want config.SettingKind) (config.SettingValue, error) {
 	raw = strings.TrimSpace(raw)
+	if want == config.SettingArray {
+		return config.SettingValue{
+			Kind:  config.SettingArray,
+			Array: config.ExtractDockPersistentPaths(raw),
+		}, nil
+	}
 	raw = strings.Trim(raw, `"`)
 	switch want {
 	case config.SettingBool:
@@ -193,9 +199,27 @@ func SettingValuesEqual(a, b config.SettingValue) bool {
 		as, _ := expandHome(a.String)
 		bs, _ := expandHome(b.String)
 		return as == bs
+	case config.SettingArray:
+		return dockPathListsEqual(a.Array, b.Array)
 	default:
 		return false
 	}
+}
+
+func dockPathListsEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		as, _ := expandHome(a[i])
+		bs, _ := expandHome(b[i])
+		as = strings.TrimRight(as, "/")
+		bs = strings.TrimRight(bs, "/")
+		if as != bs {
+			return false
+		}
+	}
+	return true
 }
 
 func settingNumber(v config.SettingValue) float64 {

@@ -72,7 +72,6 @@ Ideas and scope **explicitly deferred from v1**. When we cut v1, anything not do
 |------|---------------|-------|
 | Wallpaper (desktoppr / osascript / Wallpaper framework) | nix-darwin parity cut | nix-darwin has no first-class wallpaper either |
 | Finder sidebar Favorites management | nix-darwin#1663 | Opaque sidebar plists; not simple `defaults` |
-| Dock `persistent-apps` / `persistent-others` arrays | nix-darwin dock module | Needs complex plist tile encoding |
 | ByHost control-center (full UUID path) | nix-darwin controlcenter | Catalog writes `com.apple.controlcenter`; ByHost path not used |
 | CustomSystemPreferences (sudo `/Library/Preferences` escape hatch) | nix-darwin | `loginwindow`/`smb`/`SoftwareUpdate` are named sections; arbitrary system domains still user-only via `custom` |
 | `pourover import --macos` snapshot curated keys | — | Read current defaults into Lua |

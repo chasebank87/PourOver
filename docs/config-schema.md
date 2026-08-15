@@ -133,7 +133,7 @@ macos = {
 }
 ```
 
-`loginwindow` / `smb` / `SoftwareUpdate` write machine plists (admin). Wallpaper, Finder sidebar Favorites, and Dock `persistent-apps` are not applied.
+`loginwindow` / `smb` / `SoftwareUpdate` write machine plists (admin). Wallpaper and Finder sidebar Favorites are not applied. Dock `persistent-apps` / `persistent-others` accept path arrays (nix-darwin-style tiles).
 
 ## Minimal example
 

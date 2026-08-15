@@ -13,7 +13,8 @@ install: build
 	mkdir -p "$(BINDIR)"
 	cp pourover "$(BINDIR)/pourover"
 	chmod +x "$(BINDIR)/pourover"
-	@echo "Installed to $(BINDIR)/pourover"
+	ln -sfn pourover "$(BINDIR)/pour"
+	@echo "Installed to $(BINDIR)/pourover (alias: pour)"
 
 vet:
 	go vet ./...

@@ -117,9 +117,11 @@ DEST="$(install_dir)"
 ohai "Installing ${BINARY} to ${DEST}/..."
 cp "$BIN_PATH" "${DEST}/${BINARY}"
 chmod +x "${DEST}/${BINARY}"
+ln -sfn "${BINARY}" "${DEST}/pour"
 
 echo
 echo "Installed PourOver ${TAG} -> ${DEST}/${BINARY}"
+echo "Alias: ${DEST}/pour -> ${BINARY}"
 if ! command -v "$BINARY" >/dev/null 2>&1; then
   echo "Note: ${DEST} is not on your PATH. Add it, for example:"
   echo "  export PATH=\"${DEST}:\$PATH\""
@@ -129,6 +131,6 @@ if ! command -v "$BINARY" >/dev/null 2>&1; then
 fi
 echo
 echo "Next steps:"
-echo "  pourover init"
-echo "  pourover doctor"
-echo "  pourover plan"
+echo "  pour init    # or: pourover init"
+echo "  pour doctor"
+echo "  pour plan"

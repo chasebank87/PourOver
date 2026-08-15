@@ -38,15 +38,17 @@ const (
 	SettingInt    SettingKind = "int"
 	SettingFloat  SettingKind = "float"
 	SettingString SettingKind = "string"
+	SettingArray  SettingKind = "array" // path lists (e.g. dock.persistent-apps)
 )
 
-// SettingValue is a typed preference value (bool/int/float/string).
+// SettingValue is a typed preference value (bool/int/float/string/array).
 type SettingValue struct {
 	Kind   SettingKind `json:"kind"`
 	Bool   bool        `json:"bool,omitempty"`
 	Int    int64       `json:"int,omitempty"`
 	Float  float64     `json:"float,omitempty"`
 	String string      `json:"string,omitempty"`
+	Array  []string    `json:"array,omitempty"`
 }
 
 // Packages lists Homebrew taps, formulae, and casks to reconcile.

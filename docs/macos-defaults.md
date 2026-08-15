@@ -19,6 +19,14 @@ macos = {
       orientation = "left",
       ["show-recents"] = false,
       tilesize = 48,
+      ["persistent-apps"] = {
+        "/Applications/Safari.app",
+        "/System/Applications/Utilities/Terminal.app",
+      },
+      ["persistent-others"] = {
+        "~/Downloads",
+        "~/Desktop",
+      },
     },
     finder = {
       ShowPathbar = true,
@@ -45,11 +53,11 @@ macos = {
 }
 ```
 
-Types: **bool**, **int**, **float**, **string**. After writes, PourOver restarts Dock / Finder / SystemUIServer / Calendar / Activity Monitor when that domain changed.
+Types: **bool**, **int**, **float**, **string**, **array** (Dock `persistent-apps` / `persistent-others` path lists; encoded as nix-darwin-style tiles). After writes, PourOver restarts Dock / Finder / SystemUIServer / Calendar / Activity Monitor when that domain changed.
 
 `macos.defaults.custom` is nix-darwin `CustomUserPreferences`. Machine-wide domains (`loginwindow`, `smb`, `SoftwareUpdate`) write under `/Library/Preferences` and need admin. `controlcenter` is ByHost on nix-darwin; PourOver writes `com.apple.controlcenter` (may need a logout).
 
-**Not applied:** `dock.persistent-apps` / `persistent-others` (arrays), wallpaper, Finder sidebar Favorites.
+**Not applied:** wallpaper, Finder sidebar Favorites.
 
 ## Discover more keys
 
@@ -104,6 +112,10 @@ Also: [macos-defaults.com](https://macos-defaults.com) and [nix-darwin defaults 
 | | | Whether to automatically rearrange spaces based on most recent use. The default is true. | |
 | `orientation` | string | `macos.defaults.dock.orientation` | `defaults write com.apple.dock orientation -string <value>` |
 | | | Position of the dock on screen. The default is "bottom". | |
+| `persistent-apps` | array | `macos.defaults.dock["persistent-apps"]` | `defaults write com.apple.dock persistent-apps <plist array>` |
+| | | Persistent applications in the Dock (list of .app paths). Encoded as dock tiles like nix-darwin. | |
+| `persistent-others` | array | `macos.defaults.dock["persistent-others"]` | `defaults write com.apple.dock persistent-others <plist array>` |
+| | | Persistent folders/files on the Dock (right side). Paths; folders vs files inferred like nix-darwin. | |
 | `scroll-to-open` | bool | `macos.defaults.dock["scroll-to-open"]` | `defaults write com.apple.dock scroll-to-open -bool <value>` |
 | | | Scroll up on a Dock icon to show all Space's opened windows for an app, or open stack. The default is false. | |
 | `show-process-indicators` | bool | `macos.defaults.dock["show-process-indicators"]` | `defaults write com.apple.dock show-process-indicators -bool <value>` |
@@ -645,4 +657,4 @@ Also: [macos-defaults.com](https://macos-defaults.com) and [nix-darwin defaults 
 | `AutomaticallyInstallMacOSUpdates` | bool | `macos.defaults.SoftwareUpdate.AutomaticallyInstallMacOSUpdates` | `defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticallyInstallMacOSUpdates -bool <value>` |
 | | | Automatically install Mac OS software updates. Defaults to false. | |
 
-_Indexed 195 keys in 20 sections from nix-darwin `system.defaults`._
+_Indexed 197 keys in 20 sections from nix-darwin `system.defaults`._

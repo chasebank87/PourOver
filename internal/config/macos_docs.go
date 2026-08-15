@@ -26,6 +26,14 @@ macos = {
       orientation = "left",
       ["show-recents"] = false,
       tilesize = 48,
+      ["persistent-apps"] = {
+        "/Applications/Safari.app",
+        "/System/Applications/Utilities/Terminal.app",
+      },
+      ["persistent-others"] = {
+        "~/Downloads",
+        "~/Desktop",
+      },
     },
     finder = {
       ShowPathbar = true,
@@ -52,11 +60,11 @@ macos = {
 }
 ` + "```" + `
 
-Types: **bool**, **int**, **float**, **string**. After writes, PourOver restarts Dock / Finder / SystemUIServer / Calendar / Activity Monitor when that domain changed.
+Types: **bool**, **int**, **float**, **string**, **array** (Dock ` + "`persistent-apps`" + ` / ` + "`persistent-others`" + ` path lists; encoded as nix-darwin-style tiles). After writes, PourOver restarts Dock / Finder / SystemUIServer / Calendar / Activity Monitor when that domain changed.
 
 ` + "`macos.defaults.custom`" + ` is nix-darwin ` + "`CustomUserPreferences`" + `. Machine-wide domains (` + "`loginwindow`" + `, ` + "`smb`" + `, ` + "`SoftwareUpdate`" + `) write under ` + "`/Library/Preferences`" + ` and need admin. ` + "`controlcenter`" + ` is ByHost on nix-darwin; PourOver writes ` + "`com.apple.controlcenter`" + ` (may need a logout).
 
-**Not applied:** ` + "`dock.persistent-apps`" + ` / ` + "`persistent-others`" + ` (arrays), wallpaper, Finder sidebar Favorites.
+**Not applied:** wallpaper, Finder sidebar Favorites.
 
 ## Discover more keys
 
@@ -100,6 +108,9 @@ func RenderMacOSDefaultsMarkdown() (string, error) {
 		for _, k := range sec.Keys {
 			luaPath := luaPathFor(sec.Name, k.Key)
 			write := fmt.Sprintf("defaults write %s %s -%s <value>", sec.Domain, shellKey(k.Key), k.Kind)
+			if k.Kind == "array" {
+				write = fmt.Sprintf("defaults write %s %s <plist array>", sec.Domain, shellKey(k.Key))
+			}
 			desc := strings.ReplaceAll(k.Description, "|", "\\|")
 			fmt.Fprintf(&b, "| `%s` | %s | `%s` | `%s` |\n", k.Key, k.Kind, luaPath, write)
 			if desc != "" {

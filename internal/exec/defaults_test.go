@@ -69,6 +69,24 @@ func TestDefaultsWriteArgs_StringExpand(t *testing.T) {
 	}
 }
 
+func TestDefaultsWriteArgs_PersistentApps(t *testing.T) {
+	args, err := defaultsWriteArgs(plan.Action{
+		Domain: config.DomainDock,
+		Key:    config.DockPersistentAppsKey,
+		Value:  `["/Applications/Safari.app"]`,
+		Kind:   "array",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(args) != 4 || args[0] != "write" || args[1] != config.DomainDock || args[2] != config.DockPersistentAppsKey {
+		t.Fatalf("args=%v", args)
+	}
+	if !strings.Contains(args[3], "<array>") || !strings.Contains(args[3], "/Applications/Safari.app") {
+		t.Fatalf("plist=%q", args[3])
+	}
+}
+
 func TestApplyDefaultsWrites_ScreencaptureKillall(t *testing.T) {
 	rec := &recordingDefaults{}
 	p := plan.Plan{Actions: []plan.Action{
@@ -86,7 +104,7 @@ func TestApplyDefaultsWrites_ScreencaptureKillall(t *testing.T) {
 func TestApplyDefaultsWrites_UnsupportedKind(t *testing.T) {
 	rec := &recordingDefaults{}
 	_, err := ApplyDefaultsWrites(context.Background(), rec, plan.Plan{Actions: []plan.Action{{
-		Type: plan.ActionDefaultsWrite, Domain: "x", Key: "y", Value: "z", Kind: "array",
+		Type: plan.ActionDefaultsWrite, Domain: "x", Key: "y", Value: "z", Kind: "blob",
 	}}}, nil)
 	if err == nil || !strings.Contains(err.Error(), "unsupported kind") {
 		t.Fatalf("err=%v", err)

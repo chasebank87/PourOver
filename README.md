@@ -22,7 +22,7 @@ make install  # copies to ~/.local/bin by default (PREFIX=/usr/local make instal
 make test
 ```
 
-Requires macOS. The installer bootstraps Homebrew when it is not already present. Building from source also needs Go. CI runs `make vet`, `make test`, and `make build` on push/PR; tagged `v*` releases publish darwin archives via GoReleaser.
+Requires macOS. The installer bootstraps Homebrew when it is not already present and installs a `pour` symlink alias beside `pourover`. Building from source also needs Go. CI runs `make vet`, `make test`, and `make build` on push/PR; tagged `v*` releases publish darwin archives via GoReleaser.
 
 ## Releasing
 
@@ -78,14 +78,16 @@ Keys are **not** in the default init config. Search:
 - [docs/macos-defaults.md](docs/macos-defaults.md) — every supported `system.defaults` key and Lua syntax
 - [docs/nix-darwin-options.md](docs/nix-darwin-options.md) — full [MyNixOS nix-darwin](https://mynixos.com/nix-darwin/options) option tree and PourOver status
 
-Keep packages (and PourOver itself) up to date — similar to `brew update` + `brew upgrade`:
+Keep packages (and PourOver itself) up to date — similar to `brew update` + `brew upgrade` for outdated packages only:
 
 ```bash
 pourover self-update       # update the pourover binary from GitHub Releases
-pourover upgrade           # self-update, brew upgrade declared packages, then reapply
+pourover upgrade           # self-update, brew upgrade outdated declared packages, then reapply
 pourover upgrade --dry-run # preview package/apply actions (skips self-update)
 pourover upgrade --skip-self-update
 ```
+
+`pour` is an install-time symlink to `pourover` (same CLI).
 
 ## Commands
 
@@ -96,7 +98,7 @@ pourover upgrade --skip-self-update
 | `config` | Manage iCloud mirror and git config sync (`config icloud`, `config git`, `push`/`pull`) |
 | `plan` | Show pending actions (`--json` for machine-readable) |
 | `apply` | Reconcile system (`--dry-run`, `--yes`, `--quiet`) |
-| `upgrade` | Self-update pourover, upgrade declared packages, then reapply (`--dry-run`, `--yes`, `--skip-self-update`, `--quiet`) |
+| `upgrade` | Self-update pourover, upgrade **outdated** declared packages, then reapply (`--dry-run`, `--yes`, `--skip-self-update`, `--quiet`) |
 | `self-update` | Replace the pourover binary from the latest GitHub Release |
 | `doctor` | Check PATH, brew, config, state dir, iCloud, git sync |
 | `backup` | Force local snapshot (+ iCloud mirror when enabled) |

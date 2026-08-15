@@ -48,7 +48,7 @@ Leaf keys and Lua syntax: **[macos-defaults.md](macos-defaults.md)**.
 
 | nix-darwin section | Status | Notes |
 |--------------------|--------|--------|
-| [dock](https://mynixos.com/nix-darwin/options/system.defaults.dock) | supported | `persistent-apps` / `persistent-others` not applied (arrays) |
+| [dock](https://mynixos.com/nix-darwin/options/system.defaults.dock) | supported | includes `persistent-apps` / `persistent-others` (path arrays → dock tiles) |
 | [finder](https://mynixos.com/nix-darwin/options/system.defaults.finder) | supported | |
 | [NSGlobalDomain](https://mynixos.com/nix-darwin/options/system.defaults.NSGlobalDomain) | supported | some keys need logout |
 | [.GlobalPreferences](https://mynixos.com/nix-darwin/options/system.defaults.%22.GlobalPreferences%22) | supported | Lua: `macos.defaults[".GlobalPreferences"]` |

@@ -53,6 +53,37 @@ func TestSettingValuesEqual_HomeExpansion(t *testing.T) {
 	}
 }
 
+func TestParseDefaultsRead_Array(t *testing.T) {
+	raw := `(
+        {
+            tile-data = {
+                file-data = {
+                    "_CFURLString" = "file:///Applications/Safari.app/";
+                };
+            };
+        }
+)`
+	v, err := ParseDefaultsRead(raw, config.SettingArray)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Kind != config.SettingArray || len(v.Array) != 1 || v.Array[0] != "/Applications/Safari.app" {
+		t.Fatalf("got %#v", v)
+	}
+}
+
+func TestSettingValuesEqual_DockArrays(t *testing.T) {
+	a := config.SettingValue{Kind: config.SettingArray, Array: []string{"/Applications/Safari.app/"}}
+	b := config.SettingValue{Kind: config.SettingArray, Array: []string{"/Applications/Safari.app"}}
+	if !SettingValuesEqual(a, b) {
+		t.Fatal("expected trailing-slash-normalized equal")
+	}
+	c := config.SettingValue{Kind: config.SettingArray, Array: []string{"/Applications/Mail.app"}}
+	if SettingValuesEqual(a, c) {
+		t.Fatal("expected drift")
+	}
+}
+
 func TestDiscoverDefaults_DriftAndMatch(t *testing.T) {
 	fake := &fakeDefaults{values: map[string]string{
 		config.DomainDock + "\x00autohide": "1",

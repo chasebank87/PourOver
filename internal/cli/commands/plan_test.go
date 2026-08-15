@@ -11,8 +11,11 @@ import (
 )
 
 type stubBrewRunner struct {
-	formulae string
-	casks    string
+	formulae         string
+	casks            string
+	outdatedFormulae string // empty string means "same as formulae" when set via use; use ptr?
+	outdatedCasks    string
+	outdatedSet      bool
 }
 
 func (s *stubBrewRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
@@ -29,6 +32,18 @@ func (s *stubBrewRunner) Run(ctx context.Context, args ...string) ([]byte, error
 		return []byte(s.formulae), nil
 	}
 	if len(args) == 2 && args[0] == "list" && args[1] == "--cask" {
+		return []byte(s.casks), nil
+	}
+	if len(args) == 3 && args[0] == "outdated" && args[1] == "--formula" && args[2] == "-q" {
+		if s.outdatedSet {
+			return []byte(s.outdatedFormulae), nil
+		}
+		return []byte(s.formulae), nil
+	}
+	if len(args) == 3 && args[0] == "outdated" && args[1] == "--cask" && args[2] == "-q" {
+		if s.outdatedSet {
+			return []byte(s.outdatedCasks), nil
+		}
 		return []byte(s.casks), nil
 	}
 	return nil, fmt.Errorf("unexpected brew args: %v", args)

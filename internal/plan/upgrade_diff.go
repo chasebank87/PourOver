@@ -7,12 +7,17 @@ import (
 	"github.com/chasebank87/PourOver/internal/discovery"
 )
 
-// BuildUpgradePlan returns upgrade actions for declared packages that are already installed.
+// BuildUpgradePlan returns upgrade actions for declared packages that are
+// already installed and reported outdated by Homebrew.
 // Order: formula upgrades then cask upgrades, each group sorted by name.
 //
 // A package declared as a formula but installed as a cask (or vice versa) is
 // upgraded with the type that matches how it is installed. Names match
 // case-insensitively; action names use the installed Homebrew token.
+//
+// current.OutdatedFormulae / OutdatedCasks must be populated (e.g. via
+// DiscoverOutdated). Nil outdated lists mean no upgrades (avoids treating every
+// installed package as upgradable when discovery was skipped).
 func BuildUpgradePlan(desired config.Packages, current discovery.BrewState) Plan {
 	haveFormulae := map[string]string{} // lower -> canonical installed name
 	for _, name := range current.Formulae {
@@ -21,6 +26,14 @@ func BuildUpgradePlan(desired config.Packages, current discovery.BrewState) Plan
 	haveCasks := map[string]string{}
 	for _, name := range current.Casks {
 		haveCasks[brewToken(name)] = name
+	}
+	outdatedF := sliceSet(current.OutdatedFormulae)
+	outdatedC := sliceSet(current.OutdatedCasks)
+	if current.OutdatedFormulae == nil {
+		outdatedF = nil
+	}
+	if current.OutdatedCasks == nil {
+		outdatedC = nil
 	}
 
 	var formulae, casks []string
@@ -32,13 +45,21 @@ func BuildUpgradePlan(desired config.Packages, current discovery.BrewState) Plan
 			return
 		}
 		if installed, ok := haveFormulae[key]; ok {
-			formulae = append(formulae, installed)
-			seen[key] = struct{}{}
+			if outdatedF != nil {
+				if _, out := outdatedF[key]; out {
+					formulae = append(formulae, installed)
+					seen[key] = struct{}{}
+				}
+			}
 			return
 		}
 		if installed, ok := haveCasks[key]; ok {
-			casks = append(casks, installed)
-			seen[key] = struct{}{}
+			if outdatedC != nil {
+				if _, out := outdatedC[key]; out {
+					casks = append(casks, installed)
+					seen[key] = struct{}{}
+				}
+			}
 		}
 	}
 

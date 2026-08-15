@@ -18,6 +18,11 @@ type BrewState struct {
 	FormulaeRequested []string
 	// Casks is every installed cask.
 	Casks []string
+	// OutdatedFormulae / OutdatedCasks are set when DiscoverOutdated has run.
+	// When nil, BuildUpgradePlan treats nothing as outdated (no upgrades).
+	// When non-nil (including empty), only those names are upgrade candidates.
+	OutdatedFormulae []string
+	OutdatedCasks    []string
 }
 
 // RemovableFormulae returns formulae that may be considered for undeclared removal.

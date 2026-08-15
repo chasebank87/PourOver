@@ -1,8 +1,10 @@
 package plan
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/chasebank87/PourOver/internal/config"
 	"github.com/chasebank87/PourOver/internal/discovery"
@@ -41,6 +43,12 @@ func formatSettingValue(v config.SettingValue) string {
 		return strconv.FormatFloat(v.Float, 'f', -1, 64)
 	case config.SettingString:
 		return v.String
+	case config.SettingArray:
+		b, err := json.Marshal(v.Array)
+		if err != nil {
+			return strings.Join(v.Array, ", ")
+		}
+		return string(b)
 	default:
 		return fmt.Sprintf("%v", v)
 	}

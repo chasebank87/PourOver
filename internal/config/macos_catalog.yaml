@@ -1,4 +1,4 @@
-# PourOver macOS defaults catalog — nix-darwin system.defaults scalars.
+# PourOver macOS defaults catalog — nix-darwin system.defaults (scalars + dock path arrays).
 # Source: https://mynixos.com/nix-darwin/options/system.defaults
 # Do not edit by hand without also regenerating docs/macos-defaults.md (make macos-docs).
 sections:
@@ -56,6 +56,12 @@ sections:
       - key: "orientation"
         kind: string
         description: "Position of the dock on screen. The default is \"bottom\"."
+      - key: "persistent-apps"
+        kind: array
+        description: "Persistent applications in the Dock (list of .app paths). Encoded as dock tiles like nix-darwin."
+      - key: "persistent-others"
+        kind: array
+        description: "Persistent folders/files on the Dock (right side). Paths; folders vs files inferred like nix-darwin."
       - key: "scroll-to-open"
         kind: bool
         description: "Scroll up on a Dock icon to show all Space's opened windows for an app, or open stack. The default is false."

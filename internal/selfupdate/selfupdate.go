@@ -18,7 +18,7 @@ const defaultRepo = "chasebank87/PourOver"
 
 // Release is a subset of the GitHub releases API payload.
 type Release struct {
-	TagName string `json:"tag_name"`
+	TagName string  `json:"tag_name"`
 	Assets  []Asset `json:"assets"`
 }
 
@@ -181,7 +181,26 @@ func replaceFromArchive(client HTTPDoer, url, exePath string) error {
 		_ = os.Remove(tmpExe)
 		return fmt.Errorf("replace binary: %w", err)
 	}
+	_ = ensurePourAlias(exePath)
 	return nil
+}
+
+// ensurePourAlias creates or refreshes a "pour" symlink beside the pourover binary.
+func ensurePourAlias(exePath string) error {
+	dir := filepath.Dir(exePath)
+	alias := filepath.Join(dir, "pour")
+	target := filepath.Base(exePath)
+	if info, err := os.Lstat(alias); err == nil {
+		if info.Mode()&os.ModeSymlink == 0 {
+			return nil // do not replace a real file named pour
+		}
+		if err := os.Remove(alias); err != nil {
+			return err
+		}
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	return os.Symlink(target, alias)
 }
 
 func extractBinary(r io.Reader, destDir, name string) (string, error) {
