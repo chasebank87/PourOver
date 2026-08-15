@@ -37,6 +37,8 @@ func formatActionLine(a Action) string {
 	switch a.Type {
 	case ActionTapAdd:
 		return fmt.Sprintf("tap %s", a.Name)
+	case ActionTapTrust:
+		return fmt.Sprintf("trust tap %s", a.Name)
 	case ActionTapRemove:
 		return fmt.Sprintf("untap %s", a.Name)
 	case ActionFormulaInstall:

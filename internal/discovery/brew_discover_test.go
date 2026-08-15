@@ -32,6 +32,7 @@ func TestDiscoverBrew_FromFixtures(t *testing.T) {
 	runner := &fakeRunner{
 		responses: map[string][]byte{
 			"tap":                                   readFixture(t, "list-tap.txt"),
+			"trust --json=v1":                       []byte(`{"taps":["nikitabobko/tap"],"formulae":[],"casks":[],"commands":[]}`),
 			"list --formula":                        readFixture(t, "list-formula.txt"),
 			"list --cask":                           readFixture(t, "list-cask.txt"),
 			"list --formula --installed-on-request": []byte("git\nfzf\n"),
@@ -44,6 +45,9 @@ func TestDiscoverBrew_FromFixtures(t *testing.T) {
 	}
 	if len(state.Taps) != 4 || state.Taps[0] != "homebrew/core" {
 		t.Errorf("taps = %#v", state.Taps)
+	}
+	if len(state.TrustedTaps) != 1 || state.TrustedTaps[0] != "nikitabobko/tap" {
+		t.Errorf("trusted taps = %#v", state.TrustedTaps)
 	}
 	if len(state.Formulae) != 3 || state.Formulae[0] != "git" {
 		t.Errorf("formulae = %#v", state.Formulae)
@@ -135,6 +139,22 @@ func TestIsCoreTap(t *testing.T) {
 	}
 	if IsCoreTap("homebrew/cask-fonts") || IsCoreTap("nikitabobko/tap") {
 		t.Fatal("expected non-core")
+	}
+}
+
+func TestNeedsExplicitTrust(t *testing.T) {
+	if NeedsExplicitTrust("homebrew/cask-fonts") || NeedsExplicitTrust("homebrew/core") {
+		t.Fatal("official taps should not need explicit trust")
+	}
+	if !NeedsExplicitTrust("nikitabobko/tap") {
+		t.Fatal("third-party taps need explicit trust")
+	}
+}
+
+func TestParseTrustTapsJSON(t *testing.T) {
+	got := parseTrustTapsJSON([]byte(`{"taps":["a/b","c/d"],"formulae":[]}`))
+	if len(got) != 2 || got[0] != "a/b" {
+		t.Fatalf("got %#v", got)
 	}
 }
 

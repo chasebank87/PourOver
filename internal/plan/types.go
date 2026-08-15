@@ -5,6 +5,7 @@ type ActionType string
 
 const (
 	ActionTapAdd         ActionType = "tap_add"
+	ActionTapTrust       ActionType = "tap_trust"
 	ActionTapRemove      ActionType = "tap_remove"
 	ActionFormulaInstall ActionType = "formula_install"
 	ActionFormulaRemove  ActionType = "formula_remove"

@@ -17,16 +17,36 @@ import (
 // Formula removes only consider formulae installed on request (not dependencies).
 // Tap removes never include homebrew/core or homebrew/cask.
 //
-// Action order is stable: tap adds, formula installs, cask installs,
+// Action order is stable: tap adds, tap trusts, formula installs, cask installs,
 // tap removes, formula removes, cask removes; each group sorted alphabetically.
 func BuildBrewPlan(desired config.Packages, current discovery.BrewState) Plan {
 	var actions []Action
 
 	desiredAny := sliceSet(append(append([]string{}, desired.Formulae...), desired.Casks...))
 	installedAny := sliceSet(append(append([]string{}, current.Formulae...), current.Casks...))
+	currentTaps := sliceSet(current.Taps)
+	trustedTaps := sliceSet(current.TrustedTaps)
 
-	for _, name := range sortedMissingFromSet(desired.Taps, sliceSet(current.Taps)) {
+	for _, name := range sortedMissingFromSet(desired.Taps, currentTaps) {
 		actions = append(actions, Action{Type: ActionTapAdd, Name: brewToken(name)})
+	}
+	var needTrust []string
+	for _, name := range desired.Taps {
+		token := brewToken(name)
+		if !discovery.NeedsExplicitTrust(token) {
+			continue
+		}
+		if _, tapped := currentTaps[token]; !tapped {
+			continue // tap_add will trust after tapping
+		}
+		if _, ok := trustedTaps[token]; ok {
+			continue
+		}
+		needTrust = append(needTrust, token)
+	}
+	sort.Strings(needTrust)
+	for _, name := range needTrust {
+		actions = append(actions, Action{Type: ActionTapTrust, Name: name})
 	}
 	for _, name := range sortedMissingFromSet(desired.Formulae, installedAny) {
 		actions = append(actions, Action{Type: ActionFormulaInstall, Name: brewToken(name)})

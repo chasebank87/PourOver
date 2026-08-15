@@ -20,6 +20,10 @@ func (r *installRecordingRunner) Run(ctx context.Context, args ...string) ([]byt
 		r.installs = append(r.installs, "tap:"+args[1])
 		return nil, nil
 	}
+	if len(args) == 3 && args[0] == "trust" && args[1] == "--tap" {
+		r.installs = append(r.installs, "trust:"+args[2])
+		return nil, nil
+	}
 	if len(args) == 2 && args[0] == "list" && args[1] == "--formula" {
 		return r.listFormula, nil
 	}
@@ -47,6 +51,26 @@ func TestInstallFormula_RunsBrewInstall(t *testing.T) {
 	}
 }
 
+func TestAddTap_TrustsAfterTap(t *testing.T) {
+	runner := &installRecordingRunner{}
+	if err := AddTap(context.Background(), runner, "nikitabobko/tap"); err != nil {
+		t.Fatalf("AddTap: %v", err)
+	}
+	if got := strings.Join(runner.installs, ","); got != "tap:nikitabobko/tap,trust:nikitabobko/tap" {
+		t.Fatalf("calls = %q, want tap then trust", got)
+	}
+}
+
+func TestAddTap_SkipsTrustForOfficial(t *testing.T) {
+	runner := &installRecordingRunner{}
+	if err := AddTap(context.Background(), runner, "homebrew/cask-fonts"); err != nil {
+		t.Fatalf("AddTap: %v", err)
+	}
+	if got := strings.Join(runner.installs, ","); got != "tap:homebrew/cask-fonts" {
+		t.Fatalf("calls = %q, want tap only for official", got)
+	}
+}
+
 func TestApplyTapAdds_OnlyTaps(t *testing.T) {
 	runner := &installRecordingRunner{}
 	p := plan.Plan{Actions: []plan.Action{
@@ -61,7 +85,7 @@ func TestApplyTapAdds_OnlyTaps(t *testing.T) {
 	if n != 2 {
 		t.Fatalf("count = %d, want 2", n)
 	}
-	if got := strings.Join(runner.installs, ","); got != "tap:homebrew/cask-fonts,tap:nikitabobko/tap" {
+	if got := strings.Join(runner.installs, ","); got != "tap:homebrew/cask-fonts,tap:nikitabobko/tap,trust:nikitabobko/tap" {
 		t.Fatalf("order = %q", got)
 	}
 }

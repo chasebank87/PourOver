@@ -26,7 +26,7 @@ Unknown top-level or nested keys in Lua are ignored for v1 (not an error). Seman
 
 Names must be **lowercase Homebrew tokens** (`"raycast"`, not `"Raycast"`; `"homebrew/cask-fonts"`, not `"Homebrew/Cask-Fonts"`). Capital letters fail `Validate` / `pourover doctor` / `plan` / `apply` so a mistyped token cannot install under one casing and then look undeclared later.
 
-Apply order: **tap adds → formula/cask installs → removes** (untap follows `policy.uninstall_mode`; `homebrew/core` and `homebrew/cask` are never untapped).
+Apply order: **tap adds (with `brew trust --tap` for non-official taps) → trust already-tapped untrusted taps → formula/cask installs → removes** (untap follows `policy.uninstall_mode`; `homebrew/core` and `homebrew/cask` are never untapped). Official `homebrew/*` taps are always trusted by Homebrew and are not passed to `brew trust`.
 
 `pourover import --packages` merges `brew tap` / `brew list` into `packages.lua` (add-only by default; `--force` replaces). Core taps (`homebrew/core`, `homebrew/cask`) are omitted from import output.
 

@@ -23,6 +23,9 @@ func (r *recordingRunner) Run(ctx context.Context, args ...string) ([]byte, erro
 	if len(args) == 1 && args[0] == "tap" {
 		return []byte("homebrew/core\nhomebrew/cask\n"), nil
 	}
+	if len(args) == 2 && args[0] == "trust" && args[1] == "--json=v1" {
+		return []byte(`{"taps":[],"formulae":[],"casks":[],"commands":[]}`), nil
+	}
 	if len(args) == 2 && args[0] == "list" && args[1] == "--formula" {
 		return []byte("git\n"), nil
 	}
@@ -45,6 +48,9 @@ func mutationBrewArgs(args []string) bool {
 	case "tap":
 		// `brew tap` (list) is discovery; `brew tap name` mutates.
 		return len(args) > 1
+	case "trust":
+		// `brew trust --json=v1` is discovery; `brew trust --tap name` mutates.
+		return !(len(args) == 2 && args[1] == "--json=v1")
 	default:
 		return false
 	}
@@ -79,8 +85,8 @@ func TestApplyDryRun_NoBrewMutations(t *testing.T) {
 			t.Fatalf("brew mutation during dry-run path: %v", args)
 		}
 	}
-	if len(runner.calls) != 4 {
-		t.Fatalf("brew calls = %d, want 4 discovery calls (tap + lists)", len(runner.calls))
+	if len(runner.calls) != 5 {
+		t.Fatalf("brew calls = %d, want 5 discovery calls (tap + trust + lists)", len(runner.calls))
 	}
 }
 
@@ -168,8 +174,15 @@ func (r *installRecordingRunner) Run(ctx context.Context, args ...string) ([]byt
 	if len(args) == 1 && args[0] == "tap" {
 		return []byte("homebrew/core\nhomebrew/cask\n"), nil
 	}
+	if len(args) == 2 && args[0] == "trust" && args[1] == "--json=v1" {
+		return []byte(`{"taps":[],"formulae":[],"casks":[],"commands":[]}`), nil
+	}
 	if len(args) == 2 && args[0] == "tap" {
 		r.installs = append(r.installs, "tap:"+args[1])
+		return nil, nil
+	}
+	if len(args) == 3 && args[0] == "trust" && args[1] == "--tap" {
+		r.installs = append(r.installs, "trust:"+args[2])
 		return nil, nil
 	}
 	if len(args) == 2 && args[0] == "list" && args[1] == "--formula" {
@@ -545,6 +558,9 @@ func (r *failingInstallRunner) Run(ctx context.Context, args ...string) ([]byte,
 	if len(args) == 1 && args[0] == "tap" {
 		return []byte("homebrew/core\nhomebrew/cask\n"), nil
 	}
+	if len(args) == 2 && args[0] == "trust" && args[1] == "--json=v1" {
+		return []byte(`{"taps":[],"formulae":[],"casks":[],"commands":[]}`), nil
+	}
 	if len(args) == 2 && args[0] == "list" && args[1] == "--formula" {
 		return r.listFormula, nil
 	}
@@ -617,6 +633,9 @@ type orderRecordingRunner struct {
 func (r *orderRecordingRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
 	if len(args) == 1 && args[0] == "tap" {
 		return []byte("homebrew/core\nhomebrew/cask\n"), nil
+	}
+	if len(args) == 2 && args[0] == "trust" && args[1] == "--json=v1" {
+		return []byte(`{"taps":[],"formulae":[],"casks":[],"commands":[]}`), nil
 	}
 	if len(args) == 2 && args[0] == "list" && args[1] == "--formula" {
 		return r.listFormula, nil

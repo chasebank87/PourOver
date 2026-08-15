@@ -2,6 +2,7 @@ package discovery
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 )
@@ -13,6 +14,9 @@ import (
 // `brew list --formula --installed-on-request`, falling back to `brew leaves`
 // if that fails. Never falls back to the full formula list (that would treat
 // dependencies as undeclared packages to uninstall).
+//
+// TrustedTaps comes from `brew trust --json=v1` when available (Homebrew 6+);
+// older brew without trust support yields an empty trusted list.
 func DiscoverBrew(ctx context.Context, runner Runner) (BrewState, error) {
 	tapsOut, err := runner.Run(ctx, "tap")
 	if err != nil {
@@ -25,6 +29,11 @@ func DiscoverBrew(ctx context.Context, runner Runner) (BrewState, error) {
 	casksOut, err := runner.Run(ctx, "list", "--cask")
 	if err != nil {
 		return BrewState{}, fmt.Errorf("list casks: %w", err)
+	}
+
+	var trusted []string
+	if trustOut, trustErr := runner.Run(ctx, "trust", "--json=v1"); trustErr == nil {
+		trusted = parseTrustTapsJSON(trustOut)
 	}
 
 	var requested []string
@@ -42,6 +51,7 @@ func DiscoverBrew(ctx context.Context, runner Runner) (BrewState, error) {
 
 	return BrewState{
 		Taps:              parseBrewList(tapsOut),
+		TrustedTaps:       trusted,
 		Formulae:          parseBrewList(formulaeOut),
 		FormulaeRequested: requested,
 		Casks:             parseBrewList(casksOut),
@@ -67,4 +77,29 @@ func parseBrewList(out []byte) []string {
 		return nil
 	}
 	return names
+}
+
+type trustJSON struct {
+	Taps []string `json:"taps"`
+}
+
+func parseTrustTapsJSON(out []byte) []string {
+	text := strings.TrimSpace(string(out))
+	if text == "" {
+		return nil
+	}
+	// brew may print progress lines before JSON; take the last {...} block.
+	start := strings.LastIndex(text, "{")
+	end := strings.LastIndex(text, "}")
+	if start < 0 || end < start {
+		return nil
+	}
+	var doc trustJSON
+	if err := json.Unmarshal([]byte(text[start:end+1]), &doc); err != nil {
+		return nil
+	}
+	if len(doc.Taps) == 0 {
+		return nil
+	}
+	return doc.Taps
 }

@@ -6,6 +6,10 @@ import "strings"
 type BrewState struct {
 	// Taps is every tapped repository (including homebrew/core and homebrew/cask).
 	Taps []string
+	// TrustedTaps are non-official taps explicitly trusted via `brew trust`
+	// (from `brew trust --json=v1`). Official taps are always trusted and may
+	// be omitted from this list.
+	TrustedTaps []string
 	// Formulae is every installed formula (including dependencies).
 	Formulae []string
 	// FormulaeRequested is formulae installed on request (not as dependencies).
@@ -32,6 +36,17 @@ func IsCoreTap(name string) bool {
 	default:
 		return false
 	}
+}
+
+// IsOfficialTap reports taps under the homebrew org (always trusted by Homebrew).
+func IsOfficialTap(name string) bool {
+	t := brewToken(name)
+	return t == "homebrew/core" || t == "homebrew/cask" || strings.HasPrefix(t, "homebrew/")
+}
+
+// NeedsExplicitTrust reports whether a tap requires `brew trust --tap` (Homebrew 6+).
+func NeedsExplicitTrust(name string) bool {
+	return !IsOfficialTap(name)
 }
 
 // RemovableTaps returns tapped repos that may be considered for undeclared removal

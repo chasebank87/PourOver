@@ -9,10 +9,24 @@ import (
 	"github.com/chasebank87/PourOver/internal/plan"
 )
 
-// AddTap runs `brew tap <name>`.
+// AddTap runs `brew tap <name>` then `brew trust --tap <name>` for non-official taps
+// (Homebrew 6+ requires explicit trust before loading third-party tap code).
 func AddTap(ctx context.Context, runner discovery.Runner, name string) error {
 	if _, err := runner.Run(ctx, "tap", name); err != nil {
 		return fmt.Errorf("brew tap %s: %w", name, err)
+	}
+	if discovery.NeedsExplicitTrust(name) {
+		if err := TrustTap(ctx, runner, name); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// TrustTap runs `brew trust --tap <name>`.
+func TrustTap(ctx context.Context, runner discovery.Runner, name string) error {
+	if _, err := runner.Run(ctx, "trust", "--tap", name); err != nil {
+		return fmt.Errorf("brew trust --tap %s: %w", name, err)
 	}
 	return nil
 }
@@ -33,22 +47,31 @@ func InstallCask(ctx context.Context, runner discovery.Runner, name string) erro
 	return nil
 }
 
-// ApplyTapAdds runs brew tap for each tap_add action in plan order.
+// ApplyTapAdds runs brew tap (and trust) for each tap_add action, and brew trust
+// for each tap_trust action, in plan order.
 // Failures are collected so later taps still run. Returns successes and joined errors.
 func ApplyTapAdds(ctx context.Context, runner discovery.Runner, p plan.Plan, progress Progress) (int, error) {
 	n := 0
 	var errs []error
 	for _, a := range p.Actions {
-		if a.Type != plan.ActionTapAdd {
-			continue
+		switch a.Type {
+		case plan.ActionTapAdd:
+			report(progress, a)
+			if err := AddTap(ctx, runner, a.Name); err != nil {
+				reportFailure(progress, err)
+				errs = append(errs, err)
+				continue
+			}
+			n++
+		case plan.ActionTapTrust:
+			report(progress, a)
+			if err := TrustTap(ctx, runner, a.Name); err != nil {
+				reportFailure(progress, err)
+				errs = append(errs, err)
+				continue
+			}
+			n++
 		}
-		report(progress, a)
-		if err := AddTap(ctx, runner, a.Name); err != nil {
-			reportFailure(progress, err)
-			errs = append(errs, err)
-			continue
-		}
-		n++
 	}
 	return n, errors.Join(errs...)
 }
@@ -99,7 +122,7 @@ func UnsupportedApplyActions(p plan.Plan) []plan.Action {
 	var out []plan.Action
 	for _, a := range p.Actions {
 		switch a.Type {
-		case plan.ActionTapAdd, plan.ActionTapRemove,
+		case plan.ActionTapAdd, plan.ActionTapTrust, plan.ActionTapRemove,
 			plan.ActionFormulaInstall, plan.ActionCaskInstall,
 			plan.ActionFormulaRemove, plan.ActionCaskRemove,
 			plan.ActionLinkCreate, plan.ActionLinkUpdate,
