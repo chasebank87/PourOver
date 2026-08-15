@@ -16,6 +16,7 @@ const (
 	ActionCaskRename     ActionType = "cask_rename" // advise: Name is old token, Value is new token
 	ActionLinkCreate     ActionType = "link_create"
 	ActionLinkUpdate     ActionType = "link_update"
+	ActionLinkReplace    ActionType = "link_replace" // backup existing target, then create link
 	ActionManagedCopy    ActionType = "managed_copy"
 	ActionFileUnlink     ActionType = "file_unlink"
 	ActionDefaultsWrite  ActionType = "defaults_write"

@@ -45,3 +45,21 @@ func TestResolveMode_FromConfig(t *testing.T) {
 		t.Fatalf("empty manifest = %q, want safe", got)
 	}
 }
+
+func TestResolveFileReplace(t *testing.T) {
+	cases := []struct {
+		in   string
+		want config.FileReplaceMode
+	}{
+		{"", config.FileReplaceError},
+		{"error", config.FileReplaceError},
+		{"backup", config.FileReplaceBackup},
+		{"force", config.FileReplaceBackup},
+		{"bogus", config.FileReplaceError},
+	}
+	for _, tc := range cases {
+		if got := ResolveFileReplace(tc.in); got != tc.want {
+			t.Errorf("ResolveFileReplace(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}

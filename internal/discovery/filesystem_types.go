@@ -29,6 +29,7 @@ const (
 	ManagedStatusMissing ManagedStatusKind = "missing"
 	ManagedStatusSame    ManagedStatusKind = "same"
 	ManagedStatusDiffer  ManagedStatusKind = "differ"
+	ManagedStatusBlocked ManagedStatusKind = "blocked" // unexpected target type (e.g. directory)
 )
 
 // ManagedStatus is the discovered state of one declared managed file.

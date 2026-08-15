@@ -120,15 +120,18 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 	}
 
 	engineOpts := engine.ApplyOptions{
-		ConfigPath: opts.configPath,
-		ConfigDir:  opts.configDir,
-		Mode:       opts.mode,
-		AutoYes:    opts.autoYes,
-		Quiet:      opts.quiet,
-		Progress:   progress,
-		Confirm:    stdinConfirmer{in: cmd.InOrStdin(), out: out},
-		Stdout:     brewOut,
-		Stderr:     brewOut,
+		ConfigPath:  opts.configPath,
+		ConfigDir:   opts.configDir,
+		StateDir:    opts.stateDir,
+		Mode:        opts.mode,
+		FileReplace: policy.ResolveFileReplaceFromManifest(opts.manifest),
+		AutoYes:     opts.autoYes,
+		Quiet:       opts.quiet,
+		Progress:    progress,
+		Confirm:     stdinConfirmer{in: cmd.InOrStdin(), out: out},
+		Stdout:      brewOut,
+		Stderr:      brewOut,
+		Now:         opts.now,
 	}
 	if session != nil && total > 0 {
 		engineOpts.OnPhase = session.SetPhase

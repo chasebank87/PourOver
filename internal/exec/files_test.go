@@ -4,7 +4,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/chasebank87/PourOver/internal/config"
 	"github.com/chasebank87/PourOver/internal/plan"
 )
 
@@ -83,7 +85,7 @@ func TestApplyFileLinks_CreateAndUpdate(t *testing.T) {
 		{Type: plan.ActionLinkUpdate, Name: updateTgt, Source: "b"},
 	}}
 
-	n, err := ApplyFileLinks(p, configDir, nil)
+	n, err := ApplyFileLinks(p, FileApplyOptions{ConfigDir: configDir}, nil)
 	if err != nil {
 		t.Fatalf("ApplyFileLinks: %v", err)
 	}
@@ -113,7 +115,7 @@ func TestApplyFileLinks_FailsIfTargetIsRegularFile(t *testing.T) {
 	p := plan.Plan{Actions: []plan.Action{
 		{Type: plan.ActionLinkCreate, Name: tgt, Source: "a"},
 	}}
-	if _, err := ApplyFileLinks(p, configDir, nil); err == nil {
+	if _, err := ApplyFileLinks(p, FileApplyOptions{ConfigDir: configDir}, nil); err == nil {
 		t.Fatal("expected error for regular file target")
 	}
 }
@@ -154,7 +156,7 @@ func TestApplyFileLinks_ContinuesAfterFailure(t *testing.T) {
 		{Type: plan.ActionLinkCreate, Name: blocked, Source: "bad"},
 		{Type: plan.ActionLinkCreate, Name: okTgt, Source: "ok"},
 	}}
-	n, err := ApplyFileLinks(p, configDir, nil)
+	n, err := ApplyFileLinks(p, FileApplyOptions{ConfigDir: configDir}, nil)
 	if err == nil {
 		t.Fatal("expected error from blocked target")
 	}
@@ -197,7 +199,7 @@ func TestApplyManagedCopies_CreatesAndOverwrites(t *testing.T) {
 		{Type: plan.ActionManagedCopy, Name: overwriteTgt, Source: "config/b.conf"},
 	}}
 
-	n, err := ApplyManagedCopies(p, configDir, nil)
+	n, err := ApplyManagedCopies(p, FileApplyOptions{ConfigDir: configDir}, nil)
 	if err != nil {
 		t.Fatalf("ApplyManagedCopies: %v", err)
 	}
@@ -242,7 +244,7 @@ func TestApplyManagedCopies_ReplacesSymlinkWithFile(t *testing.T) {
 	p := plan.Plan{Actions: []plan.Action{
 		{Type: plan.ActionManagedCopy, Name: tgt, Source: "src.txt"},
 	}}
-	n, err := ApplyManagedCopies(p, configDir, nil)
+	n, err := ApplyManagedCopies(p, FileApplyOptions{ConfigDir: configDir}, nil)
 	if err != nil {
 		t.Fatalf("ApplyManagedCopies: %v", err)
 	}
@@ -286,7 +288,7 @@ func TestApplyManagedCopies_ContinuesAfterFailure(t *testing.T) {
 		{Type: plan.ActionManagedCopy, Name: dirTgt, Source: "ok.txt"},
 		{Type: plan.ActionManagedCopy, Name: okTgt, Source: "ok.txt"},
 	}}
-	n, err := ApplyManagedCopies(p, configDir, nil)
+	n, err := ApplyManagedCopies(p, FileApplyOptions{ConfigDir: configDir}, nil)
 	if err == nil {
 		t.Fatal("expected error for directory target")
 	}
@@ -363,5 +365,114 @@ func TestApplyFileUnlinks_RefusesDirectory(t *testing.T) {
 	}
 	if _, err := os.Lstat(okFile); !os.IsNotExist(err) {
 		t.Fatalf("ok file should be removed: %v", err)
+	}
+}
+
+func TestApplyFileLinks_ReplaceBacksUpThenLinks(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "cfg")
+	stateDir := filepath.Join(root, "state")
+	src := filepath.Join(configDir, "zshrc")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(src, []byte("export NEW=1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	tgt := filepath.Join(root, "home", ".zshrc")
+	if err := os.MkdirAll(filepath.Dir(tgt), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(tgt, []byte("old-zshrc\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	at := time.Date(2026, 8, 15, 5, 30, 0, 0, time.UTC)
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionLinkReplace, Name: tgt, Source: "zshrc"},
+	}}
+	n, err := ApplyFileLinks(p, FileApplyOptions{
+		ConfigDir: configDir,
+		StateDir:  stateDir,
+		Now:       func() time.Time { return at },
+	}, nil)
+	if err != nil {
+		t.Fatalf("ApplyFileLinks: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("n=%d, want 1", n)
+	}
+
+	got, err := os.Readlink(tgt)
+	if err != nil || got != src {
+		t.Fatalf("Readlink = %q err=%v, want %q", got, err, src)
+	}
+
+	backup := filepath.Join(stateDir, "backups", "files", "20260815T053000Z", EscapeBackupPath(tgt))
+	data, err := os.ReadFile(backup)
+	if err != nil {
+		t.Fatalf("backup missing at %s: %v", backup, err)
+	}
+	if string(data) != "old-zshrc\n" {
+		t.Fatalf("backup content = %q", data)
+	}
+}
+
+func TestApplyManagedCopies_BackupUnexpectedDirectory(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "cfg")
+	stateDir := filepath.Join(root, "state")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	src := filepath.Join(configDir, "foo.conf")
+	if err := os.WriteFile(src, []byte("managed\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	tgt := filepath.Join(root, "home", "foo.conf")
+	if err := os.MkdirAll(tgt, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	marker := filepath.Join(tgt, "was-dir.txt")
+	if err := os.WriteFile(marker, []byte("inside\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	at := time.Date(2026, 8, 15, 6, 0, 0, 0, time.UTC)
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionManagedCopy, Name: tgt, Source: "foo.conf", Kind: "backup"},
+	}}
+	n, err := ApplyManagedCopies(p, FileApplyOptions{
+		ConfigDir:   configDir,
+		StateDir:    stateDir,
+		FileReplace: config.FileReplaceBackup,
+		Now:         func() time.Time { return at },
+	}, nil)
+	if err != nil {
+		t.Fatalf("ApplyManagedCopies: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("n=%d, want 1", n)
+	}
+
+	got, err := os.ReadFile(tgt)
+	if err != nil || string(got) != "managed\n" {
+		t.Fatalf("target = %q err=%v", got, err)
+	}
+	backup := filepath.Join(stateDir, "backups", "files", "20260815T060000Z", EscapeBackupPath(tgt))
+	info, err := os.Stat(backup)
+	if err != nil || !info.IsDir() {
+		t.Fatalf("backup dir = %#v err=%v", info, err)
+	}
+	if data, err := os.ReadFile(filepath.Join(backup, "was-dir.txt")); err != nil || string(data) != "inside\n" {
+		t.Fatalf("backed-up contents = %q err=%v", data, err)
+	}
+}
+
+func TestEscapeBackupPath(t *testing.T) {
+	got := EscapeBackupPath("/Users/chase/.config/nvim")
+	want := "_Users_chase_.config_nvim"
+	if got != want {
+		t.Fatalf("EscapeBackupPath = %q, want %q", got, want)
 	}
 }

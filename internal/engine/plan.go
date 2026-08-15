@@ -8,6 +8,7 @@ import (
 	"github.com/chasebank87/PourOver/internal/config"
 	"github.com/chasebank87/PourOver/internal/discovery"
 	"github.com/chasebank87/PourOver/internal/plan"
+	"github.com/chasebank87/PourOver/internal/policy"
 )
 
 // BuildPlan loads config at configPath, discovers current state via runner, and
@@ -43,11 +44,12 @@ func BuildPlanWith(ctx context.Context, configPath string, runner discovery.Runn
 	defaultsPlan := plan.BuildDefaultsPlan(statuses)
 
 	configDir := filepath.Dir(configPath)
+	replaceMode := policy.ResolveFileReplaceFromManifest(manifest)
 	linkStatuses, err := discovery.DiscoverFileLinks(manifest.Files.Links, configDir)
 	if err != nil {
 		return plan.Plan{}, fmt.Errorf("discover files: %w", err)
 	}
-	filePlan, err := plan.BuildFilePlan(linkStatuses)
+	filePlan, err := plan.BuildFilePlan(linkStatuses, replaceMode)
 	if err != nil {
 		return plan.Plan{}, err
 	}
@@ -56,7 +58,7 @@ func BuildPlanWith(ctx context.Context, configPath string, runner discovery.Runn
 	if err != nil {
 		return plan.Plan{}, fmt.Errorf("discover managed files: %w", err)
 	}
-	managedPlan, err := plan.BuildManagedPlan(managedStatuses)
+	managedPlan, err := plan.BuildManagedPlan(managedStatuses, replaceMode)
 	if err != nil {
 		return plan.Plan{}, err
 	}

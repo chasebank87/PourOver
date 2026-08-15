@@ -146,7 +146,7 @@ func UnsupportedApplyActions(p plan.Plan) []plan.Action {
 		case plan.ActionTapAdd, plan.ActionTapTrust, plan.ActionTapRemove,
 			plan.ActionFormulaInstall, plan.ActionCaskInstall,
 			plan.ActionFormulaRemove, plan.ActionCaskRemove,
-			plan.ActionLinkCreate, plan.ActionLinkUpdate,
+			plan.ActionLinkCreate, plan.ActionLinkUpdate, plan.ActionLinkReplace,
 			plan.ActionManagedCopy, plan.ActionFileUnlink,
 			plan.ActionDefaultsWrite,
 			plan.ActionCaskRename:

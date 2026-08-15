@@ -21,7 +21,7 @@ func TestBuildFilePlan_MissingAndWrong(t *testing.T) {
 			SourcePath: "/cfg/config/b",
 			TargetPath: "/home/user/.config/b",
 		},
-	})
+	}, config.FileReplaceError)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,13 +38,30 @@ func TestBuildFilePlan_MissingAndWrong(t *testing.T) {
 	}
 }
 
-func TestBuildFilePlan_Blocked(t *testing.T) {
+func TestBuildFilePlan_BlockedError(t *testing.T) {
 	_, err := BuildFilePlan([]discovery.FileLinkStatus{{
 		Link: config.FileLink{Source: "config/x", Target: "~/.config/x"},
 		Kind: discovery.LinkStatusBlocked,
-	}})
+	}}, config.FileReplaceError)
 	if err == nil {
 		t.Fatal("expected error for blocked target")
+	}
+}
+
+func TestBuildFilePlan_BlockedBackup(t *testing.T) {
+	p, err := BuildFilePlan([]discovery.FileLinkStatus{{
+		Link: config.FileLink{Source: "config/x", Target: "~/.config/x"},
+		Kind: discovery.LinkStatusBlocked,
+	}}, config.FileReplaceBackup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	types := ActionTypes(p)
+	if len(types) != 1 || types[0] != ActionLinkReplace {
+		t.Fatalf("types = %v, want [link_replace]", types)
+	}
+	if p.Actions[0].Name != "~/.config/x" || p.Actions[0].Source != "config/x" {
+		t.Fatalf("action = %#v", p.Actions[0])
 	}
 }
 
@@ -78,7 +95,7 @@ func TestBuildManagedPlan_MissingAndDiffer(t *testing.T) {
 			File: config.ManagedFile{Source: "config/c", Target: "~/.config/c"},
 			Kind: discovery.ManagedStatusSame,
 		},
-	})
+	}, config.FileReplaceError)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,6 +115,29 @@ func TestBuildManagedPlan_MissingAndDiffer(t *testing.T) {
 	}
 	if p.Actions[1].Name != "~/.config/b" || p.Actions[1].Source != "config/b" {
 		t.Fatalf("action[1] = %#v", p.Actions[1])
+	}
+}
+
+func TestBuildManagedPlan_BlockedError(t *testing.T) {
+	_, err := BuildManagedPlan([]discovery.ManagedStatus{{
+		File: config.ManagedFile{Source: "config/x", Target: "~/.config/x"},
+		Kind: discovery.ManagedStatusBlocked,
+	}}, config.FileReplaceError)
+	if err == nil {
+		t.Fatal("expected error for blocked managed target")
+	}
+}
+
+func TestBuildManagedPlan_BlockedBackup(t *testing.T) {
+	p, err := BuildManagedPlan([]discovery.ManagedStatus{{
+		File: config.ManagedFile{Source: "config/x", Target: "~/.config/x"},
+		Kind: discovery.ManagedStatusBlocked,
+	}}, config.FileReplaceBackup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(p.Actions) != 1 || p.Actions[0].Type != ActionManagedCopy || p.Actions[0].Kind != "backup" {
+		t.Fatalf("action = %#v", p.Actions)
 	}
 }
 
@@ -122,8 +162,9 @@ func TestRenderText_ManagedAndUnlink(t *testing.T) {
 	got := RenderText(Plan{Actions: []Action{
 		{Type: ActionManagedCopy, Name: "~/.config/foo", Source: "config/foo"},
 		{Type: ActionFileUnlink, Name: "~/.old-dotfile"},
+		{Type: ActionLinkReplace, Name: "~/.zshrc", Source: "config/zshrc"},
 	}})
-	want := "managed copy ~/.config/foo <- config/foo\nunlink ~/.old-dotfile\n"
+	want := "managed copy ~/.config/foo <- config/foo\nunlink ~/.old-dotfile\nlink replace ~/.zshrc <- config/zshrc (backup)\n"
 	if got != want {
 		t.Fatalf("RenderText() = %q, want %q", got, want)
 	}

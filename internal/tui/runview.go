@@ -172,14 +172,16 @@ func runApplyFlow(
 		return
 	}
 	result, applyErr := engine.Apply(ctx, runner, p, engine.ApplyOptions{
-		ConfigPath: m.configPath,
-		ConfigDir:  filepath.Dir(m.configPath),
-		Mode:       mode,
-		AutoYes:    false,
-		Progress:   progress,
-		Confirm:    m.confirmer,
-		Stdout:     brewLog,
-		Stderr:     brewLog,
+		ConfigPath:  m.configPath,
+		ConfigDir:   filepath.Dir(m.configPath),
+		StateDir:    stateDir,
+		Mode:        mode,
+		FileReplace: policy.ResolveFileReplaceFromManifest(manifest),
+		AutoYes:     false,
+		Progress:    progress,
+		Confirm:     m.confirmer,
+		Stdout:      brewLog,
+		Stderr:      brewLog,
 		OnPhase: func(phase string) {
 			send(phaseMsg{phase: phase})
 		},
@@ -225,14 +227,16 @@ func runUpgradeFlow(
 	}
 	send(phaseMsg{phase: "apply"})
 	applyResult, applyErr := engine.Apply(ctx, runner, applyPlan, engine.ApplyOptions{
-		ConfigPath: m.configPath,
-		ConfigDir:  filepath.Dir(m.configPath),
-		Mode:       mode,
-		AutoYes:    false,
-		Progress:   progress,
-		Confirm:    m.confirmer,
-		Stdout:     brewLog,
-		Stderr:     brewLog,
+		ConfigPath:  m.configPath,
+		ConfigDir:   filepath.Dir(m.configPath),
+		StateDir:    stateDir,
+		Mode:        mode,
+		FileReplace: policy.ResolveFileReplaceFromManifest(manifest),
+		AutoYes:     false,
+		Progress:    progress,
+		Confirm:     m.confirmer,
+		Stdout:      brewLog,
+		Stderr:      brewLog,
 		OnPhase: func(phase string) {
 			send(phaseMsg{phase: phase})
 		},

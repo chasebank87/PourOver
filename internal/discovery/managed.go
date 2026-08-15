@@ -60,13 +60,23 @@ func inspectManagedFile(file config.ManagedFile, configDir string) (ManagedStatu
 	}
 
 	if info.IsDir() {
-		return ManagedStatus{}, fmt.Errorf("target %q is a directory", file.Target)
+		return ManagedStatus{
+			File:       file,
+			SourcePath: sourcePath,
+			TargetPath: targetPath,
+			Kind:       ManagedStatusBlocked,
+		}, nil
 	}
 	if info.Mode()&os.ModeSymlink != 0 {
 		resolved, err := filepath.EvalSymlinks(targetPath)
 		if err == nil {
 			if st, err := os.Stat(resolved); err == nil && st.IsDir() {
-				return ManagedStatus{}, fmt.Errorf("target %q is a directory", file.Target)
+				return ManagedStatus{
+					File:       file,
+					SourcePath: sourcePath,
+					TargetPath: targetPath,
+					Kind:       ManagedStatusBlocked,
+				}, nil
 			}
 		}
 	}

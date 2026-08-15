@@ -59,7 +59,12 @@ func formatActionLine(a Action) string {
 		return fmt.Sprintf("link create %s <- %s", a.Name, a.Source)
 	case ActionLinkUpdate:
 		return fmt.Sprintf("link update %s <- %s", a.Name, a.Source)
+	case ActionLinkReplace:
+		return fmt.Sprintf("link replace %s <- %s (backup)", a.Name, a.Source)
 	case ActionManagedCopy:
+		if a.Kind == "backup" {
+			return fmt.Sprintf("managed copy %s <- %s (backup)", a.Name, a.Source)
+		}
 		return fmt.Sprintf("managed copy %s <- %s", a.Name, a.Source)
 	case ActionFileUnlink:
 		return fmt.Sprintf("unlink %s", a.Name)

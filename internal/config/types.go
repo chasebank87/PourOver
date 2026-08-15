@@ -77,9 +77,18 @@ type ManagedFile struct {
 	Target string `json:"target"`
 }
 
+// FileReplaceMode controls what happens when a link/managed target blocks replace.
+type FileReplaceMode string
+
+const (
+	FileReplaceError  FileReplaceMode = "error"
+	FileReplaceBackup FileReplaceMode = "backup"
+)
+
 // Policy holds safety and behavior options.
 type Policy struct {
-	UninstallMode UninstallMode `json:"uninstall_mode"`
+	UninstallMode UninstallMode   `json:"uninstall_mode"`
+	FileReplace   FileReplaceMode `json:"file_replace,omitempty"`
 }
 
 // Backup configures snapshot mirroring and config git sync.

@@ -308,14 +308,24 @@ func decodePolicy(L *lua.LState, root *lua.LTable, key string) (Policy, error) {
 		return Policy{UninstallMode: UninstallModeSafe}, nil
 	}
 
+	p := Policy{UninstallMode: UninstallModeSafe}
+
 	modeLV := L.GetField(tbl, "uninstall_mode")
-	if modeLV == lua.LNil {
-		return Policy{UninstallMode: UninstallModeSafe}, nil
+	if modeLV != lua.LNil {
+		if modeLV.Type() != lua.LTString {
+			return Policy{}, fmt.Errorf("policy.uninstall_mode: expected string, got %s", modeLV.Type())
+		}
+		p.UninstallMode = UninstallMode(modeLV.String())
 	}
-	if modeLV.Type() != lua.LTString {
-		return Policy{}, fmt.Errorf("policy.uninstall_mode: expected string, got %s", modeLV.Type())
+
+	replaceLV := L.GetField(tbl, "file_replace")
+	if replaceLV != lua.LNil {
+		if replaceLV.Type() != lua.LTString {
+			return Policy{}, fmt.Errorf("policy.file_replace: expected string, got %s", replaceLV.Type())
+		}
+		p.FileReplace = FileReplaceMode(replaceLV.String())
 	}
-	return Policy{UninstallMode: UninstallMode(modeLV.String())}, nil
+	return p, nil
 }
 
 func decodeBackup(L *lua.LState, root *lua.LTable, key string) (Backup, error) {

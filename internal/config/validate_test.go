@@ -39,6 +39,24 @@ func TestValidate_UnknownUninstallMode(t *testing.T) {
 	}
 }
 
+func TestValidate_UnknownFileReplace(t *testing.T) {
+	err := Validate(&Manifest{
+		Policy: Policy{UninstallMode: UninstallModeSafe, FileReplace: FileReplaceMode("wipe")},
+	})
+	if err == nil || !strings.Contains(err.Error(), "policy.file_replace") {
+		t.Fatalf("Validate() = %v, want file_replace error", err)
+	}
+}
+
+func TestValidate_FileReplaceForceAlias(t *testing.T) {
+	err := Validate(&Manifest{
+		Policy: Policy{UninstallMode: UninstallModeSafe, FileReplace: FileReplaceMode("force")},
+	})
+	if err != nil {
+		t.Fatalf("Validate() = %v, want nil for force alias", err)
+	}
+}
+
 func TestValidate_CapitalizedPackageName(t *testing.T) {
 	err := Validate(&Manifest{
 		Policy:   Policy{UninstallMode: UninstallModeSafe},

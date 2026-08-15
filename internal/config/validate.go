@@ -64,18 +64,28 @@ func Validate(m *Manifest) error {
 }
 
 func validatePolicy(p Policy) []error {
-	if p.UninstallMode == "" {
-		return nil
+	var errs []error
+	if p.UninstallMode != "" && !isValidUninstallMode(p.UninstallMode) {
+		errs = append(errs, fmt.Errorf("policy.uninstall_mode: unknown value %q (want safe, strict, or non_destructive)", p.UninstallMode))
 	}
-	if isValidUninstallMode(p.UninstallMode) {
-		return nil
+	if p.FileReplace != "" && !isValidFileReplaceMode(p.FileReplace) {
+		errs = append(errs, fmt.Errorf("policy.file_replace: unknown value %q (want error, backup, or force)", p.FileReplace))
 	}
-	return []error{fmt.Errorf("policy.uninstall_mode: unknown value %q (want safe, strict, or non_destructive)", p.UninstallMode)}
+	return errs
 }
 
 func isValidUninstallMode(m UninstallMode) bool {
 	switch m {
 	case UninstallModeSafe, UninstallModeStrict, UninstallModeNonDestructive:
+		return true
+	default:
+		return false
+	}
+}
+
+func isValidFileReplaceMode(m FileReplaceMode) bool {
+	switch m {
+	case FileReplaceError, FileReplaceBackup, FileReplaceMode("force"):
 		return true
 	default:
 		return false

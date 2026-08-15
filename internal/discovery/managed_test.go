@@ -83,11 +83,14 @@ func TestDiscoverManagedFiles_TargetDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := DiscoverManagedFiles([]config.ManagedFile{
+	statuses, err := DiscoverManagedFiles([]config.ManagedFile{
 		{Source: "foo.conf", Target: target},
 	}, root)
-	if err == nil {
-		t.Fatal("expected error when target is a directory")
+	if err != nil {
+		t.Fatalf("DiscoverManagedFiles: %v", err)
+	}
+	if len(statuses) != 1 || statuses[0].Kind != ManagedStatusBlocked {
+		t.Fatalf("status = %#v, want blocked", statuses)
 	}
 }
 

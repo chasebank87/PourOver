@@ -17,3 +17,21 @@ func ResolveMode(value string) config.UninstallMode {
 func ResolveModeFromManifest(m config.Manifest) config.UninstallMode {
 	return ResolveMode(string(m.Policy.UninstallMode))
 }
+
+// ResolveFileReplace returns the file replace mode. Empty or unknown values
+// default to error (blocked targets fail the plan). "force" is an alias for backup.
+func ResolveFileReplace(value string) config.FileReplaceMode {
+	switch config.FileReplaceMode(value) {
+	case config.FileReplaceBackup, config.FileReplaceMode("force"):
+		return config.FileReplaceBackup
+	case config.FileReplaceError, "":
+		return config.FileReplaceError
+	default:
+		return config.FileReplaceError
+	}
+}
+
+// ResolveFileReplaceFromManifest reads policy.file_replace from the manifest.
+func ResolveFileReplaceFromManifest(m config.Manifest) config.FileReplaceMode {
+	return ResolveFileReplace(string(m.Policy.FileReplace))
+}

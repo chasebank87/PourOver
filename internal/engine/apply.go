@@ -88,13 +88,19 @@ func Apply(ctx context.Context, runner discovery.Runner, p plan.Plan, opts Apply
 	}
 
 	phase("links")
-	linked, err := exec.ApplyFileLinks(p, configDir, progress)
+	fileOpts := exec.FileApplyOptions{
+		ConfigDir:   configDir,
+		StateDir:    opts.StateDir,
+		FileReplace: opts.FileReplace,
+		Now:         opts.Now,
+	}
+	linked, err := exec.ApplyFileLinks(p, fileOpts, progress)
 	if err != nil {
 		errs = append(errs, err)
 	}
 
 	phase("managed")
-	managed, err := exec.ApplyManagedCopies(p, configDir, progress)
+	managed, err := exec.ApplyManagedCopies(p, fileOpts, progress)
 	if err != nil {
 		errs = append(errs, err)
 	}

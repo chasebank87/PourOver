@@ -6,7 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/chasebank87/PourOver/internal/config"
 	"github.com/chasebank87/PourOver/internal/plan"
 )
 
@@ -38,11 +40,27 @@ func UpdateLink(targetPath, sourcePath string) error {
 	return CreateLink(targetPath, sourcePath)
 }
 
-// ApplyFileLinks runs link_create and link_update actions.
+// FileApplyOptions configures file link/copy apply with optional backup-on-replace.
+type FileApplyOptions struct {
+	ConfigDir   string
+	StateDir    string
+	FileReplace config.FileReplaceMode
+	Now         func() time.Time
+}
+
+func (o FileApplyOptions) clock() time.Time {
+	if o.Now != nil {
+		return o.Now()
+	}
+	return time.Now()
+}
+
+// ApplyFileLinks runs link_create, link_update, and link_replace actions.
 // Source paths are resolved relative to configDir; target paths expand ~.
+// link_replace backs up an existing target under StateDir/backups/files/ then creates the link.
 // Per-link failures are collected so later links still run (same soft-fail model as brew).
-func ApplyFileLinks(p plan.Plan, configDir string, progress Progress) (int, error) {
-	configDir, err := filepath.Abs(configDir)
+func ApplyFileLinks(p plan.Plan, opts FileApplyOptions, progress Progress) (int, error) {
+	configDir, err := filepath.Abs(opts.ConfigDir)
 	if err != nil {
 		return 0, fmt.Errorf("config directory: %w", err)
 	}
@@ -51,7 +69,7 @@ func ApplyFileLinks(p plan.Plan, configDir string, progress Progress) (int, erro
 	var errs []error
 	for _, a := range p.Actions {
 		switch a.Type {
-		case plan.ActionLinkCreate, plan.ActionLinkUpdate:
+		case plan.ActionLinkCreate, plan.ActionLinkUpdate, plan.ActionLinkReplace:
 		default:
 			continue
 		}
@@ -76,6 +94,8 @@ func ApplyFileLinks(p plan.Plan, configDir string, progress Progress) (int, erro
 			err = CreateLink(targetPath, sourcePath)
 		case plan.ActionLinkUpdate:
 			err = UpdateLink(targetPath, sourcePath)
+		case plan.ActionLinkReplace:
+			err = replaceLinkWithBackup(targetPath, sourcePath, opts.StateDir, opts.clock())
 		}
 		if err != nil {
 			reportFailure(progress, err)
@@ -85,6 +105,55 @@ func ApplyFileLinks(p plan.Plan, configDir string, progress Progress) (int, erro
 		n++
 	}
 	return n, errors.Join(errs...)
+}
+
+func replaceLinkWithBackup(targetPath, sourcePath, stateDir string, at time.Time) error {
+	if _, err := os.Lstat(targetPath); err == nil {
+		if _, err := BackupAside(stateDir, targetPath, at); err != nil {
+			return fmt.Errorf("link replace %s: %w", targetPath, err)
+		}
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("link replace %s: %w", targetPath, err)
+	}
+	return CreateLink(targetPath, sourcePath)
+}
+
+// BackupAside moves path aside under stateDir/backups/files/<timestamp>/<escaped-path>.
+// Returns the destination backup path.
+func BackupAside(stateDir, path string, at time.Time) (string, error) {
+	if strings.TrimSpace(stateDir) == "" {
+		return "", fmt.Errorf("backup: state directory required")
+	}
+	stamp := at.UTC().Format("20060102T150405Z")
+	destDir := filepath.Join(stateDir, "backups", "files", stamp)
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
+		return "", fmt.Errorf("backup: create dir: %w", err)
+	}
+	dest := filepath.Join(destDir, EscapeBackupPath(path))
+	if err := os.Rename(path, dest); err != nil {
+		return "", fmt.Errorf("backup move %s -> %s: %w", path, dest, err)
+	}
+	return dest, nil
+}
+
+// EscapeBackupPath turns an absolute path into a single path segment for backup storage.
+func EscapeBackupPath(path string) string {
+	cleaned := filepath.Clean(path)
+	var b strings.Builder
+	b.Grow(len(cleaned))
+	for _, r := range cleaned {
+		switch r {
+		case '/', '\\', ':':
+			b.WriteByte('_')
+		default:
+			b.WriteRune(r)
+		}
+	}
+	out := b.String()
+	if out == "" || out == "." {
+		return "_root"
+	}
+	return out
 }
 
 func resolveLinkSource(source, configDir string) (string, error) {
@@ -129,9 +198,10 @@ func expandHomePath(path string) (string, error) {
 
 // ApplyManagedCopies runs managed_copy actions with atomic writes.
 // Source paths are resolved relative to configDir; target paths expand ~.
+// When FileReplace is backup, unexpected target types (e.g. directories) are moved aside first.
 // Per-file failures are collected so later copies still run.
-func ApplyManagedCopies(p plan.Plan, configDir string, progress Progress) (int, error) {
-	configDir, err := filepath.Abs(configDir)
+func ApplyManagedCopies(p plan.Plan, opts FileApplyOptions, progress Progress) (int, error) {
+	configDir, err := filepath.Abs(opts.ConfigDir)
 	if err != nil {
 		return 0, fmt.Errorf("config directory: %w", err)
 	}
@@ -157,7 +227,12 @@ func ApplyManagedCopies(p plan.Plan, configDir string, progress Progress) (int, 
 			continue
 		}
 
-		if err := ManagedCopy(sourcePath, targetPath); err != nil {
+		backupFirst := opts.FileReplace == config.FileReplaceBackup || a.Kind == "backup"
+		if err := ManagedCopy(sourcePath, targetPath, ManagedCopyOptions{
+			StateDir:    opts.StateDir,
+			BackupFirst: backupFirst,
+			Now:         opts.clock(),
+		}); err != nil {
 			reportFailure(progress, err)
 			errs = append(errs, err)
 			continue
@@ -167,10 +242,26 @@ func ApplyManagedCopies(p plan.Plan, configDir string, progress Progress) (int, 
 	return n, errors.Join(errs...)
 }
 
+// ManagedCopyOptions controls backup-before-write for unexpected targets.
+type ManagedCopyOptions struct {
+	StateDir    string
+	BackupFirst bool
+	Now         time.Time
+}
+
 // ManagedCopy copies sourcePath to targetPath atomically (temp file + rename).
 // Creates parent directories when missing. If target is a symlink, removes it
-// first so the result is a regular file. Refuses directory targets.
-func ManagedCopy(sourcePath, targetPath string) error {
+// first so the result is a regular file. Refuses directory targets unless
+// BackupFirst is set (moves the directory aside under StateDir, then writes).
+func ManagedCopy(sourcePath, targetPath string, opts ...ManagedCopyOptions) error {
+	var o ManagedCopyOptions
+	if len(opts) > 0 {
+		o = opts[0]
+	}
+	if o.Now.IsZero() {
+		o.Now = time.Now()
+	}
+
 	data, err := os.ReadFile(sourcePath)
 	if err != nil {
 		return fmt.Errorf("managed copy %s: read source: %w", targetPath, err)
@@ -186,10 +277,18 @@ func ManagedCopy(sourcePath, targetPath string) error {
 
 	if info, err := os.Lstat(targetPath); err == nil {
 		if info.IsDir() {
-			return fmt.Errorf("managed copy %s: target is a directory", targetPath)
-		}
-		if info.Mode()&os.ModeSymlink != 0 {
-			if err := os.Remove(targetPath); err != nil {
+			if !o.BackupFirst {
+				return fmt.Errorf("managed copy %s: target is a directory", targetPath)
+			}
+			if _, err := BackupAside(o.StateDir, targetPath, o.Now); err != nil {
+				return fmt.Errorf("managed copy %s: %w", targetPath, err)
+			}
+		} else if info.Mode()&os.ModeSymlink != 0 {
+			if o.BackupFirst {
+				if _, err := BackupAside(o.StateDir, targetPath, o.Now); err != nil {
+					return fmt.Errorf("managed copy %s: %w", targetPath, err)
+				}
+			} else if err := os.Remove(targetPath); err != nil {
 				return fmt.Errorf("managed copy %s: remove symlink: %w", targetPath, err)
 			}
 		}
