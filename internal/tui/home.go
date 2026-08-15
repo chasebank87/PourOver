@@ -2,7 +2,9 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -164,11 +166,30 @@ func loadDoctorLine(configPath string) string {
 
 func friendlyErr(err error) string {
 	msg := err.Error()
-	if strings.Contains(msg, "no such file") || strings.Contains(msg, "not found") {
+	if isMissingConfigErr(err, msg) {
 		return "config missing — run pourover init"
 	}
-	if strings.Contains(msg, "load config") {
-		return msg
+	return truncateErr(msg, 120)
+}
+
+func isMissingConfigErr(err error, msg string) bool {
+	if errors.Is(err, os.ErrNotExist) {
+		return true
+	}
+	lower := strings.ToLower(msg)
+	if strings.HasPrefix(lower, "load config:") {
+		return true
+	}
+	if strings.Contains(lower, "config not found") {
+		return true
+	}
+	return false
+}
+
+func truncateErr(msg string, max int) string {
+	msg = strings.TrimSpace(msg)
+	if max > 0 && len(msg) > max {
+		return msg[:max] + "…"
 	}
 	return msg
 }

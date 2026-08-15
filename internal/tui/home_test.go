@@ -1,10 +1,41 @@
 package tui
 
 import (
+	"errors"
+	"fmt"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
+
+func TestFriendlyErr_ConfigMissing(t *testing.T) {
+	t.Parallel()
+
+	cases := []error{
+		fmt.Errorf("load config: open /tmp/pourover.lua: no such file or directory"),
+		errors.New("config not found at ~/.pourover/pourover.lua"),
+	}
+	for _, err := range cases {
+		got := friendlyErr(err)
+		if got != "config missing — run pourover init" {
+			t.Fatalf("friendlyErr(%q) = %q, want config missing message", err, got)
+		}
+	}
+}
+
+func TestFriendlyErr_BrewNotFoundNotMislabelled(t *testing.T) {
+	t.Parallel()
+
+	err := errors.New(`discover brew: exec: "brew": executable file not found in $PATH`)
+	got := friendlyErr(err)
+	if strings.Contains(got, "config missing") {
+		t.Fatalf("friendlyErr(%q) = %q, must not claim missing config", err, got)
+	}
+	if !strings.Contains(got, "brew") && !strings.Contains(got, "discover brew") {
+		t.Fatalf("friendlyErr(%q) = %q, want brew/discover context preserved", err, got)
+	}
+}
 
 func TestHomeUpdate_DownMovesSelection(t *testing.T) {
 	m := newTestHome()
