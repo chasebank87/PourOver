@@ -10,7 +10,8 @@ Ideas and scope **explicitly deferred from v1**. When we cut v1, anything not do
 - **Phase 0** (reconcile engine façade) — done. `internal/engine` owns BuildPlan, Apply, UpgradePackages, Doctor, Backup, Restore, and Import; the CLI is a thin frontend.
 - **Phase 1** (TUI shell) — done. Interactive no-args / `pourover tui` launch; home drift summary; Plan, Apply, Upgrade, Doctor, and History views.
 - **Phase 2** (TUI complete control) — done. Backup/Restore, Import, Config (iCloud + git), self-update from TUI, and opt-in doctor fixes (`f` + y/n; never silent).
-- **Next:** Phase 3 — file essentials (`files.managed`, `files.unlink`, plan/exec).
+- **Phase 3** (file essentials) — done. `files.managed`, `files.unlink`, and `policy.file_replace` (backup-on-replace under `state/backups/files/`).
+- **Next:** Phase 4 — ownership & prune (`owned_files`, `policy.files_mode`).
 
 ---
 
@@ -18,15 +19,15 @@ Ideas and scope **explicitly deferred from v1**. When we cut v1, anything not do
 
 | Item | Deferred from | Notes |
 |------|---------------|-------|
-| `files.managed` — copy files to target | D3 (v1 = links only) | For apps that reject symlinks; needs overwrite/backup policy |
+| `files.managed` — copy files to target | D3 (v1 = links only) | **Done (Phase 3)** — atomic copy; `policy.file_replace` for unexpected targets |
 | Template / rendered config files | D3 | e.g. hostname-specific configs; pick a template engine |
 | Directory-only links mode | M4 discussion | Restrict links to directories only; stricter validation |
-| Auto-unlink / prune undeclared symlinks | M4 discussion | Requires knowing which links PourOver created (state) |
-| `files.unlink` explicit removal list | M4 discussion | Safer alternative to auto-prune |
-| `--force` when target is a regular file | M4 discussion | v1: fail in plan if target exists and is not a symlink |
-| Backup-then-replace for blocking targets | M4 discussion | Move existing file aside before linking |
+| Auto-unlink / prune undeclared symlinks | M4 discussion | Requires knowing which links PourOver created (state) — Phase 4 |
+| `files.unlink` explicit removal list | M4 discussion | **Done (Phase 3)** — safe unlink of files/symlinks; directories refused |
+| `--force` when target is a regular file | M4 discussion | **Done (Phase 3)** — `policy.file_replace = "backup"` (`force` alias) |
+| Backup-then-replace for blocking targets | M4 discussion | **Done (Phase 3)** — backups under `state/backups/files/<timestamp>/` |
 | Allow plan/apply when source missing | M4 discussion | v1: require source to exist at plan time |
-| `policy` for file removals (mirror `uninstall_mode`) | M6 review gate | safe / strict / non_destructive for unlink |
+| `policy` for file removals (mirror `uninstall_mode`) | M6 review gate | Phase 4 `files_mode`: safe / strict / non_destructive for prune |
 
 ## Homebrew
 

@@ -22,7 +22,7 @@ Auto-launch does **not** run when:
 - stdin/stdout are not a TTY (pipes, scripts)
 - `CI=true` (CI / non-interactive automation)
 
-The TUI is **complete control** for Phase 2: Plan, Apply, Upgrade, Doctor (with opt-in fixes), History, Backup/Restore, Import, Config (iCloud + git), and Self-update. Remaining work is file essentials in Phases 3–5 (`files.managed`, ownership prune, templates).
+The TUI is **complete control** for Phase 2: Plan, Apply, Upgrade, Doctor (with opt-in fixes), History, Backup/Restore, Import, Config (iCloud + git), and Self-update. **Phase 3 file essentials** landed: `files.managed`, `files.unlink`, and `policy.file_replace` (backup-on-replace). Next is Phase 4 ownership/prune.
 
 ## Install
 
@@ -154,6 +154,11 @@ Re-import without `--force` only adds newly discovered packages, taps, and file 
 - **strict** — uninstall without prompting
 - **non_destructive** — never uninstall undeclared packages
 
+`policy.file_replace`:
+
+- **error** (default) — plan fails when a link target exists as a regular file (or managed target is an unexpected type such as a directory)
+- **backup** — move the existing target aside under `<stateDir>/backups/files/<timestamp>/<escaped-path>`, then link or copy (`force` is an accepted alias)
+
 Packages declared under `formulae` or `casks` count as declared for either type (so a cask listed under `formulae` is not treated as undeclared). Prefer putting GUI apps in `casks`.
 
 ## Paths
@@ -164,7 +169,7 @@ Packages declared under `formulae` or `casks` count as declared for either type 
 | State | `~/Library/Application Support/PourOver/state/` |
 | iCloud mirror | `~/Library/Mobile Documents/com~apple~CloudDocs/PourOver/` |
 
-State artifacts: `lock.json`, `last-plan.json`, `history/`, `snapshots/`.
+State artifacts: `lock.json`, `last-plan.json`, `history/`, `snapshots/`, `backups/files/` (file replace backups).
 
 Enable iCloud state mirroring:
 

@@ -8,7 +8,7 @@ Top-level object with an `actions` array. Each action:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `type` | string | `formula_install`, `formula_remove`, `formula_upgrade`, `cask_install`, `cask_remove`, `cask_upgrade`, `cask_rename`, `link_create`, `link_update`, `managed_copy`, `file_unlink`, `defaults_write` |
+| `type` | string | `formula_install`, `formula_remove`, `formula_upgrade`, `cask_install`, `cask_remove`, `cask_upgrade`, `cask_rename`, `link_create`, `link_update`, `link_replace`, `managed_copy`, `file_unlink`, `defaults_write` |
 | `name` | string | Homebrew package name, link/managed/unlink target path, or `domain key` for defaults |
 | `source` | string | Link or managed source path (as declared in config) |
 | `domain` | string | Apple defaults domain (`defaults_write` only) |
@@ -42,13 +42,16 @@ remove cask slack
 cask renamed: windsurf →devin-desktop (update packages.lua)
 defaults write com.apple.dock autohide = true
 link create ~/.config/nvim <- config/nvim
+link replace ~/.zshrc <- config/zshrc (backup)
 managed copy ~/.config/foo <- config/foo
 unlink ~/.old-dotfile
 ```
 
 `cask_rename` is advisory only (apply does not mutate); replace the old token in config with the new name.
 
-`managed_copy` and `file_unlink` appear in the plan when discovered; apply copies atomically and unlinks with directory safeguards.
+`link_replace` appears when `policy.file_replace` is `backup` (or `force`) and the link target exists as a non-symlink; apply moves the target under `state/backups/files/` then creates the link.
+
+`managed_copy` and `file_unlink` appear in the plan when discovered; apply copies atomically and unlinks with directory safeguards. Managed copies against unexpected target types (e.g. directories) require `file_replace = "backup"` and are labeled `(backup)` in text output.
 
 `pourover upgrade --dry-run` merges upgrade actions (outdated declared packages only) ahead of the normal apply plan.
 

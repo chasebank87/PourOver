@@ -51,7 +51,7 @@ Each entry:
 
 - Plan/apply only creates or updates symlinks for declared links.
 - `source` must exist when planning.
-- If `target` exists and is not a symlink → error (no overwrite).
+- If `target` exists and is not a symlink → plan error unless `policy.file_replace = "backup"` (or `"force"`), which emits `link_replace` and moves the target aside under `state/backups/files/` before linking.
 - No automatic removal of symlinks absent from config (use `files.unlink` for explicit removals).
 - Typical layout: sources under `~/.pourover/config/...`, targets under `~/.config/...`.
 
@@ -66,7 +66,7 @@ Each entry:
 | `source` | yes | string | Path relative to the config directory, or absolute |
 | `target` | yes | string | Destination path on disk (`~` expanded) |
 
-Copies (or later templates) `source` to `target` for apps that reject symlinks. Empty `source`/`target` (after trim) fail validation. Plan emits `managed_copy` when the target is missing or content differs; apply writes atomically.
+Copies (or later templates) `source` to `target` for apps that reject symlinks. Empty `source`/`target` (after trim) fail validation. Plan emits `managed_copy` when the target is missing or content differs; apply writes atomically. Regular files are overwritten in place. Unexpected target types (e.g. directories) fail unless `policy.file_replace = "backup"`, which moves the target aside then writes.
 
 ### `files.unlink` (V2 Phase 3)
 
@@ -91,10 +91,34 @@ files = {
 | Key | Required | Type | Default | Values |
 |-----|----------|------|---------|--------|
 | `uninstall_mode` | no | string | `"safe"` | `safe`, `strict`, `non_destructive` |
+| `file_replace` | no | string | `"error"` | `error`, `backup` (`force` is an alias for `backup`) |
 
 - **safe** — prompt before uninstalling undeclared Homebrew packages/taps (only formulae installed on request; dependency-only packages are ignored; `homebrew/core` / `homebrew/cask` never untapped). A package listed under `formulae` or `casks` counts as declared for either type.
 - **strict** — uninstall undeclared packages/taps without prompting
 - **non_destructive** — never uninstall undeclared packages/taps
+
+### `policy.file_replace`
+
+Controls what happens when a `files.links` target already exists as a regular file (or other non-symlink), or when a `files.managed` target is an unexpected type (e.g. a directory).
+
+- **error** (default) — plan fails with a blocked-target error (v1 behavior for links)
+- **backup** — move the existing target aside under the state directory, then create the link or write the managed file
+- **force** — accepted synonym for `backup`
+
+Backup destination:
+
+```text
+<stateDir>/backups/files/<UTC-timestamp>/<escaped-absolute-path>
+```
+
+Example: `~/Library/Application Support/PourOver/state/backups/files/20260815T053000Z/_Users_chase_.zshrc`
+
+```lua
+policy = {
+  uninstall_mode = "safe",
+  file_replace = "backup", -- or "error" (default), or "force"
+}
+```
 
 ## `backup`
 
@@ -168,7 +192,7 @@ local packages = require("packages")
 
 return {
   packages = packages,
-  policy = { uninstall_mode = "safe" },
+  policy = { uninstall_mode = "safe", file_replace = "error" },
 }
 ```
 
