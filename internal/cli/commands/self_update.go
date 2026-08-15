@@ -1,8 +1,8 @@
 package commands
 
 import (
+	"github.com/chasebank87/PourOver/internal/engine"
 	"github.com/chasebank87/PourOver/internal/selfupdate"
-	"github.com/chasebank87/PourOver/internal/version"
 	"github.com/spf13/cobra"
 )
 
@@ -18,9 +18,8 @@ the running binary in place (similar to how brew update refreshes Homebrew).`,
 }
 
 func runSelfUpdate(cmd *cobra.Command, args []string) error {
-	_, err := selfupdate.CheckAndApply(selfupdate.Options{
-		Current: version.Version,
-		Stdout:  cmd.OutOrStdout(),
+	_, err := engine.SelfUpdate(selfupdate.Options{
+		Stdout: cmd.OutOrStdout(),
 	})
 	return err
 }
