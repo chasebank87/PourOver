@@ -12,6 +12,7 @@ import (
 type recordingMasRunner struct {
 	calls       []string
 	failIDs     map[string]bool
+	failGet     map[string]bool
 	failUnins   map[string]bool
 	failUpgrade map[string]bool
 }
@@ -21,6 +22,9 @@ func (r *recordingMasRunner) Run(ctx context.Context, args ...string) ([]byte, e
 	r.calls = append(r.calls, key)
 	if len(args) == 2 && args[0] == "install" && r.failIDs[args[1]] {
 		return nil, fmt.Errorf("mas install failed")
+	}
+	if len(args) == 2 && args[0] == "get" && r.failGet[args[1]] {
+		return nil, fmt.Errorf("mas get failed")
 	}
 	if len(args) == 2 && args[0] == "uninstall" && r.failUnins[args[1]] {
 		return nil, fmt.Errorf("mas uninstall failed")
@@ -38,6 +42,16 @@ func TestInstallMas_RunsMasInstall(t *testing.T) {
 	}
 	if got := strings.Join(runner.calls, ","); got != "install 497799835" {
 		t.Fatalf("calls = %q, want install 497799835", got)
+	}
+}
+
+func TestInstallMas_SkipsGetWhenInstallSucceeds(t *testing.T) {
+	runner := &recordingMasRunner{}
+	if err := InstallMas(context.Background(), runner, "1518423503"); err != nil {
+		t.Fatalf("InstallMas: %v", err)
+	}
+	if got := strings.Join(runner.calls, ","); got != "install 1518423503" {
+		t.Fatalf("calls = %q, want only install", got)
 	}
 }
 
