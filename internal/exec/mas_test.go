@@ -13,6 +13,7 @@ type recordingMasRunner struct {
 	calls       []string
 	failIDs     map[string]bool
 	failGet     map[string]bool
+	noGet       bool
 	failUnins   map[string]bool
 	failUpgrade map[string]bool
 }
@@ -21,10 +22,13 @@ func (r *recordingMasRunner) Run(ctx context.Context, args ...string) ([]byte, e
 	key := strings.Join(args, " ")
 	r.calls = append(r.calls, key)
 	if len(args) == 2 && args[0] == "install" && r.failIDs[args[1]] {
-		return nil, fmt.Errorf("mas install failed")
+		return nil, fmt.Errorf("Error: This redownload is not available for this Apple Account")
 	}
 	if len(args) == 2 && args[0] == "get" && r.failGet[args[1]] {
 		return nil, fmt.Errorf("mas get failed")
+	}
+	if len(args) == 2 && args[0] == "get" && r.noGet {
+		return nil, fmt.Errorf("error: Unknown command 'get'")
 	}
 	if len(args) == 2 && args[0] == "uninstall" && r.failUnins[args[1]] {
 		return nil, fmt.Errorf("mas uninstall failed")
@@ -52,6 +56,16 @@ func TestInstallMas_SkipsGetWhenInstallSucceeds(t *testing.T) {
 	}
 	if got := strings.Join(runner.calls, ","); got != "install 1518423503" {
 		t.Fatalf("calls = %q, want only install", got)
+	}
+}
+
+func TestInstallMas_FallsBackToGet(t *testing.T) {
+	runner := &recordingMasRunner{failIDs: map[string]bool{"1518423503": true}}
+	if err := InstallMas(context.Background(), runner, "1518423503"); err != nil {
+		t.Fatalf("InstallMas: %v", err)
+	}
+	if got := strings.Join(runner.calls, ","); got != "install 1518423503,get 1518423503" {
+		t.Fatalf("calls = %q", got)
 	}
 }
 
@@ -87,7 +101,10 @@ func TestApplyMasInstalls_OnlyMas(t *testing.T) {
 }
 
 func TestApplyMasInstalls_ContinuesAfterFailure(t *testing.T) {
-	runner := &recordingMasRunner{failIDs: map[string]bool{"1": true}}
+	runner := &recordingMasRunner{
+		failIDs: map[string]bool{"1": true},
+		failGet: map[string]bool{"1": true},
+	}
 	p := plan.Plan{Actions: []plan.Action{
 		{Type: plan.ActionMasInstall, Name: "Bad", Value: "1"},
 		{Type: plan.ActionMasInstall, Name: "Good", Value: "2"},
@@ -100,7 +117,7 @@ func TestApplyMasInstalls_ContinuesAfterFailure(t *testing.T) {
 	if n != 1 {
 		t.Fatalf("count = %d, want 1", n)
 	}
-	if got := strings.Join(runner.calls, ","); got != "install 1,install 2" {
+	if got := strings.Join(runner.calls, ","); got != "install 1,get 1,install 2" {
 		t.Fatalf("calls = %q", got)
 	}
 }

@@ -10,12 +10,15 @@ import (
 	"github.com/chasebank87/PourOver/internal/plan"
 )
 
-// InstallMas runs `mas install <id>`.
+// InstallMas runs `mas install <id>`, falling back to `mas get <id>` on failure.
 func InstallMas(ctx context.Context, runner discovery.MasRunner, id string) error {
-	if _, err := runner.Run(ctx, "install", id); err != nil {
+	if _, err := runner.Run(ctx, "install", id); err == nil {
+		return nil
+	} else if _, getErr := runner.Run(ctx, "get", id); getErr == nil {
+		return nil
+	} else {
 		return fmt.Errorf("mas install %s: %w", id, err)
 	}
-	return nil
 }
 
 // RemoveMas runs `mas uninstall <id>`.
