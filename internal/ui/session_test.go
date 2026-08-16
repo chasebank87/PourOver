@@ -158,6 +158,30 @@ func TestSession_PrepareAuth_BreaksMidLineWhenNotLive(t *testing.T) {
 	}
 }
 
+func TestSession_PreparePrompt_ParksLiveStatus(t *testing.T) {
+	ForcePlain()
+	var buf bytes.Buffer
+	s := NewSession(&buf, "apply")
+	s.Start(1)
+	s.Step("update file ~/.config/thefuck/__pycache__/x.pyc")
+	before := buf.String()
+	s.PreparePrompt()
+	got := buf.String()[len(before):]
+	if !strings.HasPrefix(got, "\n") {
+		t.Fatalf("PreparePrompt must finalize progress with newline first: %q", got)
+	}
+	if strings.Contains(got, "authentication required") {
+		t.Fatalf("PreparePrompt must not print auth hint: %q", got)
+	}
+	if _, err := buf.WriteString("Remove files?\n"); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+	if strings.Contains(out, ".pycRemove") {
+		t.Fatalf("confirm glued to progress label: %q", out)
+	}
+}
+
 func TestSession_SingleLiveStatusLine(t *testing.T) {
 	ForcePlain()
 	var buf bytes.Buffer

@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 const (
 	// ConfigDirName is the default directory under $HOME for pourover.lua.
 	ConfigDirName = ".pourover"
 	// ConfigFileName is the default declarative config file name.
-	ConfigFileName = "pourover.lua"
+	ConfigFileName     = "pourover.lua"
 	appSupportPourOver = "PourOver"
 	stateDirName       = "state"
 )
@@ -40,6 +41,25 @@ func DefaultStateDir() (string, error) {
 		return "", fmt.Errorf("home directory: %w", err)
 	}
 	return filepath.Join(home, "Library", "Application Support", appSupportPourOver, stateDirName), nil
+}
+
+// DisplayHome returns path with $HOME replaced by ~ for prompts and logs.
+func DisplayHome(path string) string {
+	if path == "" {
+		return path
+	}
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return path
+	}
+	if path == home {
+		return "~"
+	}
+	prefix := home + string(filepath.Separator)
+	if strings.HasPrefix(path, prefix) {
+		return "~/" + filepath.ToSlash(path[len(prefix):])
+	}
+	return path
 }
 
 // ResolveConfigFile returns flagPath when set, otherwise the default config path.

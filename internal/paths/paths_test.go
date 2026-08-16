@@ -37,3 +37,21 @@ func TestDefaultConfigFile_UnderHome(t *testing.T) {
 		t.Errorf("dir = %q, want %q", filepath.Dir(got), ConfigDirName)
 	}
 }
+
+func TestDisplayHome(t *testing.T) {
+	home, err := DefaultConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	home = filepath.Dir(home) // $HOME
+	got := DisplayHome(filepath.Join(home, ".config", "nvim", ".DS_Store"))
+	if got != "~/.config/nvim/.DS_Store" {
+		t.Fatalf("DisplayHome = %q, want ~/.config/nvim/.DS_Store", got)
+	}
+	if DisplayHome(home) != "~" {
+		t.Fatalf("DisplayHome(home) = %q, want ~", DisplayHome(home))
+	}
+	if DisplayHome("/tmp/x") != "/tmp/x" {
+		t.Fatalf("DisplayHome abs = %q", DisplayHome("/tmp/x"))
+	}
+}

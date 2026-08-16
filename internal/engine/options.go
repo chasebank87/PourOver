@@ -37,4 +37,7 @@ type ApplyOptions struct {
 	// BeforeAuth parks fancy UI / prints a hint before sudo prompts on /dev/tty
 	// (PAM elevation does not stream through Stdout, so Session.Write never runs).
 	BeforeAuth func()
+	// BeforePrompt parks fancy UI before y/n confirms (prune / uninstall) so the
+	// live progress bar is not glued onto the prompt.
+	BeforePrompt func()
 }

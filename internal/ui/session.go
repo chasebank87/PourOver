@@ -118,26 +118,33 @@ func (s *Session) Write(p []byte) (int, error) {
 	return s.out.Write(p)
 }
 
+// PreparePrompt parks the live progress line so a following y/n confirm is
+// not glued onto the bar. Long progress lines may soft-wrap, so we finalize
+// with a newline, then reset the tty cursor via tty.SyncPromptLine.
+func (s *Session) PreparePrompt() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.finalizeStatusForPromptLocked()
+}
+
 // PrepareAuth parks the live progress line and prints the auth hint so a
 // subsequent sudo Password: prompt on /dev/tty is not glued onto the bar.
 // Brew mutations get this via Write; PAM/system elevation must call it first.
-//
-// sudo prompts on /dev/tty (not stderr). Long progress lines may soft-wrap, so
-// CSI clear on stderr alone is unreliable — we finalize with a newline, then
-// reset the tty cursor via tty.SyncPromptLine.
 func (s *Session) PrepareAuth() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	// Finalize the live status as its own line (do not CSI-clear: wrapped
-	// rows would leave remnants and a mid-column tty cursor).
-	if s.liveStatus {
-		fmt.Fprint(s.out, "\n")
-		s.liveStatus = false
-	} else {
-		fmt.Fprint(s.out, "\n")
-	}
+	s.finalizeStatusForPromptLocked()
 	fmt.Fprint(s.out, styleAccentPrompt.Render("☕ authentication required — enter your password if prompted"))
 	fmt.Fprint(s.out, "\n")
+	flushWriter(s.out)
+	tty.SyncPromptLine()
+}
+
+func (s *Session) finalizeStatusForPromptLocked() {
+	// Finalize the live status as its own line (do not CSI-clear: wrapped
+	// rows would leave remnants and a mid-column tty cursor).
+	fmt.Fprint(s.out, "\n")
+	s.liveStatus = false
 	flushWriter(s.out)
 	tty.SyncPromptLine()
 }

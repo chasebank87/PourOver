@@ -3,6 +3,8 @@ package engine
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -97,6 +99,54 @@ func TestApply_MasInstall(t *testing.T) {
 	if len(mas.calls) != 1 || mas.calls[0] != "install 497799835" {
 		t.Fatalf("mas calls = %v", mas.calls)
 	}
+}
+
+func TestApply_PruneConfirmIsMultiline(t *testing.T) {
+	dir := t.TempDir()
+	a := filepath.Join(dir, "a.DS_Store")
+	b := filepath.Join(dir, "b.DS_Store")
+	for _, p := range []string{a, b} {
+		if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	parked := 0
+	conf := &promptConfirmer{}
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionFilePrune, Name: a},
+		{Type: plan.ActionFilePrune, Name: b},
+	}}
+	_, err := Apply(context.Background(), &stubBrewRunner{}, p, ApplyOptions{
+		FilesMode:    config.FilesModeSafe,
+		Quiet:        true,
+		Confirm:      conf,
+		BeforePrompt: func() { parked++ },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parked != 1 {
+		t.Fatalf("BeforePrompt calls=%d, want 1", parked)
+	}
+	if strings.Contains(conf.prompt, a+",") {
+		t.Fatalf("comma-joined prune prompt: %q", conf.prompt)
+	}
+	if !strings.Contains(conf.prompt, a) || !strings.Contains(conf.prompt, "\n  ") {
+		t.Fatalf("want listed paths: %q", conf.prompt)
+	}
+	if !strings.Contains(conf.prompt, "Proceed?") {
+		t.Fatalf("missing Proceed: %q", conf.prompt)
+	}
+	if _, err := os.Stat(a); err != nil {
+		t.Fatalf("declined prune must leave file: %v", err)
+	}
+}
+
+type promptConfirmer struct{ prompt string }
+
+func (c *promptConfirmer) Confirm(prompt string) bool {
+	c.prompt = prompt
+	return false
 }
 
 type recordingApplyMasRunner struct {

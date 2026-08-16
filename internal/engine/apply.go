@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"path/filepath"
 	"strings"
@@ -171,8 +170,10 @@ func confirmRemoves(opts ApplyOptions) exec.ConfirmRemoves {
 		if opts.Confirm == nil {
 			return false
 		}
-		prompt := fmt.Sprintf("Uninstall undeclared packages: %s?", strings.Join(names, ", "))
-		return opts.Confirm.Confirm(prompt)
+		if opts.BeforePrompt != nil {
+			opts.BeforePrompt()
+		}
+		return opts.Confirm.Confirm(exec.FormatListPrompt("Uninstall undeclared packages", names))
 	}
 }
 
@@ -184,8 +185,10 @@ func confirmPrunes(opts ApplyOptions) exec.ConfirmPrunes {
 		if opts.Confirm == nil {
 			return false
 		}
-		prompt := fmt.Sprintf("Remove PourOver-owned undeclared files: %s?", strings.Join(paths, ", "))
-		return opts.Confirm.Confirm(prompt)
+		if opts.BeforePrompt != nil {
+			opts.BeforePrompt()
+		}
+		return opts.Confirm.Confirm(exec.FormatListPrompt("Remove PourOver-owned undeclared files", paths))
 	}
 }
 
