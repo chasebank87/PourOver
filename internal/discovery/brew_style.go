@@ -110,6 +110,9 @@ func StyleBrewLine(line string) string {
 	}
 
 	out := trimmed
+	// Brew/curl progress sometimes emits TABs that shove text into odd columns
+	// once we turn CR updates into normal lines.
+	out = strings.ReplaceAll(out, "\t", " ")
 	out = strings.ReplaceAll(out, "🍺", "☕")
 	switch {
 	case strings.HasPrefix(out, "==> "):

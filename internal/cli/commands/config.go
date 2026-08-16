@@ -10,6 +10,7 @@ import (
 	"github.com/chasebank87/PourOver/internal/configgit"
 	"github.com/chasebank87/PourOver/internal/engine"
 	"github.com/chasebank87/PourOver/internal/paths"
+	"github.com/chasebank87/PourOver/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -73,13 +74,14 @@ func runConfigICloudEnable(cmd *cobra.Command, icloudPath string, setPath bool) 
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "iCloud mirror enabled in %s\n", configPath)
+	out := cmd.OutOrStdout()
+	ui.Successf(out, "☕ iCloud mirror enabled in %s", configPath)
 	if st.ICloudAvailable {
-		fmt.Fprintf(cmd.OutOrStdout(), "Mirror path: %s\n", st.ICloudPath)
+		ui.Mutedf(out, "Mirror path: %s", st.ICloudPath)
 	} else {
-		fmt.Fprintln(cmd.OutOrStdout(), "Mirror path currently unavailable (is iCloud Drive signed in?)")
+		ui.Warnf(out, "Mirror path currently unavailable (is iCloud Drive signed in?)")
 	}
-	fmt.Fprintln(cmd.OutOrStdout(), "Tip: run `pourover doctor` or `pourover backup` to verify.")
+	ui.Mutedf(out, "Tip: run `pourover doctor` or `pourover backup` to verify.")
 	return nil
 }
 
@@ -91,7 +93,7 @@ func runConfigICloudDisable(cmd *cobra.Command) error {
 	if err := engine.DisableICloud(configPath); err != nil {
 		return err
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "iCloud mirror disabled in %s\n", configPath)
+	ui.Successf(cmd.OutOrStdout(), "☕ iCloud mirror disabled in %s", configPath)
 	return nil
 }
 
@@ -181,14 +183,14 @@ func runConfigGitSetup(cmd *cobra.Command, url, branch string) error {
 		if err := configgit.Commit(cfgDir, configgit.SyncCommitMessage(time.Now())); err != nil {
 			return err
 		}
-		fmt.Fprintln(out, "Created initial commit.")
+		ui.Successf(out, "☕ Created initial commit.")
 	}
 	if err := configgit.Push(cfgDir, branch); err != nil {
 		return fmt.Errorf("push failed (is the remote empty/reachable and auth configured?): %w", err)
 	}
-	fmt.Fprintf(out, "Git config sync enabled for %s\n", cfgDir)
-	fmt.Fprintf(out, "Remote: %s (branch %s)\n", url, branch)
-	fmt.Fprintln(out, "Successful apply/import will auto-push when the config tree is dirty.")
+	ui.Successf(out, "☕ Git config sync enabled for %s", cfgDir)
+	ui.Mutedf(out, "Remote: %s (branch %s)", url, branch)
+	ui.Mutedf(out, "Successful apply/import will auto-push when the config tree is dirty.")
 	return nil
 }
 
@@ -225,8 +227,8 @@ func runConfigGitRestore(cmd *cobra.Command, url, branch string, force bool) err
 	if _, err := config.LoadManifest(configPath); err != nil {
 		return fmt.Errorf("cloned repo but config invalid at %s: %w", configPath, err)
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "Restored PourOver config from %s into %s\n", url, cfgDir)
-	fmt.Fprintln(cmd.OutOrStdout(), "Next: run `pourover apply` to reconcile this machine.")
+	ui.Successf(cmd.OutOrStdout(), "☕ Restored PourOver config from %s into %s", url, cfgDir)
+	ui.Mutedf(cmd.OutOrStdout(), "Next: run `pourover apply` to reconcile this machine.")
 	return nil
 }
 
@@ -260,10 +262,10 @@ func runConfigPush(cmd *cobra.Command) error {
 		return err
 	}
 	if !result.Pushed {
-		fmt.Fprintln(cmd.OutOrStdout(), "Nothing to push (already synced).")
+		ui.Mutedf(cmd.OutOrStdout(), "Nothing to push (already synced).")
 		return nil
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "Pushed config changes to %s\n", result.Remote)
+	ui.Successf(cmd.OutOrStdout(), "☕ Pushed config changes to %s", result.Remote)
 	return nil
 }
 
@@ -279,7 +281,7 @@ func runConfigPull(cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "Pulled config updates into %s\n", cfgDir)
+	ui.Successf(cmd.OutOrStdout(), "☕ Pulled config updates into %s", cfgDir)
 	return nil
 }
 
@@ -314,8 +316,9 @@ func maybeAutoPushConfig(cmd *cobra.Command, configPath string, manifest config.
 		return
 	}
 	cfgDir := filepath.Dir(configPath)
+	errOut := cmd.ErrOrStderr()
 	if !configgit.IsRepo(cfgDir) {
-		fmt.Fprintf(cmd.ErrOrStderr(), "warning: backup.git.enabled but %s is not a git repo\n", cfgDir)
+		ui.Warnf(errOut, "warning: backup.git.enabled but %s is not a git repo", cfgDir)
 		return
 	}
 	branch := manifest.Backup.Git.Branch
@@ -324,10 +327,10 @@ func maybeAutoPushConfig(cmd *cobra.Command, configPath string, manifest config.
 	}
 	pushed, err := configgit.CommitAndPushIfDirty(cfgDir, branch, time.Now())
 	if err != nil {
-		fmt.Fprintf(cmd.ErrOrStderr(), "warning: config git auto-push failed: %v\n", err)
+		ui.Warnf(errOut, "warning: config git auto-push failed: %v", err)
 		return
 	}
 	if pushed {
-		fmt.Fprintf(cmd.ErrOrStderr(), "config synced to git remote\n")
+		ui.Successf(errOut, "☕ config synced to git remote")
 	}
 }

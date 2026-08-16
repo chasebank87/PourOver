@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 func TestEnabled_QuietOrNoColor(t *testing.T) {
@@ -120,8 +122,8 @@ func TestSession_PrepareAuth_ParksLiveStatus(t *testing.T) {
 	if !strings.Contains(got, "authentication required") {
 		t.Fatalf("missing auth hint after PrepareAuth: %q", got)
 	}
-	if !strings.HasPrefix(got, "\n") {
-		t.Fatalf("PrepareAuth must finalize progress with newline first: %q", got)
+	if !strings.Contains(got, "\r\033[2K\n") {
+		t.Fatalf("PrepareAuth must clear live status with CR+CSI: %q", got)
 	}
 	// After park, a following Password: must not sit on the bar line.
 	if _, err := buf.WriteString("Password:\n"); err != nil {
@@ -167,8 +169,8 @@ func TestSession_PreparePrompt_ParksLiveStatus(t *testing.T) {
 	before := buf.String()
 	s.PreparePrompt()
 	got := buf.String()[len(before):]
-	if !strings.HasPrefix(got, "\n") {
-		t.Fatalf("PreparePrompt must finalize progress with newline first: %q", got)
+	if !strings.Contains(got, "\r\033[2K\n") {
+		t.Fatalf("PreparePrompt must clear live status with CR+CSI: %q", got)
 	}
 	if strings.Contains(got, "authentication required") {
 		t.Fatalf("PreparePrompt must not print auth hint: %q", got)
@@ -179,6 +181,34 @@ func TestSession_PreparePrompt_ParksLiveStatus(t *testing.T) {
 	out := buf.String()
 	if strings.Contains(out, ".pycRemove") {
 		t.Fatalf("confirm glued to progress label: %q", out)
+	}
+}
+
+func TestSession_StatusTruncatesToTerminalWidth(t *testing.T) {
+	ForcePlain()
+	var buf bytes.Buffer
+	s := NewSession(&buf, "apply")
+	s.cols = 64
+	s.Start(1)
+	long := "defaults write /Library/Preferences/SystemConfiguration/com.apple.smb.server ServerDescription = Chase’s MacBook Pro"
+	s.SetPhase("defaults")
+	s.Step(long)
+
+	s.mu.Lock()
+	line := s.statusLineLocked()
+	s.mu.Unlock()
+	if strings.Contains(line, "SystemConfiguration") {
+		t.Fatalf("expected truncated status without full path: %q", line)
+	}
+	if !strings.Contains(line, "…") {
+		t.Fatalf("expected ellipsis in truncated status: %q", line)
+	}
+	if w := ansi.StringWidth(line); w > s.cols {
+		t.Fatalf("status width %d > terminal %d: %q", w, s.cols, line)
+	}
+	out := buf.String()
+	if strings.Contains(out, "SystemConfiguration") {
+		t.Fatalf("buffer still has full path: %q", out)
 	}
 }
 

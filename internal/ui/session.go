@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/chasebank87/PourOver/internal/tty"
 )
 
@@ -32,6 +33,9 @@ type Summary struct {
 // logs underneath. The progress line is updated in place with CR; it is parked
 // (cleared onto its own finished line) before brew output or auth prompts so
 // Password: is never glued onto the bar.
+//
+// The live status is always truncated to the terminal width so soft-wrap cannot
+// leave remnant rows after \r\033[2K (which only clears one visual row).
 type Session struct {
 	out  io.Writer
 	mode string
@@ -43,13 +47,14 @@ type Session struct {
 	current    string
 	started    bool
 	failed     int
-	width      int
+	barWidth   int
+	cols       int // 0 = detect; tests may set explicitly
 	liveStatus bool // true when the cursor sits on the CR status line
 }
 
 // NewSession creates a UI session writing to out. mode is "apply" or "upgrade".
 func NewSession(out io.Writer, mode string) *Session {
-	return &Session{out: out, mode: mode, width: 28, phase: "starting"}
+	return &Session{out: out, mode: mode, barWidth: 28, phase: "starting"}
 }
 
 // Start prints the header and initializes the progress total.
@@ -119,12 +124,11 @@ func (s *Session) Write(p []byte) (int, error) {
 }
 
 // PreparePrompt parks the live progress line so a following y/n confirm is
-// not glued onto the bar. Long progress lines may soft-wrap, so we finalize
-// with a newline, then reset the tty cursor via tty.SyncPromptLine.
+// not glued onto the bar.
 func (s *Session) PreparePrompt() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.finalizeStatusForPromptLocked()
+	s.parkForPromptLocked()
 }
 
 // PrepareAuth parks the live progress line and prints the auth hint so a
@@ -133,18 +137,22 @@ func (s *Session) PreparePrompt() {
 func (s *Session) PrepareAuth() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.finalizeStatusForPromptLocked()
+	s.parkForPromptLocked()
 	fmt.Fprint(s.out, styleAccentPrompt.Render("☕ authentication required — enter your password if prompted"))
 	fmt.Fprint(s.out, "\n")
 	flushWriter(s.out)
 	tty.SyncPromptLine()
 }
 
-func (s *Session) finalizeStatusForPromptLocked() {
-	// Finalize the live status as its own line (do not CSI-clear: wrapped
-	// rows would leave remnants and a mid-column tty cursor).
-	fmt.Fprint(s.out, "\n")
-	s.liveStatus = false
+// parkForPromptLocked clears a one-row live status (or breaks a mid-line write)
+// and resets the /dev/tty cursor without inserting blank lines.
+func (s *Session) parkForPromptLocked() {
+	if s.liveStatus {
+		s.parkStatusLocked()
+	} else {
+		// Best-effort: break mid-line remnants from non-live writes.
+		fmt.Fprint(s.out, "\n")
+	}
 	flushWriter(s.out)
 	tty.SyncPromptLine()
 }
@@ -164,68 +172,38 @@ func (s *Session) Finish(sum Summary) {
 	if s.total > 0 {
 		fmt.Fprintln(s.out, styleMuted.Render(strings.Repeat("─", 40)))
 	}
-
-	if sum.Failures == 0 && sum.Taps == 0 && sum.Formulae == 0 && sum.Casks == 0 && sum.Mas == 0 && sum.Removed == 0 &&
-		sum.Upgraded == 0 && sum.Defaults == 0 && sum.Linked == 0 && sum.Managed == 0 && sum.Templates == 0 &&
-		sum.Unlinked == 0 && sum.Pruned == 0 && sum.Skipped == 0 && sum.Renames == 0 {
-		fmt.Fprintln(s.out, styleMuted.Render("☕ No changes."))
-		return
-	}
-
-	if sum.Taps > 0 {
-		fmt.Fprintln(s.out, styleOK.Render(fmt.Sprintf("☕ Added %d tap(s).", sum.Taps)))
-	}
-	if sum.Formulae > 0 {
-		fmt.Fprintln(s.out, styleOK.Render(fmt.Sprintf("☕ Installed %d formula(s).", sum.Formulae)))
-	}
-	if sum.Casks > 0 {
-		fmt.Fprintln(s.out, styleOK.Render(fmt.Sprintf("☕ Installed %d cask(s).", sum.Casks)))
-	}
-	if sum.Mas > 0 {
-		fmt.Fprintln(s.out, styleOK.Render(fmt.Sprintf("☕ Installed %d Mac App Store app(s).", sum.Mas)))
-	}
-	if sum.Upgraded > 0 {
-		fmt.Fprintln(s.out, styleOK.Render(fmt.Sprintf("☕ Upgraded %d package(s).", sum.Upgraded)))
-	}
-	if sum.Removed > 0 {
-		fmt.Fprintln(s.out, styleOK.Render(fmt.Sprintf("☕ Removed %d package(s).", sum.Removed)))
-	}
-	if sum.Defaults > 0 {
-		fmt.Fprintln(s.out, styleOK.Render(fmt.Sprintf("☕ Updated %d macOS default(s).", sum.Defaults)))
-	}
-	if sum.Linked > 0 {
-		fmt.Fprintln(s.out, styleOK.Render(fmt.Sprintf("☕ Updated %d file(s).", sum.Linked)))
-	}
-	if sum.Managed > 0 {
-		fmt.Fprintln(s.out, styleOK.Render(fmt.Sprintf("☕ Copied %d managed file(s).", sum.Managed)))
-	}
-	if sum.Templates > 0 {
-		fmt.Fprintln(s.out, styleOK.Render(fmt.Sprintf("☕ Wrote %d template file(s).", sum.Templates)))
-	}
-	if sum.Unlinked > 0 {
-		fmt.Fprintln(s.out, styleOK.Render(fmt.Sprintf("☕ Unlinked %d file(s).", sum.Unlinked)))
-	}
-	if sum.Pruned > 0 {
-		fmt.Fprintln(s.out, styleOK.Render(fmt.Sprintf("☕ Pruned %d owned file(s).", sum.Pruned)))
-	}
-	if sum.Skipped > 0 {
-		fmt.Fprintln(s.out, styleWarning.Render(fmt.Sprintf("☕ Skipped %d unsupported action(s).", sum.Skipped)))
-	}
-	if sum.Failures > 0 {
-		fmt.Fprintln(s.out, styleFail.Render(fmt.Sprintf("☕ %d action(s) failed.", sum.Failures)))
-	}
+	WriteSummary(s.out, sum, true)
 	// Renames: caller prints detail lines after Finish (status must be parked first).
 }
 
 func (s *Session) renderHeaderLocked() {
-	brand := styleBrand.Render("☕ PourOver")
-	mode := styleMode.Render(s.mode)
-	fmt.Fprintln(s.out, brand+"  "+mode)
-	fmt.Fprintln(s.out, styleMuted.Render(strings.Repeat("─", 40)))
+	Header(s.out, s.mode)
+}
+
+func (s *Session) termColsLocked() int {
+	if s.cols > 0 {
+		return s.cols
+	}
+	return writerColumns(s.out)
 }
 
 func (s *Session) statusLineLocked() string {
-	bar := renderBar(s.done, s.total, s.width)
+	cols := s.termColsLocked()
+	barW := s.barWidth
+	if barW > cols/3 {
+		barW = cols / 3
+	}
+	if barW < 8 {
+		barW = 8
+	}
+	if barW > cols-16 {
+		barW = cols - 16
+	}
+	if barW < 4 {
+		barW = 4
+	}
+
+	bar := renderBar(s.done, s.total, barW)
 	count := fmt.Sprintf("%d/%d", s.done, s.total)
 	phase := s.phase
 	if phase == "" {
@@ -235,12 +213,27 @@ func (s *Session) statusLineLocked() string {
 	if cur == "" {
 		cur = "…"
 	}
-	return fmt.Sprintf("%s  %s  %s  %s",
+
+	// Keep bar + count + phase always; truncate the action so the whole line
+	// fits one terminal row (CR clear only erases one row).
+	prefix := fmt.Sprintf("%s  %s  %s",
 		styleBarOn.Render(bar),
 		styleMuted.Render(count),
 		styleMode.Render(phase),
-		styleMuted.Render("→ "+cur),
 	)
+	avail := cols - ansi.StringWidth(prefix) - 1 // leave a margin cell
+	if avail < 4 {
+		return truncateDisplay(prefix, cols, "…")
+	}
+	arrow := styleMuted.Render("→ " + cur)
+	if ansi.StringWidth(arrow) > avail-1 {
+		arrow = styleMuted.Render(truncateDisplay("→ "+cur, avail-1, "…"))
+	}
+	line := prefix + "  " + arrow
+	if ansi.StringWidth(line) > cols {
+		return truncateDisplay(line, cols, "…")
+	}
+	return line
 }
 
 func (s *Session) renderStatusLocked() {

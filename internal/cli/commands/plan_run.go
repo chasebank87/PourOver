@@ -26,7 +26,7 @@ func showPlan(cmd *cobra.Command, runner discovery.Runner) error {
 	}
 
 	if verbose {
-		fmt.Fprintf(os.Stderr, "using config %s\n", configPath)
+		ui.Mutedf(os.Stderr, "using config %s", configPath)
 	}
 
 	p, err := buildPlan(cmd.Context(), configPath, runner)

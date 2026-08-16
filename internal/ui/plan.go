@@ -12,10 +12,9 @@ import (
 // WritePlan prints an apply-like plan header and action list to w.
 // Pending actions are muted; advisory rename lines use Warning.
 func WritePlan(w io.Writer, p plan.Plan) {
-	fmt.Fprintln(w, Brand().Render("☕ PourOver")+"  "+Accent().Render("plan"))
-	fmt.Fprintln(w, Muted().Render(strings.Repeat("─", 40)))
+	Header(w, "plan")
 	if len(p.Actions) == 0 {
-		fmt.Fprintln(w, Muted().Render("☕ No changes."))
+		Mutedf(w, "☕ No changes.")
 		return
 	}
 	for _, a := range p.Actions {

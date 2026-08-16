@@ -12,6 +12,7 @@ import (
 	"github.com/chasebank87/PourOver/internal/engine"
 	"github.com/chasebank87/PourOver/internal/paths"
 	"github.com/chasebank87/PourOver/internal/scaffold"
+	"github.com/chasebank87/PourOver/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -116,9 +117,9 @@ func runImport(cmd *cobra.Command, flags importFlags) error {
 	printImportResult(out, cmd.ErrOrStderr(), verbose, result)
 
 	if flags.dryRun {
-		fmt.Fprintln(out, "Dry run only; no files were modified.")
+		ui.Mutedf(out, "Dry run only; no files were modified.")
 	} else {
-		fmt.Fprintln(out, "Import complete. Run `pourover plan` to review.")
+		ui.Successf(out, "☕ Import complete. Run `pourover plan` to review.")
 		if m, err := config.LoadManifest(configPath); err == nil {
 			maybeAutoPushConfig(cmd, configPath, m)
 		}
@@ -233,9 +234,9 @@ func runImportMacOS(cmd *cobra.Command, flags importMacOSFlags, runner discovery
 	printImportMacOSResult(out, cmd.ErrOrStderr(), verbose, result)
 
 	if flags.dryRun {
-		fmt.Fprintln(out, "Dry run only; no files were modified.")
+		ui.Mutedf(out, "Dry run only; no files were modified.")
 	} else {
-		fmt.Fprintln(out, "Import complete. Run `pourover plan` to review.")
+		ui.Successf(out, "☕ Import complete. Run `pourover plan` to review.")
 		if m, err := config.LoadManifest(configPath); err == nil {
 			maybeAutoPushConfig(cmd, configPath, m)
 		}
@@ -258,14 +259,14 @@ func printImportMacOSResult(out, errOut io.Writer, verbose bool, result engine.I
 			result.ReadCount, result.Added, mode, result.MacOSPath)
 	}
 	if result.HasSystemScope && result.AdminNote != "" {
-		fmt.Fprintln(out, result.AdminNote)
+		ui.Mutedf(out, "%s", result.AdminNote)
 	}
 	if result.EnsuredRequire {
-		fmt.Fprintln(out, `updated pourover.lua to require("macos")`)
+		ui.Successf(out, `☕ updated pourover.lua to require("macos")`)
 	}
 	if verbose {
 		for _, w := range result.Warnings {
-			fmt.Fprintf(errOut, "warning: %s\n", w)
+			ui.Warnf(errOut, "warning: %s", w)
 		}
 		if result.DryRun && result.Lua != "" {
 			printLuaPreview(out, result.Lua, importMacOSPreviewLines)

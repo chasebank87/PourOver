@@ -7,6 +7,7 @@ import (
 
 	"github.com/chasebank87/PourOver/internal/engine"
 	"github.com/chasebank87/PourOver/internal/paths"
+	"github.com/chasebank87/PourOver/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -36,7 +37,7 @@ func runBuild(cmd *cobra.Command) error {
 		return fmt.Errorf("config file: %w", err)
 	}
 	if verbose {
-		fmt.Fprintf(cmd.ErrOrStderr(), "using config %s\n", configPath)
+		ui.Mutedf(cmd.ErrOrStderr(), "using config %s", configPath)
 	}
 	stateDir, err := paths.DefaultStateDir()
 	if err != nil {
@@ -46,7 +47,8 @@ func runBuild(cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "Built generation %s (%d files)\n", res.Manifest.ID, len(res.Manifest.Files))
-	fmt.Fprintf(cmd.OutOrStdout(), "  %s\n", res.Dir)
+	out := cmd.OutOrStdout()
+	ui.Successf(out, "☕ Built generation %s (%d files)", res.Manifest.ID, len(res.Manifest.Files))
+	ui.Mutedf(out, "  %s", res.Dir)
 	return nil
 }

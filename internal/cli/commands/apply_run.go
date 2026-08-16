@@ -45,7 +45,7 @@ func runApply(cmd *cobra.Command, dryRun, autoYes, quiet bool) error {
 	}
 
 	if verbose {
-		fmt.Fprintf(cmd.ErrOrStderr(), "using config %s\n", configPath)
+		ui.Mutedf(cmd.ErrOrStderr(), "using config %s", configPath)
 	}
 
 	runner := discovery.NewExecRunner()
@@ -97,7 +97,12 @@ func executeApply(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, opts
 func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, opts applyOptions) (engine.ApplyResult, error) {
 	out := cmd.ErrOrStderr()
 	if len(p.Actions) == 0 {
-		fmt.Fprintln(out, "No changes.")
+		if ui.Enabled(out, opts.quiet) {
+			ui.Header(out, "apply")
+			ui.Mutedf(out, "☕ No changes.")
+		} else {
+			fmt.Fprintln(out, "No changes.")
+		}
 		return engine.ApplyResult{Plan: p}, nil
 	}
 
@@ -149,69 +154,35 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 	n := result.Taps + result.Formulae + result.Casks + result.Mas + result.Removed + result.Defaults +
 		result.Linked + result.Managed + result.Templates + result.Unlinked + result.Pruned
 
+	sum := ui.Summary{
+		Taps:      result.Taps,
+		Formulae:  result.Formulae,
+		Casks:     result.Casks,
+		Mas:       result.Mas,
+		Removed:   result.Removed,
+		Defaults:  result.Defaults,
+		Linked:    result.Linked,
+		Managed:   result.Managed,
+		Templates: result.Templates,
+		Unlinked:  result.Unlinked,
+		Pruned:    result.Pruned,
+		Renames:   result.Renames,
+		Skipped:   result.Skipped,
+		Failures:  result.Failures,
+	}
+
 	if session != nil {
-		session.Finish(ui.Summary{
-			Taps:      result.Taps,
-			Formulae:  result.Formulae,
-			Casks:     result.Casks,
-			Mas:       result.Mas,
-			Removed:   result.Removed,
-			Defaults:  result.Defaults,
-			Linked:    result.Linked,
-			Managed:   result.Managed,
-			Templates: result.Templates,
-			Unlinked:  result.Unlinked,
-			Pruned:    result.Pruned,
-			Renames:   result.Renames,
-			Skipped:   result.Skipped,
-			Failures:  result.Failures,
-		})
+		session.Finish(sum)
 		printCaskRenameAdvice(out, renames)
 		printUnsupportedActions(out, skipped)
 	} else {
-		if result.Taps > 0 {
-			fmt.Fprintf(out, "Added %d tap(s).\n", result.Taps)
-		}
-		if result.Formulae > 0 {
-			fmt.Fprintf(out, "Installed %d formula(s).\n", result.Formulae)
-		}
-		if result.Casks > 0 {
-			fmt.Fprintf(out, "Installed %d cask(s).\n", result.Casks)
-		}
-		if result.Mas > 0 {
-			fmt.Fprintf(out, "Installed %d Mac App Store app(s).\n", result.Mas)
-		}
-		if result.Removed > 0 {
-			fmt.Fprintf(out, "Removed %d package(s).\n", result.Removed)
-		}
-		if result.Defaults > 0 {
-			fmt.Fprintf(out, "Updated %d macOS default(s).\n", result.Defaults)
-		}
-		if result.Linked > 0 {
-			fmt.Fprintf(out, "Updated %d file(s).\n", result.Linked)
-		}
-		if result.Managed > 0 {
-			fmt.Fprintf(out, "Copied %d managed file(s).\n", result.Managed)
-		}
-		if result.Templates > 0 {
-			fmt.Fprintf(out, "Wrote %d template file(s).\n", result.Templates)
-		}
-		if result.Unlinked > 0 {
-			fmt.Fprintf(out, "Unlinked %d file(s).\n", result.Unlinked)
-		}
-		if result.Pruned > 0 {
-			fmt.Fprintf(out, "Pruned %d owned file(s).\n", result.Pruned)
+		if n > 0 || result.Failures > 0 || result.Skipped > 0 {
+			ui.WriteSummary(out, sum, fancy)
+		} else if n == 0 && len(skipped) == 0 && len(renames) == 0 && err == nil {
+			ui.WriteSummary(out, ui.Summary{}, fancy)
 		}
 		printCaskRenameAdvice(out, renames)
-		if len(skipped) > 0 {
-			fmt.Fprintf(out, "Skipped %d action(s) not yet supported by apply:\n", len(skipped))
-			printUnsupportedActions(out, skipped)
-		}
-		if n == 0 && len(skipped) == 0 && len(renames) == 0 && err == nil {
-			fmt.Fprintln(out, "No changes.")
-		} else if n == 0 && len(skipped)+len(renames) == len(p.Actions) && len(renames) == 0 {
-			fmt.Fprintln(out, "No actions to apply.")
-		}
+		printUnsupportedActions(out, skipped)
 	}
 	return result, err
 }
@@ -240,7 +211,8 @@ func printCaskRenameAdvice(out io.Writer, renames []plan.Action) {
 	}
 	note := fmt.Sprintf("☕ Update packages.lua to use the new cask names (%d).", len(renames))
 	if fancy {
-		note = ui.Warning().Render(note)
+		ui.Warnf(out, "%s", note)
+		return
 	}
 	fmt.Fprintln(out, note)
 }

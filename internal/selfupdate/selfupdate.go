@@ -12,6 +12,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/chasebank87/PourOver/internal/ui"
 )
 
 const defaultRepo = "chasebank87/PourOver"
@@ -83,7 +85,7 @@ func CheckAndApply(opts Options) (Result, error) {
 	res := Result{CurrentTag: current, LatestTag: latest}
 
 	if current != "dev" && !isNewer(latest, current) {
-		fmt.Fprintf(opts.Stdout, "PourOver is up to date (%s).\n", current)
+		ui.Successf(opts.Stdout, "☕ PourOver is up to date (%s).", current)
 		return res, nil
 	}
 
@@ -92,13 +94,13 @@ func CheckAndApply(opts Options) (Result, error) {
 		return res, err
 	}
 	res.DownloadURL = url
-	fmt.Fprintf(opts.Stdout, "Updating PourOver %s -> %s...\n", current, latest)
+	ui.Mutedf(opts.Stdout, "Updating PourOver %s -> %s...", current, latest)
 
 	if err := replaceFromArchive(opts.Client, url, exe); err != nil {
 		return res, err
 	}
 	res.Updated = true
-	fmt.Fprintf(opts.Stdout, "Updated PourOver to %s.\n", latest)
+	ui.Successf(opts.Stdout, "☕ Updated PourOver to %s.", latest)
 	return res, nil
 }
 

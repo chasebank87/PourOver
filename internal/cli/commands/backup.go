@@ -8,6 +8,7 @@ import (
 	"github.com/chasebank87/PourOver/internal/config"
 	"github.com/chasebank87/PourOver/internal/engine"
 	"github.com/chasebank87/PourOver/internal/paths"
+	"github.com/chasebank87/PourOver/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -42,7 +43,7 @@ func runBackup(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if verbose {
-		fmt.Fprintf(cmd.ErrOrStderr(), "state dir %s\n", stateDir)
+		ui.Mutedf(cmd.ErrOrStderr(), "state dir %s", stateDir)
 	}
 
 	result, err := engine.Backup(cmd.Context(), engine.BackupOptions{
@@ -53,11 +54,12 @@ func runBackup(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "Snapshot written to %s\n", result.LocalSnapshot)
+	out := cmd.OutOrStdout()
+	ui.Successf(out, "☕ Snapshot written to %s", result.LocalSnapshot)
 	if result.MirroredTo != "" {
-		fmt.Fprintf(cmd.OutOrStdout(), "Mirrored to %s\n", result.MirroredTo)
+		ui.Successf(out, "☕ Mirrored to %s", result.MirroredTo)
 	} else if result.ICloudEnabled {
-		fmt.Fprintln(cmd.OutOrStdout(), "iCloud mirror skipped (path unavailable)")
+		ui.Warnf(out, "☕ iCloud mirror skipped (path unavailable)")
 	}
 	return nil
 }
@@ -109,8 +111,8 @@ func runRestore(cmd *cobra.Command, snapshot string, fromICloud bool) error {
 		return err
 	}
 	if verbose {
-		fmt.Fprintf(cmd.ErrOrStderr(), "restoring from %s\n", result.SnapshotPath)
+		ui.Mutedf(cmd.ErrOrStderr(), "restoring from %s", result.SnapshotPath)
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "Restored state from %s into %s\n", result.SnapshotPath, result.StateDir)
+	ui.Successf(cmd.OutOrStdout(), "☕ Restored state from %s into %s", result.SnapshotPath, result.StateDir)
 	return nil
 }

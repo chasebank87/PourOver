@@ -65,7 +65,7 @@ func runUpgrade(cmd *cobra.Command, dryRun, autoYes, skipSelf, quiet bool) error
 		return fmt.Errorf("config file: %w", err)
 	}
 	if verbose {
-		fmt.Fprintf(cmd.ErrOrStderr(), "using config %s\n", configPath)
+		ui.Mutedf(cmd.ErrOrStderr(), "using config %s", configPath)
 	}
 
 	runner := discovery.NewExecRunner()
@@ -105,7 +105,11 @@ func runUpgrade(cmd *cobra.Command, dryRun, autoYes, skipSelf, quiet bool) error
 
 	var upgradeErr error
 	if len(upgradePlan.Actions) == 0 {
-		fmt.Fprintln(out, "No package upgrades.")
+		if ui.Enabled(out, quiet) {
+			ui.Mutedf(out, "☕ No package upgrades.")
+		} else {
+			fmt.Fprintln(out, "No package upgrades.")
+		}
 	} else {
 		result, err := engine.UpgradePackages(cmd.Context(), runner, upgradePlan, engine.UpgradeOptions{
 			Quiet:    quiet,
@@ -120,8 +124,8 @@ func runUpgrade(cmd *cobra.Command, dryRun, autoYes, skipSelf, quiet bool) error
 				failures = session.FailureCount()
 			}
 			session.Finish(ui.Summary{Upgraded: result.Upgraded, Failures: failures})
-		} else if result.Upgraded > 0 {
-			fmt.Fprintf(out, "Upgraded %d package(s).\n", result.Upgraded)
+		} else if result.Upgraded > 0 || result.Failures > 0 {
+			ui.WriteSummary(out, ui.Summary{Upgraded: result.Upgraded, Failures: result.Failures}, fancy)
 		}
 	}
 

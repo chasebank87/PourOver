@@ -1,12 +1,12 @@
 package cli
 
 import (
-	"fmt"
 	"os"
 	"strings"
 
 	"github.com/chasebank87/PourOver/internal/cli/commands"
 	"github.com/chasebank87/PourOver/internal/tui"
+	"github.com/chasebank87/PourOver/internal/ui"
 	"github.com/chasebank87/PourOver/internal/version"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
@@ -32,7 +32,7 @@ func Run(args []string) int {
 		CI:          isCI(),
 	}) {
 		if err := tui.Run(); err != nil {
-			fmt.Fprintln(os.Stderr, "Error:", err)
+			ui.Errorf(os.Stderr, err)
 			return ExitFailure
 		}
 		return ExitOK
@@ -41,7 +41,7 @@ func Run(args []string) int {
 	root := NewRootCommand()
 	root.SetArgs(args)
 	if err := root.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, "Error:", err)
+		ui.Errorf(os.Stderr, err)
 		if isUsageError(err) {
 			return ExitInvalidUsage
 		}

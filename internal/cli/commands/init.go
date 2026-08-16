@@ -1,11 +1,11 @@
 package commands
 
 import (
-	"fmt"
 	"path/filepath"
 
 	"github.com/chasebank87/PourOver/internal/paths"
 	"github.com/chasebank87/PourOver/internal/scaffold"
+	"github.com/chasebank87/PourOver/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -46,6 +46,6 @@ func runInit(cmd *cobra.Command, force bool) error {
 	if err := scaffold.InitConfigDir(cfgDir, force); err != nil {
 		return err
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "Initialized PourOver config in %s\n", cfgDir)
+	ui.Successf(cmd.OutOrStdout(), "☕ Initialized PourOver config in %s", cfgDir)
 	return nil
 }

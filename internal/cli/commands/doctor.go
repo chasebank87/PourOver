@@ -76,12 +76,15 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 
 	out := cmd.OutOrStdout()
 	fancy := ui.Enabled(out, false)
+	if fancy {
+		ui.Header(out, "doctor")
+	}
 	for _, c := range report.Checks {
-		status := "ok"
+		status := "PASS"
 		if !c.OK {
 			status = "FAIL"
 		} else if c.Warn {
-			status = "warn"
+			status = "WARN"
 		}
 		line := fmt.Sprintf("[%s] %s: %s", status, c.Name, c.Detail)
 		if fancy {
@@ -97,16 +100,16 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		fmt.Fprintln(out, line)
 	}
 	if verbose {
-		fmt.Fprintf(cmd.ErrOrStderr(), "config=%s state=%s\n", configPath, stateDir)
+		ui.Mutedf(cmd.ErrOrStderr(), "config=%s state=%s", configPath, stateDir)
 	}
 	if !report.OK() {
 		return fmt.Errorf("doctor found problems")
 	}
-	done := "All checks passed."
 	if fancy {
-		done = ui.Success().Render(done)
+		ui.Successf(out, "☕ All checks passed.")
+	} else {
+		fmt.Fprintln(out, "All checks passed.")
 	}
-	fmt.Fprintln(out, done)
 	return nil
 }
 
