@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/chasebank87/PourOver/internal/config"
+	"github.com/chasebank87/PourOver/internal/configimport"
 	"github.com/chasebank87/PourOver/internal/discovery"
 	"github.com/chasebank87/PourOver/internal/engine"
 	"github.com/chasebank87/PourOver/internal/paths"
@@ -23,6 +24,8 @@ func NewImportCmd() *cobra.Command {
 		doFiles    bool
 		dryRun     bool
 		force      bool
+		filesAll   bool
+		targets    []string
 	)
 	cmd := &cobra.Command{
 		Use:   "import",
@@ -31,9 +34,14 @@ func NewImportCmd() *cobra.Command {
 (via mas list), and common config/dotfile paths, then writes packages.lua
 and files.links under ~/.pourover.
 
+File import is selective: on a TTY you choose which paths to manage.
+Home dotfiles are pre-selected; ~/.config/<app> trees are opt-in (apps like
+Cursor store more than static config there). Use --target for scripts, or
+--files-all to import every discovered candidate (CI).
+
 By default a re-import merges: newly discovered packages and file targets are
 added; existing declarations are kept (nothing is removed from config).
-Use --force to replace packages/links with the discovered set only.
+Use --force to replace packages (and, with --files-all, the full link set).
 Use --dry-run to preview.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runImport(cmd, importFlags{
@@ -41,13 +49,17 @@ Use --dry-run to preview.`,
 				files:    doFiles,
 				dryRun:   dryRun,
 				force:    force,
+				filesAll: filesAll,
+				targets:  targets,
 			})
 		},
 	}
 	cmd.Flags().BoolVar(&doPackages, "packages", true, "import installed brew formulae/casks and App Store apps into packages.lua")
 	cmd.Flags().BoolVar(&doFiles, "files", true, "import existing config/dotfile paths into files.links")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "preview import without writing config or retargeting files")
-	cmd.Flags().BoolVar(&force, "force", false, "replace packages/links with the discovered set (default: merge/add-only)")
+	cmd.Flags().BoolVar(&force, "force", false, "replace packages with the discovered set; with --files-all also replace all links")
+	cmd.Flags().BoolVar(&filesAll, "files-all", false, "import every discovered file candidate without a picker (required for non-TTY unless --target)")
+	cmd.Flags().StringArrayVar(&targets, "target", nil, "import only these file targets (repeatable; e.g. --target ~/.config/nvim)")
 	cmd.AddCommand(newImportMacOSCmd())
 	return cmd
 }
@@ -57,6 +69,8 @@ type importFlags struct {
 	files    bool
 	dryRun   bool
 	force    bool
+	filesAll bool
+	targets  []string
 }
 
 func runImport(cmd *cobra.Command, flags importFlags) error {
@@ -86,7 +100,7 @@ func runImport(cmd *cobra.Command, flags importFlags) error {
 	}
 
 	if verbose {
-		fmt.Fprintf(cmd.ErrOrStderr(), "import into %s\n", cfgDir)
+		ui.Mutedf(cmd.ErrOrStderr(), "import into %s", cfgDir)
 	}
 
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
@@ -101,15 +115,42 @@ func runImport(cmd *cobra.Command, flags importFlags) error {
 	if flags.packages {
 		runner = discovery.NewExecRunner()
 	}
-	result, err := engine.Import(cmd.Context(), runner, engine.ImportOptions{
-		ConfigDir:  cfgDir,
-		ConfigPath: configPath,
-		Packages:   flags.packages,
-		Files:      flags.files,
-		DryRun:     flags.dryRun,
-		Force:      flags.force,
-	})
+	opts := engine.ImportOptions{
+		ConfigDir:   cfgDir,
+		ConfigPath:  configPath,
+		Packages:    flags.packages,
+		Files:       flags.files,
+		DryRun:      flags.dryRun,
+		Force:       flags.force,
+		FilesAll:    flags.filesAll,
+		FileTargets: flags.targets,
+	}
+	if flags.files && len(flags.targets) == 0 && !flags.filesAll {
+		if ui.CanPickFiles() {
+			managed := map[string]struct{}{}
+			if m, err := config.LoadManifest(configPath); err == nil {
+				for _, l := range m.Files.Links {
+					managed[l.Target] = struct{}{}
+				}
+			}
+			opts.FileSelect = func(cands []configimport.FileCandidate) ([]configimport.FileCandidate, error) {
+				items := ui.BuildFilePickItems(cands, managed)
+				return ui.PickFileCandidates(items)
+			}
+		} else if flags.packages {
+			// Packages-only path when files requested without selection on non-TTY:
+			// require explicit targets or --files-all.
+			return fmt.Errorf("file import on a non-TTY requires --target or --files-all")
+		} else {
+			return fmt.Errorf("file import on a non-TTY requires --target or --files-all")
+		}
+	}
+	result, err := engine.Import(cmd.Context(), runner, opts)
 	if err != nil {
+		if err == ui.ErrPickAborted {
+			ui.Mutedf(cmd.ErrOrStderr(), "Import cancelled.")
+			return nil
+		}
 		return err
 	}
 

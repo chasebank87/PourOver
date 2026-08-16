@@ -45,6 +45,22 @@ func TestParseDefaultsRead(t *testing.T) {
 	}
 }
 
+func TestParseDefaultsRead_UnescapesUnicode(t *testing.T) {
+	// defaults read emits \u2019 for curly apostrophe; desired Lua holds the rune.
+	got, err := ParseDefaultsRead(`"Chase\u2019s MacBook Pro"`, config.SettingString)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "Chase\u2019s MacBook Pro"
+	if got.String != want {
+		t.Fatalf("got %#v want %#v", got.String, want)
+	}
+	desired := config.SettingValue{Kind: config.SettingString, String: want}
+	if !SettingValuesEqual(got, desired) {
+		t.Fatal("escaped defaults read must equal real UTF-8 desired")
+	}
+}
+
 func TestSettingValuesEqual_HomeExpansion(t *testing.T) {
 	a := config.SettingValue{Kind: config.SettingString, String: "~/Desktop"}
 	b := config.SettingValue{Kind: config.SettingString, String: "~/Desktop"}

@@ -27,7 +27,7 @@ func (m *mapDefaults) Defaults(ctx context.Context, args ...string) ([]byte, err
 
 func TestNewImportCmd_HasFlags(t *testing.T) {
 	cmd := NewImportCmd()
-	for _, name := range []string{"packages", "files", "dry-run", "force"} {
+	for _, name := range []string{"packages", "files", "dry-run", "force", "files-all", "target"} {
 		if cmd.Flags().Lookup(name) == nil {
 			t.Fatalf("missing --%s", name)
 		}

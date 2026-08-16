@@ -226,7 +226,7 @@ func TestEnableDisableICloud_ViaEngineTempLua(t *testing.T) {
 
 func TestHomeUpdate_EnterOnConfigOpensConfigView(t *testing.T) {
 	m := newTestHome()
-	m.cursor = 7 // Config
+	m.cursor = 8 // Config
 
 	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	cm, ok := next.(ConfigModel)

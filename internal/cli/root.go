@@ -86,6 +86,7 @@ dotfiles from ~/.pourover via an activation generation: pourover apply.`,
 	cmd.AddCommand(
 		commands.NewInitCmd(),
 		commands.NewImportCmd(),
+		commands.NewFilesCmd(),
 		commands.NewConfigCmd(),
 		commands.NewBuildCmd(),
 		commands.NewPlanCmd(),

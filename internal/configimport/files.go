@@ -54,6 +54,65 @@ func SkipImportName(name string) bool {
 	return name == "~" || paths.SkipFileName(name) || paths.SkipWalkDir(name)
 }
 
+// DefaultFileCandidateSelected reports whether a candidate should be pre-checked
+// in interactive import: home dotfiles and already-managed targets yes;
+// ~/.config/* opt-in (off) unless already managed.
+func DefaultFileCandidateSelected(c FileCandidate, alreadyManaged bool) bool {
+	if alreadyManaged {
+		return true
+	}
+	return !strings.HasPrefix(c.TargetDecl, "~/.config/")
+}
+
+// FilterCandidatesByTargets keeps candidates whose TargetDecl is in targets.
+// Targets may use ~/… or absolute forms; matching is on TargetDecl primarily,
+// with a fallback basename compare for absolute paths under home.
+func FilterCandidatesByTargets(candidates []FileCandidate, targets []string) []FileCandidate {
+	if len(targets) == 0 {
+		return nil
+	}
+	want := make(map[string]struct{}, len(targets))
+	for _, t := range targets {
+		t = strings.TrimSpace(t)
+		if t == "" {
+			continue
+		}
+		want[NormalizeTargetDecl(t)] = struct{}{}
+	}
+	var out []FileCandidate
+	for _, c := range candidates {
+		if _, ok := want[NormalizeTargetDecl(c.TargetDecl)]; ok {
+			out = append(out, c)
+			continue
+		}
+		if _, ok := want[c.TargetPath]; ok {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// NormalizeTargetDecl maps absolute home paths to ~/… form for stable matching.
+func NormalizeTargetDecl(t string) string {
+	t = filepath.ToSlash(strings.TrimSpace(t))
+	if strings.HasPrefix(t, "~/") || t == "~" {
+		return t
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return t
+	}
+	home = filepath.Clean(home)
+	clean := filepath.Clean(t)
+	if clean == home {
+		return "~"
+	}
+	if strings.HasPrefix(clean, home+string(os.PathSeparator)) {
+		return "~/" + filepath.ToSlash(strings.TrimPrefix(clean, home+string(os.PathSeparator)))
+	}
+	return t
+}
+
 // ExistingImportable filters candidates to those that currently exist on disk.
 func ExistingImportable(candidates []FileCandidate) ([]FileCandidate, error) {
 	var out []FileCandidate

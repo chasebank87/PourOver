@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/chasebank87/PourOver/internal/config"
 	"github.com/chasebank87/PourOver/internal/configimport"
@@ -21,6 +22,15 @@ type ImportOptions struct {
 	Force      bool
 	Home       string              // optional; defaults to os.UserHomeDir
 	MasRunner  discovery.MasRunner // nil → NewExecMasRunner for package import
+
+	// FileTargets limits file import to these TargetDecls (or absolute paths).
+	// When set, interactive FileSelect and FilesAll are ignored for filtering.
+	FileTargets []string
+	// FilesAll imports every existing candidate (CI / --files-all).
+	FilesAll bool
+	// FileSelect optionally filters candidates after discovery (interactive picker).
+	// Receives candidates not already skipped as managed (unless Force).
+	FileSelect func(candidates []configimport.FileCandidate) ([]configimport.FileCandidate, error)
 }
 
 // ImportFileLine is one discovered file candidate considered for import.
@@ -72,16 +82,12 @@ func Import(ctx context.Context, runner discovery.Runner, opts ImportOptions) (I
 		ForceReplace: opts.Force,
 	}
 
-	policy := config.Policy{UninstallMode: config.UninstallModeSafe}
-	backupCfg := config.Backup{}
 	existingLinks := []config.FileLink{}
 	var existingTaps, existingFormulae, existingCasks []string
 	var existingMas []config.MasApp
 	masConfigured := false
 	if _, err := os.Stat(opts.ConfigPath); err == nil {
 		if m, loadErr := config.LoadManifest(opts.ConfigPath); loadErr == nil {
-			policy = m.Policy
-			backupCfg = m.Backup
 			existingLinks = append([]config.FileLink(nil), m.Files.Links...)
 			existingTaps = append([]string(nil), m.Packages.TapNames()...)
 			existingFormulae = append([]string(nil), m.Packages.Formulae...)
@@ -160,8 +166,8 @@ func Import(ctx context.Context, runner discovery.Runner, opts ImportOptions) (I
 			return ImportResult{}, err
 		}
 		declared := configimport.LinkTargets(existingLinks)
-		var imported []config.FileLink
-		var lines []ImportFileLine
+
+		var selectable []configimport.FileCandidate
 		var skipped []string
 		for _, c := range candidates {
 			if !opts.Force {
@@ -170,6 +176,17 @@ func Import(ctx context.Context, runner discovery.Runner, opts ImportOptions) (I
 					continue
 				}
 			}
+			selectable = append(selectable, c)
+		}
+
+		chosen, err := selectFileCandidates(opts, selectable)
+		if err != nil {
+			return ImportResult{}, err
+		}
+
+		var imported []config.FileLink
+		var lines []ImportFileLine
+		for _, c := range chosen {
 			lines = append(lines, ImportFileLine{TargetDecl: c.TargetDecl, RelSource: c.RelSource})
 			if opts.DryRun {
 				imported = append(imported, config.FileLink{Source: c.RelSource, Target: c.TargetDecl})
@@ -183,7 +200,16 @@ func Import(ctx context.Context, runner discovery.Runner, opts ImportOptions) (I
 		}
 		var added []config.FileLink
 		if opts.Force {
-			links = imported
+			// Force replaces the full link set with newly imported plus any
+			// previously managed targets that were not re-selected only when
+			// FilesAll/explicit selection covers the intended set. Callers that
+			// pass FileTargets or FileSelect under --force update only those
+			// targets and keep other existing links.
+			if opts.FilesAll && len(opts.FileTargets) == 0 && opts.FileSelect == nil {
+				links = imported
+			} else {
+				links, added = mergeForceSelectedLinks(existingLinks, imported)
+			}
 		} else {
 			links, added = configimport.MergeFileLinks(existingLinks, imported)
 		}
@@ -192,20 +218,63 @@ func Import(ctx context.Context, runner discovery.Runner, opts ImportOptions) (I
 		result.SkippedLinks = skipped
 		result.Links = links
 		result.AddedLinks = added
-		filesChanged = true
+		filesChanged = len(imported) > 0 || (opts.Force && opts.FilesAll && len(opts.FileTargets) == 0 && opts.FileSelect == nil)
 	}
 
 	if filesChanged {
-		rootBody := configimport.FormatRootLua(links, policy, backupCfg)
 		result.WroteRoot = true
 		if !opts.DryRun {
-			if err := os.WriteFile(opts.ConfigPath, []byte(rootBody), 0o644); err != nil {
+			if err := config.PatchFilesLinksFile(opts.ConfigPath, links); err != nil {
 				return ImportResult{}, err
 			}
 		}
 	}
 
 	return result, nil
+}
+
+func selectFileCandidates(opts ImportOptions, selectable []configimport.FileCandidate) ([]configimport.FileCandidate, error) {
+	if len(opts.FileTargets) > 0 {
+		chosen := configimport.FilterCandidatesByTargets(selectable, opts.FileTargets)
+		if len(chosen) == 0 {
+			return nil, fmt.Errorf("no matching file targets among %d candidate(s)", len(selectable))
+		}
+		return chosen, nil
+	}
+	if opts.FileSelect != nil {
+		return opts.FileSelect(selectable)
+	}
+	if opts.FilesAll {
+		return selectable, nil
+	}
+	// No selection strategy: import nothing rather than silently owning ~/.config.
+	if len(selectable) == 0 {
+		return nil, nil
+	}
+	return nil, fmt.Errorf("file import requires --target, --files-all, or an interactive selection")
+}
+
+// mergeForceSelectedLinks updates or inserts imported links while keeping other
+// existing declarations (used when --force applies to a subset).
+func mergeForceSelectedLinks(existing, imported []config.FileLink) (all, added []config.FileLink) {
+	byTarget := make(map[string]config.FileLink, len(existing))
+	order := make([]string, 0, len(existing)+len(imported))
+	for _, l := range existing {
+		byTarget[l.Target] = l
+		order = append(order, l.Target)
+	}
+	for _, l := range imported {
+		if _, ok := byTarget[l.Target]; !ok {
+			order = append(order, l.Target)
+			added = append(added, l)
+		}
+		byTarget[l.Target] = l
+	}
+	all = make([]config.FileLink, 0, len(order))
+	for _, t := range order {
+		all = append(all, byTarget[t])
+	}
+	return all, added
 }
 
 // importMasApps discovers installed Mac App Store apps and merges or replaces
@@ -241,4 +310,71 @@ func importMasApps(ctx context.Context, opts ImportOptions, existing []config.Ma
 	mas, added = configimport.MergeMasApps(existing, discovered)
 	writeMas = configured || len(mas) > 0
 	return mas, added, writeMas, nil
+}
+
+// UnmanageFilesOptions configures dropping file links without deleting live paths.
+type UnmanageFilesOptions struct {
+	ConfigPath string
+	StateDir   string
+	Targets    []string // TargetDecl or absolute paths
+}
+
+// UnmanageFilesResult summarizes what was removed from config/ownership.
+type UnmanageFilesResult struct {
+	RemovedLinks []config.FileLink
+	ClearedOwned []string
+}
+
+// UnmanageFiles removes files.links entries for the given targets, clears matching
+// owned_files entries (including paths under a directory link), and leaves live
+// disk and ~/.pourover source copies untouched.
+func UnmanageFiles(opts UnmanageFilesOptions) (UnmanageFilesResult, error) {
+	var out UnmanageFilesResult
+	if opts.ConfigPath == "" {
+		return out, fmt.Errorf("config path is required")
+	}
+	if len(opts.Targets) == 0 {
+		return out, fmt.Errorf("at least one target is required")
+	}
+	m, err := config.LoadManifest(opts.ConfigPath)
+	if err != nil {
+		return out, err
+	}
+
+	want := make(map[string]struct{}, len(opts.Targets))
+	for _, t := range opts.Targets {
+		t = strings.TrimSpace(t)
+		if t == "" {
+			continue
+		}
+		want[configimport.NormalizeTargetDecl(t)] = struct{}{}
+	}
+
+	var kept []config.FileLink
+	var removed []config.FileLink
+	for _, link := range m.Files.Links {
+		decl := configimport.NormalizeTargetDecl(link.Target)
+		if _, ok := want[decl]; ok {
+			removed = append(removed, link)
+			continue
+		}
+		kept = append(kept, link)
+	}
+	if len(removed) == 0 {
+		return out, fmt.Errorf("no managed files.links matched the given targets")
+	}
+	if err := config.PatchFilesLinksFile(opts.ConfigPath, kept); err != nil {
+		return out, err
+	}
+	out.RemovedLinks = removed
+
+	if opts.StateDir == "" {
+		return out, nil
+	}
+	cleared, err := clearOwnedForRemovedLinks(opts.StateDir, removed)
+	if err != nil {
+		return out, err
+	}
+	out.ClearedOwned = cleared
+	return out, nil
 }

@@ -454,6 +454,7 @@ return {
 		ConfigPath: configPath,
 		Packages:   false,
 		Files:      true,
+		FilesAll:   true,
 		DryRun:     true,
 		Force:      false,
 		Home:       home,

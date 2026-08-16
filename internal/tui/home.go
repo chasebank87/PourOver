@@ -25,6 +25,7 @@ const (
 	menuHistory       menuID = "history"
 	menuBackupRestore menuID = "backup"
 	menuImport        menuID = "import"
+	menuUnmanage      menuID = "unmanage"
 	menuConfig        menuID = "config"
 	menuSelfUpdate    menuID = "self-update"
 	menuQuit          menuID = "quit"
@@ -44,6 +45,7 @@ func defaultMenuItems() []menuItem {
 		{menuHistory, "History"},
 		{menuBackupRestore, "Backup/Restore"},
 		{menuImport, "Import"},
+		{menuUnmanage, "Unmanage files"},
 		{menuConfig, "Config"},
 		{menuSelfUpdate, "Self-update"},
 		{menuQuit, "Quit"},
@@ -267,6 +269,9 @@ func (m HomeModel) activate() (tea.Model, tea.Cmd) {
 	case menuImport:
 		im := NewImportModel(m.configPath, m)
 		return im, im.Init()
+	case menuUnmanage:
+		um := NewUnmanageModel(m.configPath, m)
+		return um, um.Init()
 	case menuConfig:
 		cm := NewConfigModel(m.configPath, m)
 		return cm, cm.Init()

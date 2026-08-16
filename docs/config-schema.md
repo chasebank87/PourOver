@@ -96,7 +96,7 @@ Each entry:
 - Undeclared **owned** paths may be pruned when `policy.files_mode` is `safe` or `strict` (see below). Use `files.unlink` for explicit removals.
 - Typical layout: sources under `~/.pourover/config/...`, targets under `~/.config/...`.
 
-`pourover import --files` copies existing home/`~/.config` paths into the config tree and writes `files.links` (use `--force` if links are already declared). After apply, live paths are regular files activated from the generation, not symlinks.
+`pourover import --files` discovers home dotfiles and top-level `~/.config/<name>` entries. On a TTY you **choose** which paths to manage (home dots pre-selected; `~/.config/*` is **opt-in** — apps like Cursor store worktrees and caches there, and a directory link owns the whole tree on apply). Scripts use `--target ~/.config/nvim` (repeatable) or `--files-all`. Use `pourover files unmanage ~/.config/cursor` to drop a link and clear ownership without deleting the live folder. After apply, live paths are regular files activated from the generation, not symlinks.
 
 ### `files.managed`
 

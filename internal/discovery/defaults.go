@@ -172,7 +172,10 @@ func ParseDefaultsRead(raw string, want config.SettingKind) (config.SettingValue
 		}
 		return config.SettingValue{Kind: config.SettingFloat, Float: f}, nil
 	case config.SettingString:
-		return config.SettingValue{Kind: config.SettingString, String: raw}, nil
+		// `defaults read` prints non-ASCII as Go-style \uXXXX escapes while the
+		// plist (and our Lua desired values) hold real UTF-8 runes. Unescape so
+		// drift detection converges for names like "Chase’s MacBook Pro".
+		return config.SettingValue{Kind: config.SettingString, String: config.UnescapeLuaUnicode(raw)}, nil
 	default:
 		return config.SettingValue{}, fmt.Errorf("unsupported kind %q", want)
 	}
