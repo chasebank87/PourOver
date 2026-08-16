@@ -87,6 +87,27 @@ func TestInstallMas_BothFail_SignInGuidance(t *testing.T) {
 	}
 }
 
+func TestInstallMas_GetUnknown_KeepsInstallError(t *testing.T) {
+	runner := &recordingMasRunner{
+		failIDs: map[string]bool{"1": true},
+		noGet:   true,
+	}
+	err := InstallMas(context.Background(), runner, "1")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "redownload") && !strings.Contains(msg, "install") {
+		t.Fatalf("error = %q, want original install failure", err)
+	}
+	if !strings.Contains(msg, "App Store") && !strings.Contains(msg, "redownload") {
+		t.Fatalf("error = %q, want install failure or App Store guidance", msg)
+	}
+	if strings.HasPrefix(msg, "mas get") || (strings.Contains(msg, "Unknown command") && !strings.Contains(msg, "redownload")) {
+		t.Fatalf("error = %q, want install error as primary story, not unknown get", msg)
+	}
+}
+
 func TestRemoveMas_RunsMasUninstall(t *testing.T) {
 	runner := &recordingMasRunner{}
 	if err := RemoveMas(context.Background(), runner, "310633997"); err != nil {

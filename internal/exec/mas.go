@@ -20,7 +20,24 @@ func InstallMas(ctx context.Context, runner discovery.MasRunner, id string) erro
 	if getErr == nil {
 		return nil
 	}
-	return fmt.Errorf("mas get %s: %w (after mas install failed: %v); sign in to the App Store (Media & Purchases) and retry. First-time apps must be gotten onto this Apple Account. Open the page with: mas open %s", id, getErr, installErr, id)
+	if masGetUnknown(getErr) {
+		return fmt.Errorf(
+			"mas install %s: %w; sign in to the App Store (Media & Purchases) and retry. First-time apps must be gotten onto this Apple Account. Open the page with: mas open %s",
+			id, installErr, id,
+		)
+	}
+	return fmt.Errorf(
+		"mas get %s: %w (after mas install failed: %v); sign in to the App Store (Media & Purchases) and retry. First-time apps must be gotten onto this Apple Account. Open the page with: mas open %s",
+		id, getErr, installErr, id,
+	)
+}
+
+func masGetUnknown(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := strings.ToLower(err.Error())
+	return strings.Contains(s, "unknown command") && strings.Contains(s, "get")
 }
 
 // RemoveMas runs `mas uninstall <id>`.
