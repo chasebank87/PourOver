@@ -2,6 +2,7 @@ package discovery
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"sync"
@@ -13,16 +14,17 @@ import (
 // a streamed brew mutation has produced no output.
 const DefaultBrewHeartbeatInterval = 15 * time.Second
 
-// activityWriter records the last time Write was called.
+// activityWriter records the last time real brew output was written.
+// Heartbeat lines must not call touchOutput (idle timeout uses lastOutput only).
 type activityWriter struct {
 	out             io.Writer
-	lastUnix        atomic.Int64 // unix nano; 0 means never
+	lastOutputUnix  atomic.Int64 // unix nano; 0 means never
 	heartbeatPaused atomic.Bool
 }
 
 func newActivityWriter(out io.Writer) *activityWriter {
 	w := &activityWriter{out: out}
-	w.touch()
+	w.touchOutput()
 	return w
 }
 
@@ -33,7 +35,7 @@ func (w *activityWriter) Write(p []byte) (int, error) {
 		// Resume after password once brew prints more output.
 		w.heartbeatPaused.Store(false)
 	}
-	w.touch()
+	w.touchOutput()
 	if w.out == nil {
 		return len(p), nil
 	}
@@ -41,26 +43,32 @@ func (w *activityWriter) Write(p []byte) (int, error) {
 }
 
 func (w *activityWriter) Flush() error {
-	w.touch()
+	// Flush alone is not brew output; do not reset idle.
 	if f, ok := w.out.(interface{ Flush() error }); ok {
 		return f.Flush()
 	}
 	return nil
 }
 
-func (w *activityWriter) touch() {
-	w.lastUnix.Store(time.Now().UnixNano())
+func (w *activityWriter) touchOutput() {
+	w.lastOutputUnix.Store(time.Now().UnixNano())
 }
 
-func (w *activityWriter) lastActivity() time.Time {
-	n := w.lastUnix.Load()
+func (w *activityWriter) lastOutput() time.Time {
+	n := w.lastOutputUnix.Load()
 	if n == 0 {
 		return time.Time{}
 	}
 	return time.Unix(0, n)
 }
 
+// lastActivity is an alias for lastOutput (heartbeat silence detection).
+func (w *activityWriter) lastActivity() time.Time {
+	return w.lastOutput()
+}
+
 // startBrewHeartbeat emits periodic "still working" lines while brew is silent.
+// Heartbeat writes do not reset lastOutput (idle timeout stays honest).
 // The returned stop func is safe to call multiple times.
 func startBrewHeartbeat(out io.Writer, activity *activityWriter, args []string, interval time.Duration) (stop func()) {
 	if out == nil || activity == nil {
@@ -83,12 +91,42 @@ func startBrewHeartbeat(out io.Writer, activity *activityWriter, args []string, 
 				if activity.heartbeatPaused.Load() {
 					continue
 				}
-				if time.Since(activity.lastActivity()) < interval {
+				if time.Since(activity.lastOutput()) < interval {
 					continue
 				}
 				msg := fmt.Sprintf("☕ still working: %s (no new output)\n", label)
 				_, _ = io.WriteString(out, msg)
-				activity.touch()
+				// Do not touchOutput — idle killer must see real silence.
+			}
+		}
+	}()
+	return func() {
+		once.Do(func() { close(done) })
+	}
+}
+
+// startBrewIdleCancel cancels the brew mutation context when there is no
+// brew output for idle duration. Idle <= 0 disables. Stop is safe to call
+// multiple times.
+func startBrewIdleCancel(cancel context.CancelFunc, activity *activityWriter, idle time.Duration) (stop func()) {
+	if idle <= 0 || cancel == nil || activity == nil {
+		return func() {}
+	}
+	done := make(chan struct{})
+	var once sync.Once
+	go func() {
+		t := time.NewTicker(100 * time.Millisecond)
+		defer t.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-t.C:
+				if time.Since(activity.lastOutput()) < idle {
+					continue
+				}
+				cancel()
+				return
 			}
 		}
 	}()

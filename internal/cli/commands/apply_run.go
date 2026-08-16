@@ -79,12 +79,14 @@ func runApply(cmd *cobra.Command, dryRun, autoYes, quiet bool) error {
 func executeApply(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, opts applyOptions) error {
 	result, applyErr := runApplyActions(cmd, runner, p, opts)
 	if err := engine.FinalizeApply(engine.FinalizeOptions{
-		StateDir:     opts.stateDir,
-		ConfigDir:    opts.configDir,
-		Manifest:     opts.manifest,
-		GenerationID: opts.generationID,
-		PrunedPaths:  result.PrunedPaths,
-		Now:          opts.now,
+		StateDir:             opts.stateDir,
+		ConfigDir:            opts.configDir,
+		Manifest:             opts.manifest,
+		GenerationID:         opts.generationID,
+		PrunedPaths:          result.PrunedPaths,
+		SucceededFileTargets: result.SucceededFileTargets(),
+		UnlinkedPaths:        result.UnlinkedPaths,
+		Now:                  opts.now,
 	}, p, applyErr); err != nil {
 		return err
 	}

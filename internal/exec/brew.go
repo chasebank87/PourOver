@@ -128,9 +128,15 @@ func ApplyFormulaInstalls(ctx context.Context, runner discovery.Runner, p plan.P
 	return n, errors.Join(errs...)
 }
 
-// ApplyCaskInstalls runs brew install --cask for all cask_install actions in one
-// invocation. Admin credentials are cached once with sudo -v before the batch.
-// beforeAuth parks fancy UI before that prompt. Returns successes and any error.
+// CaskInstallChunkSize is how many casks to install per brew invocation.
+// Chunking lets a failed/killed batch leave earlier chunks installed so the
+// next apply rediscovers only leftovers.
+const CaskInstallChunkSize = 8
+
+// ApplyCaskInstalls runs brew install --cask for cask_install actions in chunks
+// of CaskInstallChunkSize. Admin credentials are cached once with sudo -v.
+// A failed chunk is recorded and later chunks still run (formulae-style).
+// beforeAuth parks fancy UI before that prompt. Returns successes and joined errors.
 func ApplyCaskInstalls(ctx context.Context, runner discovery.Runner, p plan.Plan, beforeAuth func(), progress Progress) (int, error) {
 	var casks []plan.Action
 	for _, a := range p.Actions {
@@ -146,18 +152,29 @@ func ApplyCaskInstalls(ctx context.Context, runner discovery.Runner, p plan.Plan
 		return 0, err
 	}
 
-	for _, a := range casks {
-		report(progress, a)
+	n := 0
+	var errs []error
+	for i := 0; i < len(casks); i += CaskInstallChunkSize {
+		end := i + CaskInstallChunkSize
+		if end > len(casks) {
+			end = len(casks)
+		}
+		chunk := casks[i:end]
+		for _, a := range chunk {
+			report(progress, a)
+		}
+		names := make([]string, len(chunk))
+		for j, a := range chunk {
+			names[j] = a.Name
+		}
+		if err := InstallCasks(ctx, runner, names); err != nil {
+			reportFailure(progress, err)
+			errs = append(errs, err)
+			continue
+		}
+		n += len(chunk)
 	}
-	names := make([]string, len(casks))
-	for i, a := range casks {
-		names[i] = a.Name
-	}
-	if err := InstallCasks(ctx, runner, names); err != nil {
-		reportFailure(progress, err)
-		return 0, err
-	}
-	return len(casks), nil
+	return n, errors.Join(errs...)
 }
 
 // UnsupportedApplyActions returns plan actions that apply does not run yet.

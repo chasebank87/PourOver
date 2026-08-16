@@ -307,11 +307,14 @@ func decodeSettingValue(v lua.LValue, field string) (SettingValue, error) {
 		}
 		return SettingValue{Kind: SettingFloat, Float: n}, nil
 	case lua.LTString:
-		return SettingValue{Kind: SettingString, String: v.String()}, nil
+		return SettingValue{Kind: SettingString, String: UnescapeLuaUnicode(v.String())}, nil
 	case lua.LTTable:
 		paths, err := decodeStringArrayTable(v.(*lua.LTable), field)
 		if err != nil {
 			return SettingValue{}, err
+		}
+		for i := range paths {
+			paths[i] = UnescapeLuaUnicode(paths[i])
 		}
 		return SettingValue{Kind: SettingArray, Array: paths}, nil
 	default:

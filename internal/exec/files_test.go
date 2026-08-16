@@ -39,12 +39,12 @@ func TestApplyFileLinks_CreateAndUpdate(t *testing.T) {
 		{Type: plan.ActionLinkUpdate, Name: updateTgt, Source: "b"},
 	}}
 
-	n, err := ApplyFileLinks(p, FileApplyOptions{ConfigDir: configDir}, nil)
+	paths, err := ApplyFileLinks(p, FileApplyOptions{ConfigDir: configDir}, nil)
 	if err != nil {
 		t.Fatalf("ApplyFileLinks: %v", err)
 	}
-	if n != 2 {
-		t.Fatalf("n=%d, want 2", n)
+	if len(paths) != 2 {
+		t.Fatalf("n=%d, want 2", len(paths))
 	}
 
 	gotA, err := os.ReadFile(createTgt)
@@ -107,12 +107,12 @@ func TestApplyFileLinks_ContinuesAfterFailure(t *testing.T) {
 		{Type: plan.ActionLinkCreate, Name: dirBlocked, Source: "ok"},
 		{Type: plan.ActionLinkCreate, Name: okTgt, Source: "ok"},
 	}}
-	n, err := ApplyFileLinks(p, FileApplyOptions{ConfigDir: configDir}, nil)
+	paths, err := ApplyFileLinks(p, FileApplyOptions{ConfigDir: configDir}, nil)
 	if err == nil {
 		t.Fatal("expected error for directory target")
 	}
-	if n != 1 {
-		t.Fatalf("n=%d, want 1", n)
+	if len(paths) != 1 {
+		t.Fatalf("n=%d, want 1", len(paths))
 	}
 	got, err := os.ReadFile(okTgt)
 	if err != nil || string(got) != "ok\n" {
@@ -151,12 +151,12 @@ func TestApplyManagedCopies_CreatesAndOverwrites(t *testing.T) {
 		{Type: plan.ActionManagedCopy, Name: overwriteTgt, Source: "config/b.conf"},
 	}}
 
-	n, err := ApplyManagedCopies(p, FileApplyOptions{ConfigDir: configDir}, nil)
+	paths, err := ApplyManagedCopies(p, FileApplyOptions{ConfigDir: configDir}, nil)
 	if err != nil {
 		t.Fatalf("ApplyManagedCopies: %v", err)
 	}
-	if n != 2 {
-		t.Fatalf("n=%d, want 2", n)
+	if len(paths) != 2 {
+		t.Fatalf("n=%d, want 2", len(paths))
 	}
 
 	if got, err := os.ReadFile(createTgt); err != nil || string(got) != "alpha" {
@@ -196,12 +196,12 @@ func TestApplyManagedCopies_ReplacesSymlinkWithFile(t *testing.T) {
 	p := plan.Plan{Actions: []plan.Action{
 		{Type: plan.ActionManagedCopy, Name: tgt, Source: "src.txt"},
 	}}
-	n, err := ApplyManagedCopies(p, FileApplyOptions{ConfigDir: configDir}, nil)
+	paths, err := ApplyManagedCopies(p, FileApplyOptions{ConfigDir: configDir}, nil)
 	if err != nil {
 		t.Fatalf("ApplyManagedCopies: %v", err)
 	}
-	if n != 1 {
-		t.Fatalf("n=%d, want 1", n)
+	if len(paths) != 1 {
+		t.Fatalf("n=%d, want 1", len(paths))
 	}
 	info, err := os.Lstat(tgt)
 	if err != nil {
@@ -240,12 +240,12 @@ func TestApplyManagedCopies_ContinuesAfterFailure(t *testing.T) {
 		{Type: plan.ActionManagedCopy, Name: dirTgt, Source: "ok.txt"},
 		{Type: plan.ActionManagedCopy, Name: okTgt, Source: "ok.txt"},
 	}}
-	n, err := ApplyManagedCopies(p, FileApplyOptions{ConfigDir: configDir}, nil)
+	paths, err := ApplyManagedCopies(p, FileApplyOptions{ConfigDir: configDir}, nil)
 	if err == nil {
 		t.Fatal("expected error for directory target")
 	}
-	if n != 1 {
-		t.Fatalf("n=%d, want 1 successful copy after failure", n)
+	if len(paths) != 1 {
+		t.Fatalf("n=%d, want 1 successful copy after failure", len(paths))
 	}
 	if got, err := os.ReadFile(okTgt); err != nil || string(got) != "ok" {
 		t.Fatalf("ok = %q err=%v", got, err)
@@ -272,12 +272,12 @@ func TestApplyFileUnlinks_RemovesSymlinkAndFile(t *testing.T) {
 		{Type: plan.ActionFileUnlink, Name: linkPath},
 		{Type: plan.ActionFormulaInstall, Name: "fzf"},
 	}}
-	n, err := ApplyFileUnlinks(p, nil)
+	paths, err := ApplyFileUnlinks(p, nil)
 	if err != nil {
 		t.Fatalf("ApplyFileUnlinks: %v", err)
 	}
-	if n != 2 {
-		t.Fatalf("n=%d, want 2", n)
+	if len(paths) != 2 {
+		t.Fatalf("n=%d, want 2", len(paths))
 	}
 	if _, err := os.Lstat(filePath); !os.IsNotExist(err) {
 		t.Fatalf("file still exists: %v", err)
@@ -305,12 +305,12 @@ func TestApplyFileUnlinks_RefusesDirectory(t *testing.T) {
 		{Type: plan.ActionFileUnlink, Name: dirPath},
 		{Type: plan.ActionFileUnlink, Name: okFile},
 	}}
-	n, err := ApplyFileUnlinks(p, nil)
+	paths, err := ApplyFileUnlinks(p, nil)
 	if err == nil {
 		t.Fatal("expected error refusing directory unlink")
 	}
-	if n != 1 {
-		t.Fatalf("n=%d, want 1", n)
+	if len(paths) != 1 {
+		t.Fatalf("n=%d, want 1", len(paths))
 	}
 	if _, err := os.Stat(dirPath); err != nil {
 		t.Fatalf("directory should remain: %v", err)
@@ -343,7 +343,7 @@ func TestApplyFileLinks_ReplaceBacksUpThenWrites(t *testing.T) {
 	p := plan.Plan{Actions: []plan.Action{
 		{Type: plan.ActionLinkReplace, Name: tgt, Source: "zshrc"},
 	}}
-	n, err := ApplyFileLinks(p, FileApplyOptions{
+	paths, err := ApplyFileLinks(p, FileApplyOptions{
 		ConfigDir: configDir,
 		StateDir:  stateDir,
 		Now:       func() time.Time { return at },
@@ -351,8 +351,8 @@ func TestApplyFileLinks_ReplaceBacksUpThenWrites(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ApplyFileLinks: %v", err)
 	}
-	if n != 1 {
-		t.Fatalf("n=%d, want 1", n)
+	if len(paths) != 1 {
+		t.Fatalf("n=%d, want 1", len(paths))
 	}
 
 	got, err := os.ReadFile(tgt)
@@ -399,12 +399,12 @@ func TestApplyFileLinks_MaterializesDirectorySymlinkRoot(t *testing.T) {
 	p := plan.Plan{Actions: []plan.Action{
 		{Type: plan.ActionLinkUpdate, Name: target, Source: "nvim/init.lua"},
 	}}
-	n, err := ApplyFileLinks(p, FileApplyOptions{ConfigDir: configDir}, nil)
+	paths, err := ApplyFileLinks(p, FileApplyOptions{ConfigDir: configDir}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n != 1 {
-		t.Fatalf("n=%d", n)
+	if len(paths) != 1 {
+		t.Fatalf("n=%d", len(paths))
 	}
 	info, err := os.Lstat(liveNvim)
 	if err != nil {
@@ -450,7 +450,7 @@ func TestApplyManagedCopies_BackupUnexpectedDirectory(t *testing.T) {
 	p := plan.Plan{Actions: []plan.Action{
 		{Type: plan.ActionManagedCopy, Name: tgt, Source: "foo.conf", Kind: "backup"},
 	}}
-	n, err := ApplyManagedCopies(p, FileApplyOptions{
+	paths, err := ApplyManagedCopies(p, FileApplyOptions{
 		ConfigDir:   configDir,
 		StateDir:    stateDir,
 		FileReplace: config.FileReplaceBackup,
@@ -459,8 +459,8 @@ func TestApplyManagedCopies_BackupUnexpectedDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ApplyManagedCopies: %v", err)
 	}
-	if n != 1 {
-		t.Fatalf("n=%d, want 1", n)
+	if len(paths) != 1 {
+		t.Fatalf("n=%d, want 1", len(paths))
 	}
 
 	got, err := os.ReadFile(tgt)
@@ -649,12 +649,12 @@ func TestApplyTemplateWrites_CreatesAndUpdates(t *testing.T) {
 		{Type: plan.ActionTemplateWrite, Name: createTgt, Source: "host.tmpl", Value: "--- ignore me\n"},
 		{Type: plan.ActionTemplateWrite, Name: updateTgt, Source: "host.tmpl", Value: "diff junk"},
 	}}
-	n, err := ApplyTemplateWrites(p, FileApplyOptions{ConfigDir: configDir}, nil)
+	paths, err := ApplyTemplateWrites(p, FileApplyOptions{ConfigDir: configDir}, nil)
 	if err != nil {
 		t.Fatalf("ApplyTemplateWrites: %v", err)
 	}
-	if n != 2 {
-		t.Fatalf("n=%d, want 2", n)
+	if len(paths) != 2 {
+		t.Fatalf("n=%d, want 2", len(paths))
 	}
 	for _, tgt := range []string{createTgt, updateTgt} {
 		got, err := os.ReadFile(tgt)
@@ -707,12 +707,12 @@ func TestApplyTemplateWrites_ContinuesAfterFailure(t *testing.T) {
 		{Type: plan.ActionTemplateWrite, Name: dirTgt, Source: "ok.tmpl"},
 		{Type: plan.ActionTemplateWrite, Name: okTgt, Source: "ok.tmpl"},
 	}}
-	n, err := ApplyTemplateWrites(p, FileApplyOptions{ConfigDir: configDir}, nil)
+	paths, err := ApplyTemplateWrites(p, FileApplyOptions{ConfigDir: configDir}, nil)
 	if err == nil {
 		t.Fatal("expected error for directory target")
 	}
-	if n != 1 {
-		t.Fatalf("n=%d, want 1 successful write after failure", n)
+	if len(paths) != 1 {
+		t.Fatalf("n=%d, want 1 successful write after failure", len(paths))
 	}
 	if got, err := os.ReadFile(okTgt); err != nil || string(got) != "ok\n" {
 		t.Fatalf("ok = %q err=%v", got, err)
@@ -743,7 +743,7 @@ func TestApplyTemplateWrites_BackupUnexpectedDirectory(t *testing.T) {
 	p := plan.Plan{Actions: []plan.Action{
 		{Type: plan.ActionTemplateWrite, Name: tgt, Source: "foo.tmpl", Kind: "backup"},
 	}}
-	n, err := ApplyTemplateWrites(p, FileApplyOptions{
+	paths, err := ApplyTemplateWrites(p, FileApplyOptions{
 		ConfigDir:   configDir,
 		StateDir:    stateDir,
 		FileReplace: config.FileReplaceBackup,
@@ -752,8 +752,8 @@ func TestApplyTemplateWrites_BackupUnexpectedDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ApplyTemplateWrites: %v", err)
 	}
-	if n != 1 {
-		t.Fatalf("n=%d, want 1", n)
+	if len(paths) != 1 {
+		t.Fatalf("n=%d, want 1", len(paths))
 	}
 	got, err := os.ReadFile(tgt)
 	if err != nil || string(got) != "from-template\n" {

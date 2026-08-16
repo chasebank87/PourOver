@@ -48,15 +48,15 @@ func TestApplyMigratesLegacySymlinkToRegularFile(t *testing.T) {
 		t.Fatalf("plan = %+v, want link_update for legacy symlink", p.Actions)
 	}
 
-	n, err := exec.ApplyFileLinks(p, exec.FileApplyOptions{
+	paths, err := exec.ApplyFileLinks(p, exec.FileApplyOptions{
 		StateDir:     stateDir,
 		GenerationID: res.Manifest.ID,
 	}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n != 1 {
-		t.Fatalf("n=%d", n)
+	if len(paths) != 1 {
+		t.Fatalf("n=%d", len(paths))
 	}
 	info, err := os.Lstat(target)
 	if err != nil {

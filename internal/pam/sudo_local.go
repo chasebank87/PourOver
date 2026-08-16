@@ -48,7 +48,7 @@ func RenderSudoLocal(cfg config.SudoLocalPAM, reattachPath, watchidPath string) 
 	if cfg.TouchIDAuth {
 		b.WriteString("auth sufficient pam_tid.so\n")
 	}
-	if cfg.WatchIDAuth {
+	if cfg.WatchIDAuth && watchidPath != "" {
 		b.WriteString("auth sufficient ")
 		b.WriteString(watchidPath)
 		b.WriteByte('\n')

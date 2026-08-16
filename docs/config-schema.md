@@ -36,7 +36,7 @@ Each entry is either:
 
 Names must be **lowercase Homebrew tokens** (`"raycast"`, not `"Raycast"`; `"homebrew/cask-fonts"`, not `"Homebrew/Cask-Fonts"`). Capital letters fail `Validate` / `pourover doctor` / `plan` / `apply` so a mistyped token cannot install under one casing and then look undeclared later.
 
-Apply order: **tap adds (with `brew trust --tap` only when `trusted` and the tap needs explicit trust, then `brew update`) → trust already-tapped untrusted taps (same gate) → formula/cask installs → removes** (untap follows `policy.uninstall_mode`; `homebrew/core` and `homebrew/cask` are never untapped). Official `homebrew/*` taps are always trusted by Homebrew and are not passed to `brew trust`. After any new tap, PourOver runs `brew update` once so packages from that tap are installable.
+Apply order: **tap adds (with `brew trust --tap` only when `trusted` and the tap needs explicit trust, then `brew update`) → trust already-tapped untrusted taps (same gate) → formula/cask installs → removes** (untap follows `policy.uninstall_mode`; `homebrew/core` and `homebrew/cask` are never untapped). Official `homebrew/*` taps are always trusted by Homebrew and are not passed to `brew trust`. After any new tap, PourOver runs `brew update` once so packages from that tap are installable. Cask installs run in **chunks of 8** with an idle-output timeout (heartbeat lines do not reset idle) so a large restore does not kill the entire batch.
 
 ```lua
 packages = {
@@ -63,6 +63,7 @@ Name → numeric App Store ID map (nix-darwin `homebrew.masApps` style).
 - **`mas = {}`** — manage MAS and desire **zero** apps (undeclared installed apps follow `policy.uninstall_mode`).
 - Declaring `mas` (even empty) implies the Homebrew formula `mas`.
 - Install/upgrade needs you signed into the App Store in the GUI. Apply runs `mas install`, then `mas get` on failure (first-time apps).
+- Planning uses `mas list` with `MAS_NO_AUTO_INDEX=1`. After wipe/restore, if Spotlight has not indexed an app yet but `/Applications/{Name}.app` (or `~/Applications`) exists for a **declared** ID, PourOver treats it as installed and skips `mas_install` (does not invent undeclared apps for remove).
 
 IDs must be positive integers. Duplicate names or IDs fail validation. Declaring `mas` does not treat those apps as casks.
 
@@ -75,7 +76,7 @@ IDs must be positive integers. Duplicate names or IDs fail validation. Declaring
 | `templates` | array of tables | **supported** | Render text/template source → target (`source`, `target`) |
 | `unlink` | array of strings | **supported** | Target paths to remove when safe (`~` ok) |
 
-Import, generation, and activation **skip** Finder junk and bytecode: `.DS_Store`, AppleDouble `._*`, `__pycache__`, `.pyc` / `.pyo`, and `.git` (also `Thumbs.db`, `desktop.ini`, `.svn`). Those names are never copied into a generation or planned as file actions.
+Import, generation, and activation **skip** Finder junk, bytecode, and volatile caches: `.DS_Store`, AppleDouble `._*`, `__pycache__`, `.pyc` / `.pyo`, `.git` / `.svn`, `Thumbs.db`, `desktop.ini`, `statsig-cache.json`, `*.log`, and directories named `Cache`, `CachedData`, `Code Cache`, `GPUCache`, `logs`, `Crashpad`. Those names are never copied into a generation or planned as file actions; if they appear in `owned_files` they are dropped without prune.
 
 ### `files.links`
 
@@ -251,7 +252,7 @@ Declarative preferences via `defaults write` (nix-darwin `system.defaults`) plus
 Searchable key list and Lua syntax: [`docs/macos-defaults.md`](macos-defaults.md).
 Full nix-darwin option tree: [`docs/nix-darwin-options.md`](nix-darwin-options.md).
 
-Generate from the live Mac: `pourover import macos` snapshots curated catalog keys into `macos.lua` (add-only merge by default; `--force` replaces curated sections; `--dry-run` previews). Expanding coverage means editing `internal/config/macos_catalog.yaml`, not scraping arbitrary domains. PAM is not imported yet.
+Generate from the live Mac: `pourover import macos` snapshots curated catalog keys into `macos.lua` (add-only merge by default; `--force` replaces curated sections; `--dry-run` previews). String values are written as Lua-safe UTF-8 (not Go `\uXXXX`); loaders also unescape leftover `\uXXXX` from older imports. Expanding coverage means editing `internal/config/macos_catalog.yaml`, not scraping arbitrary domains. PAM is not imported yet.
 
 ### `macos.defaults`
 
@@ -296,7 +297,7 @@ Manages `/etc/pam.d/sudo_local` for Touch ID / Apple Watch / tmux reattach (nix-
 - Ensures `auth include sudo_local` in `/etc/pam.d/sudo` when enabling.
 - Writes under `/etc` need **admin** (`sudo` on apply). Pre-existing non-managed `sudo_local` is backed up then replaced when enabling.
 - `enable = false` writes/replaces a PourOver-managed stub (or creates one if missing/empty); unmanaged non-empty files are left alone. Omitted table leaves any existing file alone.
-- `watch_id_auth` fails plan/apply with a clear error if `pam_watchid.so` is not found under the Homebrew prefix `lib/pam` or `/opt/homebrew|/usr/local/lib/pam`.
+- `watch_id_auth` omits the watchid PAM line (and plans the rest) if `pam_watchid.so` is not found; `pourover doctor` warns. Install pam-watchid manually under the Homebrew prefix `lib/pam` or `/opt/homebrew|/usr/local/lib/pam`.
 
 ```lua
 macos = {

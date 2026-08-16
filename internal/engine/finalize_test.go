@@ -61,21 +61,23 @@ func TestFinalizeApply_SuccessWritesHistoryAndLock(t *testing.T) {
 	}
 }
 
-func TestFinalizeApply_ApplyErrorStillWritesHistorySkipsLock(t *testing.T) {
+func TestFinalizeApply_ApplyErrorStillWritesHistoryAndOwned(t *testing.T) {
 	dir := t.TempDir()
 	manifest := config.Manifest{
 		Packages: config.Packages{Formulae: []string{"git"}},
 	}
 	p := plan.Plan{Actions: []plan.Action{
 		{Type: plan.ActionFormulaInstall, Name: "git"},
+		{Type: plan.ActionLinkCreate, Name: "/tmp/pourover-owned-a"},
 	}}
 	at := time.Date(2026, 8, 15, 13, 0, 0, 0, time.UTC)
 	applyErr := errors.New("brew failed")
 
 	err := FinalizeApply(FinalizeOptions{
-		StateDir: dir,
-		Manifest: manifest,
-		Now:      func() time.Time { return at },
+		StateDir:             dir,
+		Manifest:             manifest,
+		SucceededFileTargets: []string{"/tmp/pourover-owned-a"},
+		Now:                  func() time.Time { return at },
 	}, p, applyErr)
 	if !errors.Is(err, applyErr) {
 		t.Fatalf("err = %v, want applyErr", err)
@@ -101,8 +103,15 @@ func TestFinalizeApply_ApplyErrorStillWritesHistorySkipsLock(t *testing.T) {
 		t.Fatalf("history = %#v, want failure entry", entry)
 	}
 
-	if _, err := os.Stat(paths.LockFile(dir)); !os.IsNotExist(err) {
-		t.Fatalf("lock.json should not exist on apply failure, err=%v", err)
+	lock, err := state.LoadLock(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(lock.OwnedFiles) != 1 || lock.OwnedFiles[0] != "/tmp/pourover-owned-a" {
+		t.Fatalf("OwnedFiles = %#v, want succeeded path persisted on failure", lock.OwnedFiles)
+	}
+	if lock.ManifestHash != "" {
+		t.Fatalf("ManifestHash = %q, want empty on failed apply", lock.ManifestHash)
 	}
 }
 

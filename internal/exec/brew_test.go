@@ -242,26 +242,66 @@ func TestApplyCaskInstalls_EnsureSudoBeforeAuth(t *testing.T) {
 	}
 }
 
-func TestApplyCaskInstalls_BatchFailsAtomically(t *testing.T) {
-	runner := &selectiveFailInstallRunner{failNames: map[string]bool{"batch": true}}
-	p := plan.Plan{Actions: []plan.Action{
-		{Type: plan.ActionCaskInstall, Name: "bad"},
-		{Type: plan.ActionCaskInstall, Name: "raycast"},
-	}}
+func TestApplyCaskInstalls_ContinuesAfterChunkFailure(t *testing.T) {
+	// First chunk (size 8) fails; second chunk succeeds.
+	names := make([]plan.Action, 0, 10)
+	for i := 0; i < 8; i++ {
+		names = append(names, plan.Action{Type: plan.ActionCaskInstall, Name: fmt.Sprintf("bad%d", i)})
+	}
+	names = append(names,
+		plan.Action{Type: plan.ActionCaskInstall, Name: "raycast"},
+		plan.Action{Type: plan.ActionCaskInstall, Name: "vlc"},
+	)
+	runner := &selectiveFailInstallRunner{failNames: map[string]bool{"batch": true}, failBatchOnce: true}
+	p := plan.Plan{Actions: names}
 	orig := ensureSudo
 	ensureSudo = func(ctx context.Context, beforeAuth func()) error { return nil }
 	t.Cleanup(func() { ensureSudo = orig })
 
 	n, err := ApplyCaskInstalls(context.Background(), runner, p, nil, nil)
 	if err == nil {
-		t.Fatal("expected error")
+		t.Fatal("expected error from first chunk")
 	}
-	if n != 0 {
-		t.Fatalf("installed count = %d, want 0 (batch failed)", n)
+	if n != 2 {
+		t.Fatalf("installed count = %d, want 2 (second chunk)", n)
 	}
-	if len(runner.installs) != 0 {
-		t.Fatalf("installs = %v, want none on batch failure", runner.installs)
+	if got := strings.Join(runner.installs, ","); got != "cask:raycast,cask:vlc" {
+		t.Fatalf("installs = %q, want second chunk only", got)
 	}
+}
+
+func TestApplyCaskInstalls_ChunksByEight(t *testing.T) {
+	runner := &chunkCountingRunner{}
+	var actions []plan.Action
+	for i := 0; i < 10; i++ {
+		actions = append(actions, plan.Action{Type: plan.ActionCaskInstall, Name: fmt.Sprintf("cask%d", i)})
+	}
+	orig := ensureSudo
+	ensureSudo = func(ctx context.Context, beforeAuth func()) error { return nil }
+	t.Cleanup(func() { ensureSudo = orig })
+
+	n, err := ApplyCaskInstalls(context.Background(), runner, plan.Plan{Actions: actions}, nil, nil)
+	if err != nil {
+		t.Fatalf("ApplyCaskInstalls: %v", err)
+	}
+	if n != 10 {
+		t.Fatalf("installed = %d, want 10", n)
+	}
+	if len(runner.chunkSizes) != 2 || runner.chunkSizes[0] != 8 || runner.chunkSizes[1] != 2 {
+		t.Fatalf("chunkSizes = %v, want [8 2]", runner.chunkSizes)
+	}
+}
+
+type chunkCountingRunner struct {
+	chunkSizes []int
+}
+
+func (r *chunkCountingRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
+	if len(args) >= 3 && args[0] == "install" && args[1] == "--cask" {
+		r.chunkSizes = append(r.chunkSizes, len(args)-2)
+		return nil, nil
+	}
+	return nil, fmt.Errorf("unexpected brew args: %v", args)
 }
 
 func TestApplyFormulaInstalls_ContinuesAfterFailure(t *testing.T) {
@@ -300,8 +340,10 @@ func TestApplyFormulaInstalls_ContinuesAfterFailure(t *testing.T) {
 }
 
 type selectiveFailInstallRunner struct {
-	installs  []string
-	failNames map[string]bool
+	installs      []string
+	failNames     map[string]bool
+	failBatchOnce bool
+	batchFailed   bool
 }
 
 func (r *selectiveFailInstallRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
@@ -314,7 +356,14 @@ func (r *selectiveFailInstallRunner) Run(ctx context.Context, args ...string) ([
 	}
 	if len(args) >= 3 && args[0] == "install" && args[1] == "--cask" {
 		if r.failNames["batch"] {
-			return nil, fmt.Errorf("no available cask")
+			if r.failBatchOnce {
+				if !r.batchFailed {
+					r.batchFailed = true
+					return nil, fmt.Errorf("no available cask")
+				}
+			} else {
+				return nil, fmt.Errorf("no available cask")
+			}
 		}
 		for _, name := range args[2:] {
 			key := "cask:" + name

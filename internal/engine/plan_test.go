@@ -71,6 +71,14 @@ func isBrewListArgs(args []string, kind string) bool {
 	return len(args) == 3 && args[0] == "list" && args[1] == kind && args[2] == "-1"
 }
 
+
+func disableMasDiskProbe(t *testing.T) {
+	t.Helper()
+	prev := discovery.DefaultMasDiskProbe
+	discovery.DefaultMasDiskProbe = nil
+	t.Cleanup(func() { discovery.DefaultMasDiskProbe = prev })
+}
+
 func TestBuildPlan_FromFixture(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, "cfg")
@@ -258,6 +266,7 @@ func (s *stubMasRunner) Run(ctx context.Context, args ...string) ([]byte, error)
 }
 
 func TestBuildPlanWith_MasInstallAndImpliedFormula(t *testing.T) {
+	disableMasDiskProbe(t)
 	root := t.TempDir()
 	configDir := filepath.Join(root, "cfg")
 	if err := os.MkdirAll(configDir, 0o755); err != nil {
@@ -333,6 +342,7 @@ func TestBuildPlanWith_MasSkippedWhenUnconfigured(t *testing.T) {
 }
 
 func TestBuildPlanWith_MasBinaryMissingContinuesBootstrap(t *testing.T) {
+	disableMasDiskProbe(t)
 	root := t.TempDir()
 	configDir := filepath.Join(root, "cfg")
 	if err := os.MkdirAll(configDir, 0o755); err != nil {

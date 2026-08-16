@@ -116,25 +116,25 @@ func Apply(ctx context.Context, runner discovery.Runner, p plan.Plan, opts Apply
 		FileReplace:  opts.FileReplace,
 		Now:          opts.Now,
 	}
-	linked, err := exec.ApplyFileLinks(p, fileOpts, progress)
+	linkedPaths, err := exec.ApplyFileLinks(p, fileOpts, progress)
 	if err != nil {
 		errs = append(errs, err)
 	}
 
 	phase("managed")
-	managed, err := exec.ApplyManagedCopies(p, fileOpts, progress)
+	managedPaths, err := exec.ApplyManagedCopies(p, fileOpts, progress)
 	if err != nil {
 		errs = append(errs, err)
 	}
 
 	phase("templates")
-	templates, err := exec.ApplyTemplateWrites(p, fileOpts, progress)
+	templatePaths, err := exec.ApplyTemplateWrites(p, fileOpts, progress)
 	if err != nil {
 		errs = append(errs, err)
 	}
 
 	phase("unlink")
-	unlinked, err := exec.ApplyFileUnlinks(p, progress)
+	unlinkedPaths, err := exec.ApplyFileUnlinks(p, progress)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -152,10 +152,14 @@ func Apply(ctx context.Context, runner discovery.Runner, p plan.Plan, opts Apply
 	result.PAM = pamN
 	result.Removed = removed
 	result.Defaults = written
-	result.Linked = linked
-	result.Managed = managed
-	result.Templates = templates
-	result.Unlinked = unlinked
+	result.LinkedPaths = linkedPaths
+	result.ManagedPaths = managedPaths
+	result.TemplatePaths = templatePaths
+	result.UnlinkedPaths = unlinkedPaths
+	result.Linked = len(linkedPaths)
+	result.Managed = len(managedPaths)
+	result.Templates = len(templatePaths)
+	result.Unlinked = len(unlinkedPaths)
 	result.Pruned = len(prunedPaths)
 	result.PrunedPaths = prunedPaths
 	result.Failures = failures

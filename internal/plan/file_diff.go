@@ -10,6 +10,7 @@ import (
 	"github.com/chasebank87/PourOver/internal/config"
 	"github.com/chasebank87/PourOver/internal/discovery"
 	"github.com/chasebank87/PourOver/internal/generation"
+	"github.com/chasebank87/PourOver/internal/paths"
 )
 
 // BuildGenerationFilePlan emits file actions from generation blob vs live status.
@@ -128,6 +129,9 @@ func BuildFilePrunePlan(owned []string, declaredTargets []string, mode config.Fi
 	for _, path := range owned {
 		abs, err := normalizeFilePath(path)
 		if err != nil || abs == "" {
+			continue
+		}
+		if paths.SkipOwnedPath(abs) {
 			continue
 		}
 		if _, ok := declared[abs]; ok {

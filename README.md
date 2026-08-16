@@ -99,7 +99,7 @@ Re-import without `--force` only adds newly discovered items. Core taps (`homebr
 
 ## Config sketch
 
-Taps may be strings or `{ name, trusted = false }` (default `trusted = true`). Mac App Store apps are a name → numeric ID map. Omit `mas` to leave App Store unmanaged; `mas = {}` manages and desires zero apps. Declaring `mas` implies the `mas` Homebrew formula. Apply runs `mas install`, then `mas get` on failure (first-time apps). Sign in to the App Store in the GUI.
+Taps may be strings or `{ name, trusted = false }` (default `trusted = true`). Mac App Store apps are a name → numeric ID map. Omit `mas` to leave App Store unmanaged; `mas = {}` manages and desires zero apps. Declaring `mas` implies the `mas` Homebrew formula. Apply runs `mas install`, then `mas get` on failure (first-time apps). Sign in to the App Store in the GUI. After a wipe, declared apps already on disk are treated as installed even if Spotlight/`mas list` lag. Casks install in chunks of 8 with an idle-output timeout.
 
 ```lua
 -- packages.lua
@@ -133,7 +133,7 @@ macos = {
 
 System-scope keys (`loginwindow`, `smb`, `SoftwareUpdate`) write under `/Library/Preferences` via `sudo defaults`. Expand coverage in `internal/config/macos_catalog.yaml`.
 
-Optional sudo Touch ID / Apple Watch (writes `/etc/pam.d`; needs admin on apply):
+Optional sudo Touch ID / Apple Watch (writes `/etc/pam.d`; needs admin on apply). `watch_id_auth` needs a manual `pam-watchid` install; if the `.so` is missing, apply still writes reattach/Touch ID and `doctor` warns:
 
 ```lua
 macos = {

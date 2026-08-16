@@ -304,6 +304,8 @@ func (m DoctorModel) View() string {
 			status := styleSuccess.Render("[PASS]")
 			if !c.OK {
 				status = styleFail.Render("[FAIL]")
+			} else if c.Warn {
+				status = styleWarning.Render("[WARN]")
 			}
 			detail := fmt.Sprintf("%s: %s", c.Name, c.Detail)
 			if i == m.cursor {

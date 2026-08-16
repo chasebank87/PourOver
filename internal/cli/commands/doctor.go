@@ -80,13 +80,18 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		status := "ok"
 		if !c.OK {
 			status = "FAIL"
+		} else if c.Warn {
+			status = "warn"
 		}
 		line := fmt.Sprintf("[%s] %s: %s", status, c.Name, c.Detail)
 		if fancy {
-			if c.OK {
-				line = ui.Success().Render(line)
-			} else {
+			switch {
+			case !c.OK:
 				line = ui.Fail().Render(line)
+			case c.Warn:
+				line = ui.Warning().Render(line)
+			default:
+				line = ui.Success().Render(line)
 			}
 		}
 		fmt.Fprintln(out, line)

@@ -112,7 +112,30 @@ func ComputeOwnedFiles(prev []string, p plan.Plan, configDir string) ([]string, 
 		out = append(out, path)
 	}
 	sort.Strings(out)
-	return out, nil
+	return paths.FilterOwnedPaths(out), nil
+}
+
+// AddOwnedPaths merges absolute paths into the owned set. Returns a sorted copy.
+func AddOwnedPaths(owned []string, add []string) []string {
+	set := make(map[string]struct{}, len(owned)+len(add))
+	for _, path := range owned {
+		if path == "" {
+			continue
+		}
+		set[filepath.Clean(path)] = struct{}{}
+	}
+	for _, path := range add {
+		if path == "" {
+			continue
+		}
+		set[filepath.Clean(path)] = struct{}{}
+	}
+	out := make([]string, 0, len(set))
+	for path := range set {
+		out = append(out, path)
+	}
+	sort.Strings(out)
+	return paths.FilterOwnedPaths(out)
 }
 
 // RemoveOwnedPaths drops absolute paths from the owned set (e.g. successfully pruned).

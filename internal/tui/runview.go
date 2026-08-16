@@ -180,11 +180,13 @@ func runApplyFlow(
 		},
 	))
 	finalErr := engine.FinalizeApply(engine.FinalizeOptions{
-		StateDir:     stateDir,
-		ConfigDir:    filepath.Dir(m.configPath),
-		Manifest:     res.Manifest,
-		GenerationID: res.GenerationID,
-		PrunedPaths:  result.PrunedPaths,
+		StateDir:             stateDir,
+		ConfigDir:            filepath.Dir(m.configPath),
+		Manifest:             res.Manifest,
+		GenerationID:         res.GenerationID,
+		PrunedPaths:          result.PrunedPaths,
+		SucceededFileTargets: result.SucceededFileTargets(),
+		UnlinkedPaths:        result.UnlinkedPaths,
 	}, res.Plan, applyErr)
 	// Skip maybeAutoPushConfig in TUI (Phase 2 config screens).
 	sendDone(formatApplySummary(result), finalErr)
@@ -228,11 +230,13 @@ func runUpgradeFlow(
 		nil,
 	))
 	finalErr := engine.FinalizeApply(engine.FinalizeOptions{
-		StateDir:     stateDir,
-		ConfigDir:    filepath.Dir(m.configPath),
-		Manifest:     res.Manifest,
-		GenerationID: res.GenerationID,
-		PrunedPaths:  applyResult.PrunedPaths,
+		StateDir:             stateDir,
+		ConfigDir:            filepath.Dir(m.configPath),
+		Manifest:             res.Manifest,
+		GenerationID:         res.GenerationID,
+		PrunedPaths:          applyResult.PrunedPaths,
+		SucceededFileTargets: applyResult.SucceededFileTargets(),
+		UnlinkedPaths:        applyResult.UnlinkedPaths,
 	}, res.Plan, applyErr)
 	// Skip maybeAutoPushConfig in TUI (Phase 2 config screens).
 	summary := joinSummaries(formatUpgradeSummary(upResult), formatApplySummary(applyResult))

@@ -1,20 +1,25 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/chasebank87/PourOver/internal/backup"
 	"github.com/chasebank87/PourOver/internal/config"
 	"github.com/chasebank87/PourOver/internal/configgit"
+	"github.com/chasebank87/PourOver/internal/discovery"
+	"github.com/chasebank87/PourOver/internal/pam"
 )
 
 // DoctorCheck is one health check result.
 type DoctorCheck struct {
 	Name   string
 	OK     bool
+	Warn   bool // advisory; does not fail DoctorReport.OK()
 	Detail string
 }
 
@@ -23,7 +28,7 @@ type DoctorReport struct {
 	Checks []DoctorCheck
 }
 
-// OK reports whether every check passed.
+// OK reports whether every non-warn check passed.
 func (r DoctorReport) OK() bool {
 	for _, c := range r.Checks {
 		if !c.OK {
@@ -86,6 +91,8 @@ func Doctor(in DoctorInputs) (DoctorReport, error) {
 	}
 
 	checks = append(checks, packagesDoctorCheck(in.ConfigPath)...)
+	checks = append(checks, masDoctorChecks(in.Manifest)...)
+	checks = append(checks, pamWatchIDDoctorCheck(in.Manifest)...)
 
 	if err := os.MkdirAll(in.StateDir, 0o755); err != nil {
 		checks = append(checks, DoctorCheck{Name: "state", OK: false, Detail: err.Error()})
@@ -133,10 +140,87 @@ func packagesDoctorCheck(configPath string) []DoctorCheck {
 		return []DoctorCheck{{Name: "packages", OK: true, Detail: "skipped (config invalid)"}}
 	}
 	n := len(m.Packages.Formulae) + len(m.Packages.Casks)
+	detail := fmt.Sprintf("%d brew package(s); Homebrew tokens are lowercase", n)
+	if m.Packages.MasConfigured {
+		detail = fmt.Sprintf("%d brew + %d mas app(s); Homebrew tokens are lowercase", n, len(m.Packages.Mas))
+	}
 	return []DoctorCheck{{
 		Name:   "packages",
 		OK:     true,
-		Detail: fmt.Sprintf("%d declared package(s); Homebrew tokens are lowercase", n),
+		Detail: detail,
+	}}
+}
+
+func masDoctorChecks(m config.Manifest) []DoctorCheck {
+	if !m.Packages.MasConfigured {
+		return nil
+	}
+	if _, err := exec.LookPath("mas"); err != nil {
+		return []DoctorCheck{{
+			Name:   "mas",
+			OK:     true,
+			Warn:   true,
+			Detail: "packages.mas configured but mas not on PATH (will install via brew on apply)",
+		}}
+	}
+	ctx := context.Background()
+	state, err := discovery.DiscoverMas(ctx, discovery.NewExecMasRunner())
+	if err != nil {
+		return []DoctorCheck{{
+			Name:   "mas",
+			OK:     true,
+			Warn:   true,
+			Detail: "mas list failed: " + err.Error(),
+		}}
+	}
+	listed := make(map[int64]struct{}, len(state.Apps))
+	for _, app := range state.Apps {
+		listed[app.ID] = struct{}{}
+	}
+	probe := discovery.DefaultMasDiskProbe
+	if probe == nil {
+		probe = discovery.HostMasDiskProbe{}
+	}
+	var lag []string
+	for _, want := range m.Packages.Mas {
+		if _, ok := listed[want.ID]; ok {
+			continue
+		}
+		exists, adamID := probe.FindApp(want.Name)
+		if !exists {
+			continue
+		}
+		if adamID != 0 && adamID != want.ID {
+			continue
+		}
+		lag = append(lag, discovery.FormatMasDiskHint(want.Name, want.ID))
+	}
+	detail := fmt.Sprintf("mas list reports %d app(s); %d declared", len(state.Apps), len(m.Packages.Mas))
+	if len(lag) > 0 {
+		return []DoctorCheck{{
+			Name:   "mas",
+			OK:     true,
+			Warn:   true,
+			Detail: detail + "; Spotlight lag: " + strings.Join(lag, "; "),
+		}}
+	}
+	return []DoctorCheck{{Name: "mas", OK: true, Detail: detail}}
+}
+
+func pamWatchIDDoctorCheck(m config.Manifest) []DoctorCheck {
+	sl := m.MacOS.Security.PAM.SudoLocal
+	if !sl.Configured || !sl.Enable || !sl.WatchIDAuth {
+		return nil
+	}
+	candidates := pam.DefaultWatchIDSearchPaths("")
+	if _, ok := pam.FindModule(candidates); ok {
+		return []DoctorCheck{{Name: "pam-watchid", OK: true, Detail: "pam_watchid.so found"}}
+	}
+	return []DoctorCheck{{
+		Name:   "pam-watchid",
+		OK:     true,
+		Warn:   true,
+		Detail: "watch_id_auth enabled but pam_watchid.so not found; install pam-watchid manually (not a Homebrew core formula)",
 	}}
 }
 

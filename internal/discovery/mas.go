@@ -101,6 +101,11 @@ func (r *ExecMasRunner) Run(ctx context.Context, args ...string) ([]byte, error)
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
 
+	// Discovery must not hang while mas auto-indexes Spotlight (mas 7).
+	if !mutation {
+		cmd.Env = append(os.Environ(), "MAS_NO_AUTO_INDEX=1")
+	}
+
 	if mutation {
 		if r.Stdin != nil {
 			cmd.Stdin = r.Stdin

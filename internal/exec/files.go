@@ -35,8 +35,9 @@ func (o FileApplyOptions) clock() time.Time {
 // Otherwise copies from ConfigDir sources. Never creates symlinks.
 // Existing symlinks at the target are replaced with regular files.
 // link_replace / backup mode moves unexpected targets aside first.
-func ApplyFileLinks(p plan.Plan, opts FileApplyOptions, progress Progress) (int, error) {
-	n := 0
+// Returns absolute paths successfully written.
+func ApplyFileLinks(p plan.Plan, opts FileApplyOptions, progress Progress) ([]string, error) {
+	var written []string
 	var errs []error
 	for _, a := range p.Actions {
 		switch a.Type {
@@ -73,9 +74,9 @@ func ApplyFileLinks(p plan.Plan, opts FileApplyOptions, progress Progress) (int,
 			errs = append(errs, err)
 			continue
 		}
-		n++
+		written = append(written, targetPath)
 	}
-	return n, errors.Join(errs...)
+	return written, errors.Join(errs...)
 }
 
 func loadFilePayload(a plan.Action, opts FileApplyOptions) ([]byte, os.FileMode, error) {
@@ -199,8 +200,9 @@ func expandHomePath(path string) (string, error) {
 // Otherwise sources are resolved relative to configDir. Targets expand ~.
 // When FileReplace is backup, unexpected target types (e.g. directories) are moved aside first.
 // Per-file failures are collected so later copies still run.
-func ApplyManagedCopies(p plan.Plan, opts FileApplyOptions, progress Progress) (int, error) {
-	n := 0
+// Returns absolute paths successfully written.
+func ApplyManagedCopies(p plan.Plan, opts FileApplyOptions, progress Progress) ([]string, error) {
+	var written []string
 	var errs []error
 	for _, a := range p.Actions {
 		if a.Type != plan.ActionManagedCopy {
@@ -232,9 +234,9 @@ func ApplyManagedCopies(p plan.Plan, opts FileApplyOptions, progress Progress) (
 			errs = append(errs, err)
 			continue
 		}
-		n++
+		written = append(written, targetPath)
 	}
-	return n, errors.Join(errs...)
+	return written, errors.Join(errs...)
 }
 
 // ManagedCopyOptions controls backup-before-write for unexpected targets.
@@ -272,8 +274,9 @@ func ManagedCopy(sourcePath, targetPath string, opts ...ManagedCopyOptions) erro
 // When GenerationID is set, writes the pre-rendered generation blob (Value = hash).
 // Otherwise re-renders from ConfigDir sources at apply time.
 // Soft-fails per file.
-func ApplyTemplateWrites(p plan.Plan, opts FileApplyOptions, progress Progress) (int, error) {
-	n := 0
+// Returns absolute paths successfully written.
+func ApplyTemplateWrites(p plan.Plan, opts FileApplyOptions, progress Progress) ([]string, error) {
+	var written []string
 	var errs []error
 	for _, a := range p.Actions {
 		if a.Type != plan.ActionTemplateWrite {
@@ -343,9 +346,9 @@ func ApplyTemplateWrites(p plan.Plan, opts FileApplyOptions, progress Progress) 
 			errs = append(errs, err)
 			continue
 		}
-		n++
+		written = append(written, targetPath)
 	}
-	return n, errors.Join(errs...)
+	return written, errors.Join(errs...)
 }
 
 // writeManagedBytes prepares the target (backup/remove as needed) and writes
@@ -486,8 +489,9 @@ func stopAncestorWalk(path string) bool {
 // ApplyFileUnlinks runs file_unlink actions with apply-time safety checks.
 // Paths expand ~. Symlinks and regular files are removed; directories are refused.
 // Per-path failures are collected so later unlinks still run.
-func ApplyFileUnlinks(p plan.Plan, progress Progress) (int, error) {
-	n := 0
+// Returns absolute paths successfully unlinked.
+func ApplyFileUnlinks(p plan.Plan, progress Progress) ([]string, error) {
+	var removed []string
 	var errs []error
 	for _, a := range p.Actions {
 		if a.Type != plan.ActionFileUnlink {
@@ -506,9 +510,9 @@ func ApplyFileUnlinks(p plan.Plan, progress Progress) (int, error) {
 			errs = append(errs, err)
 			continue
 		}
-		n++
+		removed = append(removed, targetPath)
 	}
-	return n, errors.Join(errs...)
+	return removed, errors.Join(errs...)
 }
 
 // SafeUnlink removes a symlink or regular file at path. Refuses directories.

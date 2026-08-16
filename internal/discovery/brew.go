@@ -14,8 +14,17 @@ import (
 // DefaultBrewTimeout is the maximum time allowed for a single brew discovery invocation.
 const DefaultBrewTimeout = 30 * time.Second
 
-// DefaultBrewMutationTimeout is used for install/upgrade/uninstall (downloads can be slow).
-const DefaultBrewMutationTimeout = 30 * time.Minute
+// DefaultBrewIdleTimeout kills a silent brew mutation after this long with no
+// stdout/stderr (heartbeat lines do not count). Large cask restores stay alive
+// while Homebrew is still printing progress.
+const DefaultBrewIdleTimeout = 15 * time.Minute
+
+// DefaultBrewAbsoluteTimeout is a safety cap for one brew mutation so a wedged
+// process cannot run forever.
+const DefaultBrewAbsoluteTimeout = 6 * time.Hour
+
+// DefaultBrewMutationTimeout is the absolute mutation safety cap (alias).
+const DefaultBrewMutationTimeout = DefaultBrewAbsoluteTimeout
 
 // Runner executes brew CLI commands. Implementations must be safe for unit tests
 // (use a fake in tests; ExecRunner calls the real brew binary).
@@ -29,8 +38,12 @@ type ExecRunner struct {
 	Path string
 	// Timeout per discovery-style invocation (default DefaultBrewTimeout).
 	Timeout time.Duration
-	// MutationTimeout for install/upgrade/uninstall (default DefaultBrewMutationTimeout).
+	// MutationTimeout is the absolute safety cap for install/upgrade/uninstall
+	// (default DefaultBrewAbsoluteTimeout).
 	MutationTimeout time.Duration
+	// IdleTimeout kills a mutation after this long with no brew output
+	// (default DefaultBrewIdleTimeout). Set negative to disable.
+	IdleTimeout time.Duration
 	// HeartbeatInterval for silent streamed mutations (default DefaultBrewHeartbeatInterval).
 	// Set negative to disable heartbeats in tests.
 	HeartbeatInterval time.Duration
@@ -46,7 +59,8 @@ func NewExecRunner() *ExecRunner {
 	return &ExecRunner{
 		Path:              "brew",
 		Timeout:           DefaultBrewTimeout,
-		MutationTimeout:   DefaultBrewMutationTimeout,
+		MutationTimeout:   DefaultBrewAbsoluteTimeout,
+		IdleTimeout:       DefaultBrewIdleTimeout,
 		HeartbeatInterval: DefaultBrewHeartbeatInterval,
 	}
 }
@@ -70,17 +84,32 @@ func (r *ExecRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
 		timeout = DefaultBrewTimeout
 	}
 	mutation := isBrewMutation(args)
+	idleTimeout := time.Duration(0)
 	if mutation {
 		timeout = r.MutationTimeout
 		if timeout == 0 {
-			timeout = DefaultBrewMutationTimeout
+			timeout = DefaultBrewAbsoluteTimeout
+		}
+		idleTimeout = r.IdleTimeout
+		if idleTimeout == 0 {
+			idleTimeout = DefaultBrewIdleTimeout
 		}
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, path, args...)
+	idleCtx := ctx
+	idleCancel := func() {}
+	if mutation && idleTimeout > 0 {
+		idleCtx, idleCancel = context.WithCancel(ctx)
+		defer idleCancel()
+	}
+
+	cmd := exec.CommandContext(idleCtx, path, args...)
+	if mutation {
+		configureBrewMutationProcess(cmd)
+	}
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
@@ -101,42 +130,36 @@ func (r *ExecRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
 	}
 
 	var activity *activityWriter
-	streamOut := r.Stdout
-	streamErr := r.Stderr
-	if mutation && (r.Stdout != nil || r.Stderr != nil) {
-		// Track activity across both streams; heartbeats go to stderr stream if
-		// present, else stdout (apply wires both to the same styled writer).
+	if mutation {
+		// Always track brew output for idle kill; stream to UI when configured.
 		hbOut := r.Stderr
 		if hbOut == nil {
 			hbOut = r.Stdout
 		}
 		activity = newActivityWriter(hbOut)
-		if r.Stdout != nil {
-			if r.Stdout == r.Stderr {
-				streamOut = activity
-				streamErr = activity
-			} else {
-				streamOut = io.MultiWriter(r.Stdout, activityTouch{activity})
-				streamErr = activity
-			}
+		if r.Stdout != nil && r.Stdout == r.Stderr {
+			cmd.Stdout = io.MultiWriter(&stdoutBuf, activity)
+			cmd.Stderr = io.MultiWriter(&stderrBuf, activity)
 		} else {
-			streamErr = activity
+			if r.Stdout != nil {
+				cmd.Stdout = io.MultiWriter(&stdoutBuf, r.Stdout, activityTouch{activity})
+			} else {
+				cmd.Stdout = io.MultiWriter(&stdoutBuf, activityTouch{activity})
+			}
+			cmd.Stderr = io.MultiWriter(&stderrBuf, activity)
 		}
 		interval := r.HeartbeatInterval
 		if interval == 0 {
 			interval = DefaultBrewHeartbeatInterval
 		}
-		if interval > 0 {
-			stop := startBrewHeartbeat(activity, activity, args, interval)
-			defer stop()
+		if interval > 0 && hbOut != nil {
+			stopHB := startBrewHeartbeat(hbOut, activity, args, interval)
+			defer stopHB()
 		}
-	}
-
-	if streamOut != nil {
-		cmd.Stdout = io.MultiWriter(&stdoutBuf, streamOut)
-	}
-	if streamErr != nil {
-		cmd.Stderr = io.MultiWriter(&stderrBuf, streamErr)
+		if idleTimeout > 0 {
+			stopIdle := startBrewIdleCancel(idleCancel, activity, idleTimeout)
+			defer stopIdle()
+		}
 	}
 
 	err := cmd.Run()
@@ -166,7 +189,7 @@ type activityTouch struct {
 }
 
 func (t activityTouch) Write(p []byte) (int, error) {
-	t.a.touch()
+	t.a.touchOutput()
 	return len(p), nil
 }
 

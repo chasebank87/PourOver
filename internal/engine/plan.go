@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/chasebank87/PourOver/internal/config"
@@ -130,6 +129,10 @@ func BuildPlanResult(ctx context.Context, configPath string, runner discovery.Ru
 				return PlanResult{}, fmt.Errorf("discover mas: %w", err)
 			}
 		}
+		// mas list uses Spotlight; after wipe/restore apps may sit on disk while
+		// the index is cold. Treat desired on-disk apps as installed so we do
+		// not re-run mas install (and so we never invent undeclared removes).
+		masState = discovery.MergeDesiredMasOnDisk(masState, packages.Mas, discovery.DefaultMasDiskProbe)
 		masPlan = plan.BuildMasPlan(packages, masState)
 	}
 
@@ -228,10 +231,10 @@ func resolvePAMModulePaths(ctx context.Context, runner discovery.Runner, cfg con
 		brewRoot, _ := discovery.BrewPrefix(ctx, runner, "")
 		candidates := pam.DefaultWatchIDSearchPaths(brewRoot)
 		found, ok := pam.FindModule(candidates)
-		if !ok {
-			return "", "", fmt.Errorf("watch_id_auth is enabled but pam_watchid.so was not found (searched: %s); install pam-watchid manually (e.g. mostlygeek/pam-watchid) — it is not a Homebrew core formula", strings.Join(candidates, ", "))
+		if ok {
+			watchid = found
 		}
-		watchid = found
+		// Missing watchid: omit the line (reattach/Touch ID still apply). Doctor warns.
 	}
 	return reattach, watchid, nil
 }

@@ -93,7 +93,7 @@ func formatSettingValue(v config.SettingValue) string {
 	case config.SettingFloat:
 		return strconv.FormatFloat(v.Float, 'g', -1, 64)
 	case config.SettingString:
-		return strconv.Quote(v.String)
+		return luaQuote(v.String)
 	case config.SettingArray:
 		if len(v.Array) == 0 {
 			return "{}"
@@ -101,7 +101,7 @@ func formatSettingValue(v config.SettingValue) string {
 		var b strings.Builder
 		b.WriteString("{\n")
 		for _, s := range v.Array {
-			fmt.Fprintf(&b, "        %s,\n", strconv.Quote(s))
+			fmt.Fprintf(&b, "        %s,\n", luaQuote(s))
 		}
 		b.WriteString("      }")
 		return b.String()
@@ -114,7 +114,7 @@ func luaTableKey(name string) string {
 	if isLuaIdent(name) {
 		return name
 	}
-	return fmt.Sprintf("[%q]", name)
+	return "[" + luaQuote(name) + "]"
 }
 
 func isLuaIdent(s string) bool {
