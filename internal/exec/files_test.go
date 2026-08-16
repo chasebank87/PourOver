@@ -12,53 +12,6 @@ import (
 	tmpl "github.com/chasebank87/PourOver/internal/template"
 )
 
-func TestCreateLink_CreatesSymlink(t *testing.T) {
-	root := t.TempDir()
-	src := filepath.Join(root, "src")
-	if err := os.Mkdir(src, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	tgt := filepath.Join(root, "link")
-
-	if err := CreateLink(tgt, src); err != nil {
-		t.Fatalf("CreateLink: %v", err)
-	}
-	got, err := os.Readlink(tgt)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != src {
-		t.Fatalf("Readlink = %q, want %q", got, src)
-	}
-}
-
-func TestUpdateLink_ReplacesWrongSymlink(t *testing.T) {
-	root := t.TempDir()
-	oldSrc := filepath.Join(root, "old")
-	newSrc := filepath.Join(root, "new")
-	if err := os.Mkdir(oldSrc, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Mkdir(newSrc, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	tgt := filepath.Join(root, "link")
-	if err := os.Symlink(oldSrc, tgt); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := UpdateLink(tgt, newSrc); err != nil {
-		t.Fatalf("UpdateLink: %v", err)
-	}
-	got, err := os.Readlink(tgt)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != newSrc {
-		t.Fatalf("Readlink = %q, want %q", got, newSrc)
-	}
-}
-
 func TestApplyFileLinks_CreateAndUpdate(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, "cfg")
@@ -133,22 +86,6 @@ func TestApplyFileLinks_OverwritesRegularFile(t *testing.T) {
 	got, err := os.ReadFile(tgt)
 	if err != nil || string(got) != "new\n" {
 		t.Fatalf("got %q err=%v", got, err)
-	}
-}
-
-func TestCreateLink_CreatesParentDirs(t *testing.T) {
-	root := t.TempDir()
-	src := filepath.Join(root, "src")
-	if err := os.Mkdir(src, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	tgt := filepath.Join(root, "nested", "dir", "link")
-	if err := CreateLink(tgt, src); err != nil {
-		t.Fatalf("CreateLink: %v", err)
-	}
-	got, err := os.Readlink(tgt)
-	if err != nil || got != src {
-		t.Fatalf("Readlink = %q err=%v", got, err)
 	}
 }
 
@@ -680,7 +617,6 @@ func TestApplyFilePrunes_ByMode(t *testing.T) {
 		}
 	})
 }
-
 
 func TestApplyTemplateWrites_CreatesAndUpdates(t *testing.T) {
 	root := t.TempDir()

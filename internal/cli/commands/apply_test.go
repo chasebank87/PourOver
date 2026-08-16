@@ -12,6 +12,7 @@ import (
 	"github.com/chasebank87/PourOver/internal/config"
 	"github.com/chasebank87/PourOver/internal/discovery"
 	"github.com/chasebank87/PourOver/internal/engine"
+	"github.com/chasebank87/PourOver/internal/generation"
 	"github.com/chasebank87/PourOver/internal/plan"
 	"github.com/spf13/cobra"
 )
@@ -41,6 +42,45 @@ func (r *recordingRunner) Run(ctx context.Context, args ...string) ([]byte, erro
 		return []byte(""), nil
 	}
 	return nil, fmt.Errorf("unexpected brew args: %v", args)
+}
+
+// isolatedPlan builds a reconcile plan against a throwaway state dir (empty
+// lock). Tests must not call production buildPlan: that loads the live lock, so
+// apply --yes would prune the developer's real owned files.
+func isolatedPlan(t *testing.T, configPath string, runner discovery.Runner) (plan.Plan, applyOptions) {
+	t.Helper()
+	return isolatedPlanIn(t, configPath, runner, t.TempDir())
+}
+
+func isolatedPlanIn(t *testing.T, configPath string, runner discovery.Runner, stateDir string) (plan.Plan, applyOptions) {
+	t.Helper()
+	res, err := engine.BuildPlanResult(context.Background(), configPath, runner, discovery.NewExecDefaultsRunner(), nil, stateDir, time.Now())
+	if err != nil {
+		t.Fatalf("isolatedPlan: %v", err)
+	}
+	assertNoHostPrunes(t, res.Plan)
+	return res.Plan, applyOptions{
+		configPath:   configPath,
+		configDir:    filepath.Dir(configPath),
+		stateDir:     stateDir,
+		manifest:     res.Manifest,
+		generationID: res.GenerationID,
+		now:          time.Now,
+	}
+}
+
+func assertNoHostPrunes(t *testing.T, p plan.Plan) {
+	t.Helper()
+	tmp := os.TempDir()
+	for _, a := range p.Actions {
+		if a.Type != plan.ActionFilePrune {
+			continue
+		}
+		if a.Name != "" && strings.HasPrefix(a.Name, tmp) {
+			continue
+		}
+		t.Fatalf("plan prunes host path %q; tests must isolate state, not apply live owned_files", a.Name)
+	}
 }
 
 func mutationBrewArgs(args []string) bool {
@@ -77,10 +117,7 @@ func TestApplyDryRun_NoBrewMutations(t *testing.T) {
 	}
 
 	runner := &recordingRunner{}
-	p, err := buildPlan(context.Background(), configPath, runner)
-	if err != nil {
-		t.Fatalf("buildPlan: %v", err)
-	}
+	p, _ := isolatedPlan(t, configPath, runner)
 	if err := printPlan(p, false); err != nil {
 		t.Fatalf("printPlan: %v", err)
 	}
@@ -114,14 +151,8 @@ func TestApplyDryRun_MatchesPlanOutput(t *testing.T) {
 	}
 
 	runner := &stubBrewRunner{formulae: "git\n", casks: ""}
-	planOut, err := buildPlan(context.Background(), configPath, runner)
-	if err != nil {
-		t.Fatalf("buildPlan plan path: %v", err)
-	}
-	applyOut, err := buildPlan(context.Background(), configPath, runner)
-	if err != nil {
-		t.Fatalf("buildPlan apply dry-run path: %v", err)
-	}
+	planOut, _ := isolatedPlan(t, configPath, runner)
+	applyOut, _ := isolatedPlan(t, configPath, runner)
 
 	planText := plan.RenderText(planOut)
 	applyText := plan.RenderText(applyOut)
@@ -149,27 +180,25 @@ func TestExecuteApply_FormulaInstallOnly(t *testing.T) {
 		listFormula: []byte("git\n"),
 		listCask:    []byte(""),
 	}
-	p, err := buildPlan(context.Background(), configPath, runner)
-	if err != nil {
-		t.Fatalf("buildPlan: %v", err)
-	}
+	p, opts := isolatedPlan(t, configPath, runner)
+	opts.mode = config.UninstallModeSafe
+	opts.autoYes = true
 
 	cmd := &cobra.Command{}
 	cmd.SetContext(context.Background())
-	opts := applyOptions{mode: config.UninstallModeSafe, autoYes: true}
 	if err := executeApply(cmd, runner, p, opts); err != nil {
 		t.Fatalf("executeApply: %v", err)
 	}
 	if len(runner.installs) != 1 || runner.installs[0] != "fzf" {
 		t.Fatalf("installs = %v, want [fzf]", runner.installs)
 	}
+	if names := plan.ActionNames(p, plan.ActionFilePrune); len(names) != 0 {
+		t.Fatalf("empty files.links against isolated lock must not prune, got %v", names)
+	}
 
 	// Second plan: fzf should no longer need install.
 	runner.listFormula = []byte("git\nfzf\n")
-	p2, err := buildPlan(context.Background(), configPath, runner)
-	if err != nil {
-		t.Fatalf("buildPlan after install: %v", err)
-	}
+	p2, _ := isolatedPlanIn(t, configPath, runner, opts.stateDir)
 	if names := plan.ActionNames(p2, plan.ActionFormulaInstall); len(names) != 0 {
 		t.Fatalf("formula installs after apply = %v, want none", names)
 	}
@@ -255,15 +284,13 @@ func TestExecuteApply_StrictRemoves(t *testing.T) {
 		listFormula: []byte("git\nwget\n"),
 		listCask:    []byte("vlc\n"),
 	}
-	p, err := buildPlan(context.Background(), configPath, runner)
-	if err != nil {
-		t.Fatalf("buildPlan: %v", err)
-	}
+	p, opts := isolatedPlan(t, configPath, runner)
+	opts.mode = config.UninstallModeStrict
+	opts.autoYes = false
 
 	cmd := &cobra.Command{}
 	cmd.SetContext(context.Background())
 	cmd.SetIn(strings.NewReader(""))
-	opts := applyOptions{mode: config.UninstallModeStrict, autoYes: false}
 	if err := executeApply(cmd, runner, p, opts); err != nil {
 		t.Fatalf("executeApply: %v", err)
 	}
@@ -330,15 +357,14 @@ func TestExecuteApply_PrintsProgressByDefault(t *testing.T) {
 	}
 
 	runner := &installRecordingRunner{listFormula: []byte("git\n"), listCask: []byte("")}
-	p, err := buildPlan(context.Background(), configPath, runner)
-	if err != nil {
-		t.Fatal(err)
-	}
+	p, opts := isolatedPlan(t, configPath, runner)
+	opts.mode = config.UninstallModeSafe
+	opts.autoYes = true
+	opts.quiet = false
 	var stderr strings.Builder
 	cmd := &cobra.Command{}
 	cmd.SetContext(context.Background())
 	cmd.SetErr(&stderr)
-	opts := applyOptions{mode: config.UninstallModeSafe, autoYes: true, quiet: false}
 	if err := executeApply(cmd, runner, p, opts); err != nil {
 		t.Fatal(err)
 	}
@@ -363,15 +389,14 @@ func TestExecuteApply_QuietSuppressesProgress(t *testing.T) {
 	}
 
 	runner := &installRecordingRunner{listFormula: []byte("git\n"), listCask: []byte("")}
-	p, err := buildPlan(context.Background(), configPath, runner)
-	if err != nil {
-		t.Fatal(err)
-	}
+	p, opts := isolatedPlan(t, configPath, runner)
+	opts.mode = config.UninstallModeSafe
+	opts.autoYes = true
+	opts.quiet = true
 	var stderr strings.Builder
 	cmd := &cobra.Command{}
 	cmd.SetContext(context.Background())
 	cmd.SetErr(&stderr)
-	opts := applyOptions{mode: config.UninstallModeSafe, autoYes: true, quiet: true}
 	if err := executeApply(cmd, runner, p, opts); err != nil {
 		t.Fatal(err)
 	}
@@ -402,14 +427,12 @@ func TestExecuteApply_FormulaAndCaskInstalls(t *testing.T) {
 		listFormula: []byte("git\n"),
 		listCask:    []byte(""),
 	}
-	p, err := buildPlan(context.Background(), configPath, runner)
-	if err != nil {
-		t.Fatalf("buildPlan: %v", err)
-	}
+	p, opts := isolatedPlan(t, configPath, runner)
+	opts.mode = config.UninstallModeSafe
+	opts.autoYes = true
 
 	cmd := &cobra.Command{}
 	cmd.SetContext(context.Background())
-	opts := applyOptions{mode: config.UninstallModeSafe, autoYes: true}
 	if err := executeApply(cmd, runner, p, opts); err != nil {
 		t.Fatalf("executeApply: %v", err)
 	}
@@ -419,10 +442,7 @@ func TestExecuteApply_FormulaAndCaskInstalls(t *testing.T) {
 
 	runner.listFormula = []byte("git\nfzf\n")
 	runner.listCask = []byte("raycast\n")
-	p2, err := buildPlan(context.Background(), configPath, runner)
-	if err != nil {
-		t.Fatalf("buildPlan after install: %v", err)
-	}
+	p2, _ := isolatedPlanIn(t, configPath, runner, opts.stateDir)
 	if names := plan.ActionNames(p2, plan.ActionFormulaInstall); len(names) != 0 {
 		t.Fatalf("formula installs after apply = %v, want none", names)
 	}
@@ -462,17 +482,9 @@ func TestExecuteApply_IdempotentNoChanges(t *testing.T) {
 		listFormula: []byte("git\n"),
 		listCask:    []byte(""),
 	}
-	p, err := buildPlan(context.Background(), configPath, runner)
-	if err != nil {
-		t.Fatalf("buildPlan: %v", err)
-	}
+	p, opts := isolatedPlanIn(t, configPath, runner, stateDir)
 	if len(p.Actions) != 0 {
 		t.Fatalf("expected empty plan for matching state, got %+v", p.Actions)
-	}
-
-	manifest, err := config.LoadManifest(configPath)
-	if err != nil {
-		t.Fatal(err)
 	}
 
 	cmd := &cobra.Command{}
@@ -480,14 +492,9 @@ func TestExecuteApply_IdempotentNoChanges(t *testing.T) {
 	var stderr strings.Builder
 	cmd.SetErr(&stderr)
 
-	opts := applyOptions{
-		mode:      config.UninstallModeSafe,
-		autoYes:   true,
-		configDir: configDir,
-		stateDir:  stateDir,
-		manifest:  manifest,
-		now:       func() time.Time { return time.Date(2026, 5, 18, 12, 0, 0, 0, time.UTC) },
-	}
+	opts.mode = config.UninstallModeSafe
+	opts.autoYes = true
+	opts.now = func() time.Time { return time.Date(2026, 5, 18, 12, 0, 0, 0, time.UTC) }
 	if err := executeApply(cmd, runner, p, opts); err != nil {
 		t.Fatalf("executeApply: %v", err)
 	}
@@ -531,26 +538,14 @@ func TestExecuteApply_FailedApplyStillWritesHistory(t *testing.T) {
 	}
 
 	runner := &failingInstallRunner{listFormula: []byte("git\n"), listCask: []byte("")}
-	p, err := buildPlan(context.Background(), configPath, runner)
-	if err != nil {
-		t.Fatalf("buildPlan: %v", err)
-	}
-	manifest, err := config.LoadManifest(configPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	p, opts := isolatedPlanIn(t, configPath, runner, stateDir)
+	opts.mode = config.UninstallModeSafe
+	opts.autoYes = true
+	opts.now = func() time.Time { return time.Date(2026, 5, 18, 14, 0, 0, 0, time.UTC) }
 
 	cmd := &cobra.Command{}
 	cmd.SetContext(context.Background())
-	opts := applyOptions{
-		mode:      config.UninstallModeSafe,
-		autoYes:   true,
-		configDir: configDir,
-		stateDir:  stateDir,
-		manifest:  manifest,
-		now:       func() time.Time { return time.Date(2026, 5, 18, 14, 0, 0, 0, time.UTC) },
-	}
-	err = executeApply(cmd, runner, p, opts)
+	err := executeApply(cmd, runner, p, opts)
 	if err == nil {
 		t.Fatal("expected apply error")
 	}
@@ -632,6 +627,7 @@ func TestExecuteApply_BrewThenFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	assertNoHostPrunes(t, res.Plan)
 	opts.generationID = res.GenerationID
 	opts.manifest = res.Manifest
 	if err := executeApply(cmd, runner, res.Plan, opts); err != nil {
@@ -646,6 +642,13 @@ func TestExecuteApply_BrewThenFiles(t *testing.T) {
 	}
 	if len(runner.installs) != 1 || runner.installs[0] != "fzf" {
 		t.Fatalf("installs = %v, want [fzf]", runner.installs)
+	}
+	cur, err := generation.Current(stateDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cur != res.GenerationID || cur == "" {
+		t.Fatalf("current generation = %q, want %q", cur, res.GenerationID)
 	}
 }
 

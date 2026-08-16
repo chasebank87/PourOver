@@ -14,7 +14,7 @@ import (
 )
 
 // Apply runs the reconcile mutation loop for taps, formulae, PAM, casks, MAS,
-// removes, defaults, file links, managed copies, templates, unlinks, and
+// removes, defaults, declared files, managed copies, templates, unlinks, and
 // owned-file prunes. It does not create UI sessions or print summaries;
 // frontends pass Progress / Confirmer / writers via opts.
 func Apply(ctx context.Context, runner discovery.Runner, p plan.Plan, opts ApplyOptions) (ApplyResult, error) {

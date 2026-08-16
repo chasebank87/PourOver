@@ -6,8 +6,21 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/chasebank87/PourOver/internal/config"
 	"github.com/chasebank87/PourOver/internal/engine"
 )
+
+func TestApplyOptsFromPlan_CopiesGenerationID(t *testing.T) {
+	t.Parallel()
+	res := engine.PlanResult{GenerationID: "20260815T000000Z-deadbeef", Manifest: config.Manifest{}}
+	opts := applyOptsFromPlan("/tmp/pourover.lua", res, "/tmp/state", nil, nil, nil, nil, nil, nil)
+	if opts.GenerationID != res.GenerationID {
+		t.Fatalf("GenerationID = %q, want %q", opts.GenerationID, res.GenerationID)
+	}
+	if opts.StateDir != "/tmp/state" {
+		t.Fatalf("StateDir = %q", opts.StateDir)
+	}
+}
 
 func TestRunView_ShowsPhaseAndLines(t *testing.T) {
 	t.Parallel()
@@ -145,7 +158,7 @@ func TestRunUpdate_ConfirmYSendsAnswer(t *testing.T) {
 func TestFormatApplySummary(t *testing.T) {
 	t.Parallel()
 	s := formatApplySummary(engine.ApplyResult{Taps: 1, Formulae: 2, Casks: 3, Removed: 0, Defaults: 1, Linked: 4, Failures: 1})
-	for _, want := range []string{"1 tap", "2 formula", "3 cask", "1 default", "4 link", "1 failure"} {
+	for _, want := range []string{"1 tap", "2 formula", "3 cask", "1 default", "4 file", "1 failure"} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("summary %q missing %q", s, want)
 		}
@@ -208,7 +221,6 @@ func TestPlanUpdate_AStartsApplyRun(t *testing.T) {
 		t.Fatal("expected Init command for apply run")
 	}
 }
-
 
 func TestRunUpdate_QWhileRunningIgnored(t *testing.T) {
 	m := RunModel{kind: RunApply, done: false}

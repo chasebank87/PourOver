@@ -13,7 +13,7 @@ func NewApplyCmd() *cobra.Command {
 		Use:   "apply",
 		Short: "Reconcile system state to match config",
 		Long: `Apply reconciles the system toward config: Homebrew packages (installs and
-policy-aware removes), macOS defaults, then file symlinks.
+policy-aware removes), macOS defaults, then declared files.
 
 On an interactive terminal, apply shows a PourOver header and progress bar with
 colored status while Homebrew output scrolls underneath (restyled with ☕).

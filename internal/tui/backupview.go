@@ -330,7 +330,7 @@ func (m BackupModel) View() string {
 	}
 	if m.err != "" && !m.confirm.Active && !m.busy {
 		b.WriteString("\n")
-		b.WriteString(styleAccent.Render("error: " + m.err))
+		b.WriteString(styleFail.Render("error: " + m.err))
 		b.WriteString("\n")
 	}
 

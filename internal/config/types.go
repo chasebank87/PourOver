@@ -111,7 +111,7 @@ type Files struct {
 	Unlink    []string       `json:"unlink,omitempty"` // target paths (~ ok)
 }
 
-// FileLink creates or updates a symlink from Source to Target.
+// FileLink declares a path to materialize from Source as a regular file at Target.
 type FileLink struct {
 	Source string `json:"source"`
 	Target string `json:"target"`

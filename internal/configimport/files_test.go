@@ -287,3 +287,40 @@ func TestDefaultHomeCandidates_SkipsJunkNames(t *testing.T) {
 		t.Fatalf("expected real config apps, got %+v", cands)
 	}
 }
+
+func TestImportFile_SkipsNestedJunk(t *testing.T) {
+	home := t.TempDir()
+	cfgDir := filepath.Join(home, ".pourover")
+	configRoot := filepath.Join(home, ".config")
+	app := filepath.Join(configRoot, "blackbird")
+	if err := os.MkdirAll(filepath.Join(app, "epm-dashboard"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(app, "readme.txt"), []byte("ok\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(app, ".DS_Store"), []byte("junk"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(app, "epm-dashboard", ".DS_Store"), []byte("junk"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c := FileCandidate{
+		TargetPath: app,
+		TargetDecl: "~/.config/blackbird",
+		RelSource:  "config/blackbird",
+	}
+	if _, err := ImportFile(cfgDir, c, false); err != nil {
+		t.Fatal(err)
+	}
+	copied := filepath.Join(cfgDir, "config", "blackbird")
+	if _, err := os.Stat(filepath.Join(copied, "readme.txt")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(copied, ".DS_Store")); !os.IsNotExist(err) {
+		t.Fatalf("copied top-level .DS_Store, err=%v", err)
+	}
+	if _, err := os.Stat(filepath.Join(copied, "epm-dashboard", ".DS_Store")); !os.IsNotExist(err) {
+		t.Fatalf("copied nested .DS_Store, err=%v", err)
+	}
+}

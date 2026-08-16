@@ -28,6 +28,29 @@ func TestRenderText_NoChanges(t *testing.T) {
 	}
 }
 
+func TestRenderText_FileActions(t *testing.T) {
+	got := RenderText(Plan{Actions: []Action{
+		{Type: ActionLinkCreate, Name: "~/.config/nvim", Source: "config/nvim"},
+		{Type: ActionLinkUpdate, Name: "~/.zshrc", Source: "config/home/zshrc"},
+		{Type: ActionLinkReplace, Name: "~/.gitconfig", Source: "config/home/gitconfig"},
+	}})
+	want := "create file ~/.config/nvim <- config/nvim\nupdate file ~/.zshrc <- config/home/zshrc\nreplace file ~/.gitconfig <- config/home/gitconfig (backup)\n"
+	if got != want {
+		t.Fatalf("RenderText() = %q, want %q", got, want)
+	}
+}
+
+func TestRenderText_TemplateWrite(t *testing.T) {
+	got := RenderText(Plan{Actions: []Action{
+		{Type: ActionTemplateWrite, Name: "~/.config/foo", Source: "config/foo.tmpl"},
+		{Type: ActionTemplateWrite, Name: "~/.blocked", Source: "config/x.tmpl", Kind: "backup"},
+	}})
+	want := "template write ~/.config/foo <- config/foo.tmpl\ntemplate write ~/.blocked <- config/x.tmpl (backup)\n"
+	if got != want {
+		t.Fatalf("RenderText() = %q, want %q", got, want)
+	}
+}
+
 func TestRenderJSON_StableShape(t *testing.T) {
 	p := Plan{Actions: []Action{
 		{Type: ActionFormulaInstall, Name: "git"},

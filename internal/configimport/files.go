@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/chasebank87/PourOver/internal/config"
+	"github.com/chasebank87/PourOver/internal/paths"
 )
 
 // FileCandidate is a path on the machine that can be imported as a file link.
@@ -50,12 +51,7 @@ func DefaultHomeCandidates(home string) []FileCandidate {
 // SkipImportName reports whether a ~/.config entry name should not be imported
 // (Finder metadata, accidental "~" dirs, etc.).
 func SkipImportName(name string) bool {
-	switch name {
-	case ".DS_Store", "~":
-		return true
-	default:
-		return false
-	}
+	return name == "~" || paths.SkipFileName(name) || paths.SkipWalkDir(name)
 }
 
 // ExistingImportable filters candidates to those that currently exist on disk.
@@ -178,6 +174,9 @@ func copyDir(src, dst string) error {
 		return err
 	}
 	for _, e := range entries {
+		if paths.SkipWalkDir(e.Name()) || paths.SkipFileName(e.Name()) {
+			continue
+		}
 		s := filepath.Join(src, e.Name())
 		d := filepath.Join(dst, e.Name())
 		if err := copyPath(s, d); err != nil {

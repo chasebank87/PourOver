@@ -21,7 +21,7 @@ type DoctorModel struct {
 	err        string
 	tip        string
 	loading    bool
-	fixing    bool
+	fixing     bool
 	cursor     int
 	pendingFix string
 	confirm    ConfirmModel
@@ -290,41 +290,43 @@ func (m DoctorModel) View() string {
 		b.WriteString(styleMuted.Render("applying fix…"))
 		b.WriteString("\n")
 	case m.err != "":
-		b.WriteString(styleMuted.Render("error: " + m.err))
+		b.WriteString(styleFail.Render("error: " + m.err))
 		b.WriteString("\n")
 	case len(m.report.Checks) == 0:
 		b.WriteString(styleMuted.Render("no checks"))
 		b.WriteString("\n")
 	default:
 		for i, c := range m.report.Checks {
-			status := "PASS"
-			if !c.OK {
-				status = "FAIL"
-			}
 			marker := "  "
 			if i == m.cursor {
-				marker = "> "
+				marker = styleAccent.Render("> ")
 			}
-			line := fmt.Sprintf("%s[%s] %s: %s", marker, status, c.Name, c.Detail)
-			if c.OK {
-				b.WriteString(styleSummary.Render(line))
-			} else {
-				b.WriteString(styleAccent.Render(line))
+			status := styleSuccess.Render("[PASS]")
+			if !c.OK {
+				status = styleFail.Render("[FAIL]")
 			}
+			detail := fmt.Sprintf("%s: %s", c.Name, c.Detail)
+			if i == m.cursor {
+				detail = styleSelected.Render(detail)
+			}
+			b.WriteString(marker)
+			b.WriteString(status)
+			b.WriteString(" ")
+			b.WriteString(detail)
 			b.WriteString("\n")
 		}
 		b.WriteString("\n")
 		if m.report.OK() {
-			b.WriteString(styleSummary.Render("All checks passed."))
+			b.WriteString(styleSuccess.Render("All checks passed."))
 		} else {
-			b.WriteString(styleAccent.Render("Doctor found problems."))
+			b.WriteString(styleFail.Render("Doctor found problems."))
 		}
 		b.WriteString("\n")
 	}
 
 	if tip := strings.TrimSpace(m.tip); tip != "" {
 		b.WriteString("\n")
-		b.WriteString(styleMuted.Render("tip: " + tip))
+		b.WriteString(styleWarning.Render("tip: " + tip))
 		b.WriteString("\n")
 	}
 

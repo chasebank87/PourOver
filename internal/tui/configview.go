@@ -247,7 +247,7 @@ func (m ConfigModel) View() string {
 	}
 	if m.err != "" && !m.busy {
 		b.WriteString("\n")
-		b.WriteString(styleAccent.Render("error: " + m.err))
+		b.WriteString(styleFail.Render("error: " + m.err))
 		b.WriteString("\n")
 	}
 
@@ -299,7 +299,7 @@ func (m ConfigModel) renderStatus() string {
 	b.WriteString("\n")
 
 	if tip := strings.TrimSpace(m.status.GitSetupTip); tip != "" {
-		b.WriteString(styleMuted.Render("tip: " + tip))
+		b.WriteString(styleWarning.Render("tip: " + tip))
 		b.WriteString("\n")
 	}
 	return b.String()

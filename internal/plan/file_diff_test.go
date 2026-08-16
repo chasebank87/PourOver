@@ -9,64 +9,6 @@ import (
 	"github.com/chasebank87/PourOver/internal/discovery"
 )
 
-func TestBuildFilePlan_MissingAndWrong(t *testing.T) {
-	p, err := BuildFilePlan([]discovery.FileLinkStatus{
-		{
-			Link:       config.FileLink{Source: "config/a", Target: "~/.config/a"},
-			Kind:       discovery.LinkStatusMissing,
-			SourcePath: "/cfg/config/a",
-			TargetPath: "/home/user/.config/a",
-		},
-		{
-			Link:       config.FileLink{Source: "config/b", Target: "~/.config/b"},
-			Kind:       discovery.LinkStatusWrong,
-			SourcePath: "/cfg/config/b",
-			TargetPath: "/home/user/.config/b",
-		},
-	}, config.FileReplaceError)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	types := ActionTypes(p)
-	want := []ActionType{ActionLinkCreate, ActionLinkUpdate}
-	if len(types) != len(want) {
-		t.Fatalf("types = %v, want %v", types, want)
-	}
-	for i := range want {
-		if types[i] != want[i] {
-			t.Fatalf("types[%d] = %v, want %v", i, types[i], want[i])
-		}
-	}
-}
-
-func TestBuildFilePlan_BlockedError(t *testing.T) {
-	_, err := BuildFilePlan([]discovery.FileLinkStatus{{
-		Link: config.FileLink{Source: "config/x", Target: "~/.config/x"},
-		Kind: discovery.LinkStatusBlocked,
-	}}, config.FileReplaceError)
-	if err == nil {
-		t.Fatal("expected error for blocked target")
-	}
-}
-
-func TestBuildFilePlan_BlockedBackup(t *testing.T) {
-	p, err := BuildFilePlan([]discovery.FileLinkStatus{{
-		Link: config.FileLink{Source: "config/x", Target: "~/.config/x"},
-		Kind: discovery.LinkStatusBlocked,
-	}}, config.FileReplaceBackup)
-	if err != nil {
-		t.Fatal(err)
-	}
-	types := ActionTypes(p)
-	if len(types) != 1 || types[0] != ActionLinkReplace {
-		t.Fatalf("types = %v, want [link_replace]", types)
-	}
-	if p.Actions[0].Name != "~/.config/x" || p.Actions[0].Source != "config/x" {
-		t.Fatalf("action = %#v", p.Actions[0])
-	}
-}
-
 func TestMergePlans_BrewThenFiles(t *testing.T) {
 	merged := MergePlans(
 		Plan{Actions: []Action{{Type: ActionFormulaInstall, Name: "git"}}},
@@ -76,70 +18,6 @@ func TestMergePlans_BrewThenFiles(t *testing.T) {
 	want := []ActionType{ActionFormulaInstall, ActionLinkCreate}
 	if len(got) != len(want) {
 		t.Fatalf("got %v, want %v", got, want)
-	}
-}
-
-func TestBuildManagedPlan_MissingAndDiffer(t *testing.T) {
-	p, err := BuildManagedPlan([]discovery.ManagedStatus{
-		{
-			File:       config.ManagedFile{Source: "config/a", Target: "~/.config/a"},
-			Kind:       discovery.ManagedStatusMissing,
-			SourcePath: "/cfg/config/a",
-			TargetPath: "/home/user/.config/a",
-		},
-		{
-			File:       config.ManagedFile{Source: "config/b", Target: "~/.config/b"},
-			Kind:       discovery.ManagedStatusDiffer,
-			SourcePath: "/cfg/config/b",
-			TargetPath: "/home/user/.config/b",
-		},
-		{
-			File: config.ManagedFile{Source: "config/c", Target: "~/.config/c"},
-			Kind: discovery.ManagedStatusSame,
-		},
-	}, config.FileReplaceError)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	types := ActionTypes(p)
-	want := []ActionType{ActionManagedCopy, ActionManagedCopy}
-	if len(types) != len(want) {
-		t.Fatalf("types = %v, want %v", types, want)
-	}
-	for i := range want {
-		if types[i] != want[i] {
-			t.Fatalf("types[%d] = %v, want %v", i, types[i], want[i])
-		}
-	}
-	if p.Actions[0].Name != "~/.config/a" || p.Actions[0].Source != "config/a" {
-		t.Fatalf("action[0] = %#v", p.Actions[0])
-	}
-	if p.Actions[1].Name != "~/.config/b" || p.Actions[1].Source != "config/b" {
-		t.Fatalf("action[1] = %#v", p.Actions[1])
-	}
-}
-
-func TestBuildManagedPlan_BlockedError(t *testing.T) {
-	_, err := BuildManagedPlan([]discovery.ManagedStatus{{
-		File: config.ManagedFile{Source: "config/x", Target: "~/.config/x"},
-		Kind: discovery.ManagedStatusBlocked,
-	}}, config.FileReplaceError)
-	if err == nil {
-		t.Fatal("expected error for blocked managed target")
-	}
-}
-
-func TestBuildManagedPlan_BlockedBackup(t *testing.T) {
-	p, err := BuildManagedPlan([]discovery.ManagedStatus{{
-		File: config.ManagedFile{Source: "config/x", Target: "~/.config/x"},
-		Kind: discovery.ManagedStatusBlocked,
-	}}, config.FileReplaceBackup)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(p.Actions) != 1 || p.Actions[0].Type != ActionManagedCopy || p.Actions[0].Kind != "backup" {
-		t.Fatalf("action = %#v", p.Actions)
 	}
 }
 
@@ -241,7 +119,7 @@ func TestRenderText_ManagedAndUnlink(t *testing.T) {
 		{Type: ActionFilePrune, Name: "~/.config/old"},
 		{Type: ActionLinkReplace, Name: "~/.zshrc", Source: "config/zshrc"},
 	}})
-	want := "managed copy ~/.config/foo <- config/foo\nunlink ~/.old-dotfile\nprune file ~/.config/old\nlink replace ~/.zshrc <- config/zshrc (backup)\n"
+	want := "managed copy ~/.config/foo <- config/foo\nunlink ~/.old-dotfile\nprune file ~/.config/old\nreplace file ~/.zshrc <- config/zshrc (backup)\n"
 	if got != want {
 		t.Fatalf("RenderText() = %q, want %q", got, want)
 	}

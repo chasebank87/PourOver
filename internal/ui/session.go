@@ -11,21 +11,21 @@ import (
 
 // Summary holds final apply/upgrade counts for Finish.
 type Summary struct {
-	Taps     int
-	Formulae int
-	Casks    int
-	Mas      int
-	Removed  int
-	Upgraded int
-	Defaults int
-	Linked   int
+	Taps      int
+	Formulae  int
+	Casks     int
+	Mas       int
+	Removed   int
+	Upgraded  int
+	Defaults  int
+	Linked    int
 	Managed   int
 	Templates int
 	Unlinked  int
-	Pruned   int
-	Skipped  int
-	Renames  int
-	Failures int
+	Pruned    int
+	Skipped   int
+	Renames   int
+	Failures  int
 }
 
 // Session renders a PourOver header, one live progress line, and streams brew
@@ -187,7 +187,7 @@ func (s *Session) Finish(sum Summary) {
 		fmt.Fprintln(s.out, styleOK.Render(fmt.Sprintf("☕ Updated %d macOS default(s).", sum.Defaults)))
 	}
 	if sum.Linked > 0 {
-		fmt.Fprintln(s.out, styleOK.Render(fmt.Sprintf("☕ Updated %d file link(s).", sum.Linked)))
+		fmt.Fprintln(s.out, styleOK.Render(fmt.Sprintf("☕ Updated %d file(s).", sum.Linked)))
 	}
 	if sum.Managed > 0 {
 		fmt.Fprintln(s.out, styleOK.Render(fmt.Sprintf("☕ Copied %d managed file(s).", sum.Managed)))
@@ -202,7 +202,7 @@ func (s *Session) Finish(sum Summary) {
 		fmt.Fprintln(s.out, styleOK.Render(fmt.Sprintf("☕ Pruned %d owned file(s).", sum.Pruned)))
 	}
 	if sum.Skipped > 0 {
-		fmt.Fprintln(s.out, styleMuted.Render(fmt.Sprintf("☕ Skipped %d unsupported action(s).", sum.Skipped)))
+		fmt.Fprintln(s.out, styleWarning.Render(fmt.Sprintf("☕ Skipped %d unsupported action(s).", sum.Skipped)))
 	}
 	if sum.Failures > 0 {
 		fmt.Fprintln(s.out, styleFail.Render(fmt.Sprintf("☕ %d action(s) failed.", sum.Failures)))

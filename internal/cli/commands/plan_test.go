@@ -87,10 +87,7 @@ func TestBuildPlan_FromFixture(t *testing.T) {
 	}
 
 	runner := &stubBrewRunner{formulae: "git\n", casks: "raycast\n"}
-	p, err := buildPlan(context.Background(), configPath, runner)
-	if err != nil {
-		t.Fatalf("buildPlan: %v", err)
-	}
+	p, _ := isolatedPlan(t, configPath, runner)
 	if names := plan.ActionNames(p, plan.ActionFormulaInstall); len(names) != 1 || names[0] != "fzf" {
 		t.Fatalf("formula installs = %v", names)
 	}

@@ -5,12 +5,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/chasebank87/PourOver/internal/config"
 	"github.com/chasebank87/PourOver/internal/discovery"
 	"github.com/chasebank87/PourOver/internal/engine"
 	"github.com/chasebank87/PourOver/internal/paths"
@@ -161,41 +162,30 @@ func runApplyFlow(
 	send func(tea.Msg),
 	sendDone func(string, error),
 ) {
-	p, err := engine.BuildPlan(ctx, m.configPath, runner)
+	stateDir, err := paths.DefaultStateDir()
 	if err != nil {
 		sendDone("", err)
 		return
 	}
-	manifest, mode, stateDir, prepErr := prepareFinalize(m.configPath)
-	if prepErr != nil {
-		sendDone("", prepErr)
+	res, err := engine.BuildPlanResult(ctx, m.configPath, runner, discovery.NewExecDefaultsRunner(), nil, stateDir, time.Now())
+	if err != nil {
+		sendDone("", err)
 		return
 	}
-	result, applyErr := engine.Apply(ctx, runner, p, engine.ApplyOptions{
-		ConfigPath:  m.configPath,
-		ConfigDir:   filepath.Dir(m.configPath),
-		StateDir:    stateDir,
-		Mode:        mode,
-		FileReplace: policy.ResolveFileReplaceFromManifest(manifest),
-		FilesMode:   policy.ResolveFilesModeFromManifest(manifest),
-		AutoYes:     false,
-		Progress:    progress,
-		Confirm:     m.confirmer,
-		Stdout:      brewLog,
-		Stderr:      brewLog,
-		OnPhase: func(phase string) {
-			send(phaseMsg{phase: phase})
-		},
-		BeforeAuth: func() {
+	result, applyErr := engine.Apply(ctx, runner, res.Plan, applyOptsFromPlan(
+		m.configPath, res, stateDir, progress, m.confirmer, brewLog, brewLog,
+		func(phase string) { send(phaseMsg{phase: phase}) },
+		func() {
 			send(progressLineMsg{line: "authentication required — enter your password if prompted"})
 		},
-	})
+	))
 	finalErr := engine.FinalizeApply(engine.FinalizeOptions{
-		StateDir:    stateDir,
-		ConfigDir:   filepath.Dir(m.configPath),
-		Manifest:    manifest,
-		PrunedPaths: result.PrunedPaths,
-	}, p, applyErr)
+		StateDir:     stateDir,
+		ConfigDir:    filepath.Dir(m.configPath),
+		Manifest:     res.Manifest,
+		GenerationID: res.GenerationID,
+		PrunedPaths:  result.PrunedPaths,
+	}, res.Plan, applyErr)
 	// Skip maybeAutoPushConfig in TUI (Phase 2 config screens).
 	sendDone(formatApplySummary(result), finalErr)
 }
@@ -221,55 +211,60 @@ func runUpgradeFlow(
 		Stderr:   brewLog,
 	})
 
-	applyPlan, err := engine.BuildPlan(ctx, m.configPath, runner)
+	stateDir, err := paths.DefaultStateDir()
 	if err != nil {
 		sendDone(formatUpgradeSummary(upResult), errors.Join(upErr, err))
 		return
 	}
-	manifest, mode, stateDir, prepErr := prepareFinalize(m.configPath)
-	if prepErr != nil {
-		sendDone(formatUpgradeSummary(upResult), errors.Join(upErr, prepErr))
+	res, err := engine.BuildPlanResult(ctx, m.configPath, runner, discovery.NewExecDefaultsRunner(), nil, stateDir, time.Now())
+	if err != nil {
+		sendDone(formatUpgradeSummary(upResult), errors.Join(upErr, err))
 		return
 	}
 	send(phaseMsg{phase: "apply"})
-	applyResult, applyErr := engine.Apply(ctx, runner, applyPlan, engine.ApplyOptions{
-		ConfigPath:  m.configPath,
-		ConfigDir:   filepath.Dir(m.configPath),
-		StateDir:    stateDir,
-		Mode:        mode,
-		FileReplace: policy.ResolveFileReplaceFromManifest(manifest),
-		FilesMode:   policy.ResolveFilesModeFromManifest(manifest),
-		AutoYes:     false,
-		Progress:    progress,
-		Confirm:     m.confirmer,
-		Stdout:      brewLog,
-		Stderr:      brewLog,
-		OnPhase: func(phase string) {
-			send(phaseMsg{phase: phase})
-		},
-	})
+	applyResult, applyErr := engine.Apply(ctx, runner, res.Plan, applyOptsFromPlan(
+		m.configPath, res, stateDir, progress, m.confirmer, brewLog, brewLog,
+		func(phase string) { send(phaseMsg{phase: phase}) },
+		nil,
+	))
 	finalErr := engine.FinalizeApply(engine.FinalizeOptions{
-		StateDir:    stateDir,
-		ConfigDir:   filepath.Dir(m.configPath),
-		Manifest:    manifest,
-		PrunedPaths: applyResult.PrunedPaths,
-	}, applyPlan, applyErr)
+		StateDir:     stateDir,
+		ConfigDir:    filepath.Dir(m.configPath),
+		Manifest:     res.Manifest,
+		GenerationID: res.GenerationID,
+		PrunedPaths:  applyResult.PrunedPaths,
+	}, res.Plan, applyErr)
 	// Skip maybeAutoPushConfig in TUI (Phase 2 config screens).
 	summary := joinSummaries(formatUpgradeSummary(upResult), formatApplySummary(applyResult))
 	sendDone(summary, errors.Join(upErr, finalErr))
 }
 
-func prepareFinalize(configPath string) (config.Manifest, config.UninstallMode, string, error) {
-	manifest, err := config.LoadManifest(configPath)
-	if err != nil {
-		return config.Manifest{}, "", "", fmt.Errorf("load config: %w", err)
+func applyOptsFromPlan(
+	configPath string,
+	res engine.PlanResult,
+	stateDir string,
+	progress engine.Progress,
+	confirm engine.Confirmer,
+	stdout, stderr io.Writer,
+	onPhase func(string),
+	beforeAuth func(),
+) engine.ApplyOptions {
+	return engine.ApplyOptions{
+		ConfigPath:   configPath,
+		ConfigDir:    filepath.Dir(configPath),
+		StateDir:     stateDir,
+		GenerationID: res.GenerationID,
+		Mode:         policy.ResolveModeFromManifest(res.Manifest),
+		FileReplace:  policy.ResolveFileReplaceFromManifest(res.Manifest),
+		FilesMode:    policy.ResolveFilesModeFromManifest(res.Manifest),
+		AutoYes:      false,
+		Progress:     progress,
+		Confirm:      confirm,
+		Stdout:       stdout,
+		Stderr:       stderr,
+		OnPhase:      onPhase,
+		BeforeAuth:   beforeAuth,
 	}
-	mode := policy.ResolveModeFromManifest(manifest)
-	stateDir, err := paths.DefaultStateDir()
-	if err != nil {
-		return manifest, mode, "", err
-	}
-	return manifest, mode, stateDir, nil
 }
 
 func joinSummaries(parts ...string) string {
@@ -374,11 +369,11 @@ func (m RunModel) View() string {
 	if m.done {
 		b.WriteString("\n")
 		if m.summary != "" {
-			b.WriteString(styleSummary.Render(m.summary))
+			b.WriteString(runSummaryStyle(m.summary).Render(m.summary))
 			b.WriteString("\n")
 		}
 		if m.err != "" {
-			b.WriteString(styleMuted.Render("error: " + m.err))
+			b.WriteString(styleFail.Render("error: " + m.err))
 			b.WriteString("\n")
 		}
 		b.WriteString("\n")
@@ -411,7 +406,7 @@ func formatApplySummary(r engine.ApplyResult) string {
 	add(r.Mas, "mas app", "mas apps")
 	add(r.Removed, "removed", "removed")
 	add(r.Defaults, "default", "defaults")
-	add(r.Linked, "link", "links")
+	add(r.Linked, "file", "files")
 	add(r.Managed, "managed copy", "managed copies")
 	add(r.Templates, "template", "templates")
 	add(r.Unlinked, "unlink", "unlinks")

@@ -9,6 +9,7 @@ import (
 	"github.com/chasebank87/PourOver/internal/discovery"
 	"github.com/chasebank87/PourOver/internal/engine"
 	"github.com/chasebank87/PourOver/internal/plan"
+	"github.com/chasebank87/PourOver/internal/ui"
 )
 
 // PlanModel shows the current reconcile plan / drift list.
@@ -93,7 +94,12 @@ func (m PlanModel) View() string {
 	b.WriteString("\n")
 
 	n := len(m.plan.Actions)
-	b.WriteString(styleSummary.Render(fmt.Sprintf("Plan — %d action(s)", n)))
+	header := fmt.Sprintf("Plan — %d action(s)", n)
+	if n == 0 {
+		b.WriteString(styleSuccess.Render(header))
+	} else {
+		b.WriteString(styleWarning.Render(header))
+	}
 	b.WriteString("\n\n")
 
 	switch {
@@ -101,14 +107,17 @@ func (m PlanModel) View() string {
 		b.WriteString(styleMuted.Render("loading plan…"))
 		b.WriteString("\n")
 	case m.err != "":
-		b.WriteString(styleMuted.Render("error: " + m.err))
+		b.WriteString(styleFail.Render("error: " + m.err))
 		b.WriteString("\n")
 	case n == 0:
-		b.WriteString(styleSummary.Render("in sync."))
+		b.WriteString(styleSuccess.Render("in sync."))
 		b.WriteString("\n")
 	default:
-		b.WriteString(strings.TrimRight(plan.RenderText(m.plan), "\n"))
-		b.WriteString("\n")
+		for _, a := range m.plan.Actions {
+			line := strings.TrimSuffix(plan.RenderText(plan.Plan{Actions: []plan.Action{a}}), "\n")
+			b.WriteString(ui.PlanActionStyle(a).Render(line))
+			b.WriteString("\n")
+		}
 	}
 
 	if m.status != "" {

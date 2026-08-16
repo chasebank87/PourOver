@@ -294,9 +294,9 @@ func (m HomeModel) View() string {
 	b.WriteString("\n\n")
 	b.WriteString(styleMuted.Render("config: " + m.configPath))
 	b.WriteString("\n")
-	b.WriteString(styleSummary.Render(m.driftLine))
+	b.WriteString(renderHomeStatus(m.driftLine))
 	b.WriteString("\n")
-	b.WriteString(styleSummary.Render(m.doctorLine))
+	b.WriteString(renderHomeStatus(m.doctorLine))
 	b.WriteString("\n\n")
 
 	for i, item := range m.items {
@@ -317,4 +317,17 @@ func (m HomeModel) View() string {
 	b.WriteString(styleMuted.Render("↑/↓ or j/k · enter · q quit"))
 	b.WriteString("\n")
 	return b.String()
+}
+
+func renderHomeStatus(line string) string {
+	switch {
+	case strings.Contains(line, "in sync"), strings.Contains(line, "doctor: ok"):
+		return styleSuccess.Render(line)
+	case strings.Contains(line, "config missing"), strings.Contains(line, "error"):
+		return styleFail.Render(line)
+	case strings.Contains(line, "action(s)"), strings.Contains(line, "issue"):
+		return styleWarning.Render(line)
+	default:
+		return styleMuted.Render(line)
+	}
 }

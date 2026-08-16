@@ -3,6 +3,7 @@ package generation_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -87,6 +88,50 @@ func TestBuild_ExpandsDirectoryLink(t *testing.T) {
 	}
 	if len(res.Manifest.Files) != 2 {
 		t.Fatalf("files = %d, want 2: %+v", len(res.Manifest.Files), res.Manifest.Files)
+	}
+}
+
+func TestBuild_SkipsJunkFilesInDirectoryLink(t *testing.T) {
+	configDir := t.TempDir()
+	stateDir := t.TempDir()
+	srcDir := filepath.Join(configDir, "config", "blackbird")
+	if err := os.MkdirAll(filepath.Join(srcDir, "epm-dashboard", ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(srcDir, "init.lua"), []byte("-- ok\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(srcDir, ".DS_Store"), []byte("junk"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(srcDir, "epm-dashboard", ".DS_Store"), []byte("junk"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(srcDir, "epm-dashboard", "app.txt"), []byte("app\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(srcDir, "epm-dashboard", ".git", "HEAD"), []byte("ref\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	targetRoot := filepath.Join(t.TempDir(), "blackbird")
+
+	m := config.Manifest{
+		Files: config.Files{
+			Links: []config.FileLink{{Source: "config/blackbird", Target: targetRoot}},
+		},
+	}
+	res, err := generation.Build(stateDir, configDir, m, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Manifest.Files) != 2 {
+		t.Fatalf("files = %d, want 2 (junk skipped): %+v", len(res.Manifest.Files), res.Manifest.Files)
+	}
+	for _, e := range res.Manifest.Files {
+		base := filepath.Base(e.Target)
+		if base == ".DS_Store" || strings.Contains(e.Source, ".git") {
+			t.Fatalf("junk entry in generation: %+v", e)
+		}
 	}
 }
 

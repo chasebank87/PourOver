@@ -13,22 +13,22 @@ type Progress func(line string)
 
 // ApplyOptions configures a reconcile apply run.
 type ApplyOptions struct {
-	ConfigPath  string
-	ConfigDir   string               // for file links; defaults to dirname(ConfigPath)
-	StateDir    string               // for file backup-on-replace
-	Mode        config.UninstallMode // empty → resolve from manifest
-	FileReplace config.FileReplaceMode
-	FilesMode   config.FilesMode // empty → resolve from manifest (callers should set)
-	AutoYes     bool
-	Quiet       bool
-	DryRun      bool
-	Progress    Progress
-	Confirm     Confirmer
-	OnPhase     func(phase string) // optional; called before each mutation phase
-	Stdout      io.Writer          // optional; brew/mas log sink
-	Stderr      io.Writer
-	Now         func() time.Time // optional; timestamps for file backups
-	GenerationID string // activation generation for file blob payloads
+	ConfigPath   string
+	ConfigDir    string               // for declared files; defaults to dirname(ConfigPath)
+	StateDir     string               // for file backup-on-replace
+	Mode         config.UninstallMode // empty → resolve from manifest
+	FileReplace  config.FileReplaceMode
+	FilesMode    config.FilesMode // empty → resolve from manifest (callers should set)
+	AutoYes      bool
+	Quiet        bool
+	DryRun       bool
+	Progress     Progress
+	Confirm      Confirmer
+	OnPhase      func(phase string) // optional; called before each mutation phase
+	Stdout       io.Writer          // optional; brew/mas log sink
+	Stderr       io.Writer
+	Now          func() time.Time // optional; timestamps for file backups
+	GenerationID string           // activation generation for file blob payloads
 	// MasRunner executes mas CLI mutations (nil → NewExecMasRunner).
 	MasRunner discovery.MasRunner
 	// PAMSudoLocalPath / PAMSudoPath override /etc/pam.d paths (tests inject temp dirs).

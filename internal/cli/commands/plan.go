@@ -20,6 +20,8 @@ func NewPlanCmd() *cobra.Command {
 	}
 }
 
+// buildPlan is the CLI helper (live DefaultStateDir). Tests must use isolatedPlan
+// so an empty files.links fixture cannot prune the host's owned files.
 func buildPlan(ctx context.Context, configPath string, runner discovery.Runner) (plan.Plan, error) {
 	return engine.BuildPlan(ctx, configPath, runner)
 }

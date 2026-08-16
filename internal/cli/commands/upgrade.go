@@ -69,8 +69,7 @@ func runUpgrade(cmd *cobra.Command, dryRun, autoYes, skipSelf, quiet bool) error
 	}
 
 	runner := discovery.NewExecRunner()
-	manifest, err := config.LoadManifest(configPath)
-	if err != nil {
+	if _, err := config.LoadManifest(configPath); err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
 	upgradePlan, err := engine.BuildUpgradePlan(cmd.Context(), configPath, runner, nil)
@@ -126,25 +125,26 @@ func runUpgrade(cmd *cobra.Command, dryRun, autoYes, skipSelf, quiet bool) error
 		}
 	}
 
-	applyPlan, err := buildPlan(cmd.Context(), configPath, runner)
-	if err != nil {
-		return errors.Join(upgradeErr, err)
-	}
 	stateDir, err := paths.DefaultStateDir()
 	if err != nil {
 		return errors.Join(upgradeErr, err)
 	}
-	opts := applyOptions{
-		mode:       policy.ResolveModeFromManifest(manifest),
-		autoYes:    autoYes,
-		quiet:      quiet,
-		configPath: configPath,
-		configDir:  filepath.Dir(configPath),
-		stateDir:   stateDir,
-		manifest:   manifest,
-		now:        time.Now,
+	applyRes, err := engine.BuildPlanResult(cmd.Context(), configPath, runner, discovery.NewExecDefaultsRunner(), nil, stateDir, time.Now())
+	if err != nil {
+		return errors.Join(upgradeErr, err)
 	}
-	return errors.Join(upgradeErr, executeApply(cmd, runner, applyPlan, opts))
+	opts := applyOptions{
+		mode:         policy.ResolveModeFromManifest(applyRes.Manifest),
+		autoYes:      autoYes,
+		quiet:        quiet,
+		configPath:   configPath,
+		configDir:    filepath.Dir(configPath),
+		stateDir:     stateDir,
+		manifest:     applyRes.Manifest,
+		generationID: applyRes.GenerationID,
+		now:          time.Now,
+	}
+	return errors.Join(upgradeErr, executeApply(cmd, runner, applyRes.Plan, opts))
 }
 
 // buildUpgradePlanForTest is used by tests with a custom runner.

@@ -92,7 +92,8 @@ func TestBuildPlan_FromFixture(t *testing.T) {
 	}
 
 	runner := &stubBrewRunner{formulae: "git\n", casks: "raycast\n"}
-	p, err := BuildPlan(context.Background(), configPath, runner)
+	stateDir := filepath.Join(root, "state")
+	p, err := BuildPlanWith(context.Background(), configPath, runner, discovery.NewExecDefaultsRunner(), nil, stateDir)
 	if err != nil {
 		t.Fatalf("BuildPlan: %v", err)
 	}
@@ -278,7 +279,7 @@ func TestBuildPlanWith_MasInstallAndImpliedFormula(t *testing.T) {
 
 	brew := &stubBrewRunner{}
 	mas := &stubMasRunner{list: ""}
-	p, err := BuildPlanWith(context.Background(), configPath, brew, discovery.NewExecDefaultsRunner(), mas, "")
+	p, err := BuildPlanWith(context.Background(), configPath, brew, discovery.NewExecDefaultsRunner(), mas, filepath.Join(root, "state"))
 	if err != nil {
 		t.Fatalf("BuildPlanWith: %v", err)
 	}
@@ -319,7 +320,7 @@ func TestBuildPlanWith_MasSkippedWhenUnconfigured(t *testing.T) {
 
 	brew := &stubBrewRunner{}
 	mas := &stubMasRunner{err: fmt.Errorf("mas should not be called")}
-	p, err := BuildPlanWith(context.Background(), configPath, brew, discovery.NewExecDefaultsRunner(), mas, "")
+	p, err := BuildPlanWith(context.Background(), configPath, brew, discovery.NewExecDefaultsRunner(), mas, filepath.Join(root, "state"))
 	if err != nil {
 		t.Fatalf("BuildPlanWith: %v", err)
 	}
@@ -354,7 +355,7 @@ func TestBuildPlanWith_MasBinaryMissingContinuesBootstrap(t *testing.T) {
 	brew := &stubBrewRunner{}
 	// Simulate os/exec when mas is not on PATH (bootstrap before brew installs mas).
 	mas := &stubMasRunner{err: &exec.Error{Name: "mas", Err: exec.ErrNotFound}}
-	p, err := BuildPlanWith(context.Background(), configPath, brew, discovery.NewExecDefaultsRunner(), mas, "")
+	p, err := BuildPlanWith(context.Background(), configPath, brew, discovery.NewExecDefaultsRunner(), mas, filepath.Join(root, "state"))
 	if err != nil {
 		t.Fatalf("BuildPlanWith: %v (want continue when mas binary missing)", err)
 	}
@@ -388,7 +389,7 @@ func TestBuildPlanWith_MasDiscoverOtherErrorFails(t *testing.T) {
 
 	brew := &stubBrewRunner{}
 	mas := &stubMasRunner{err: fmt.Errorf("mas list: exit status 1")}
-	_, err := BuildPlanWith(context.Background(), configPath, brew, discovery.NewExecDefaultsRunner(), mas, "")
+	_, err := BuildPlanWith(context.Background(), configPath, brew, discovery.NewExecDefaultsRunner(), mas, filepath.Join(root, "state"))
 	if err == nil {
 		t.Fatal("BuildPlanWith: want error for non-missing mas failure")
 	}

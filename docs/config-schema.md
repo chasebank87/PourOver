@@ -55,7 +55,7 @@ packages = {
 
 | Key | Type | Status | Description |
 |-----|------|--------|-------------|
-| `links` | array of tables | **supported** | Symlinks: `source` → `target` |
+| `links` | array of tables | **supported** | Declared files: `source` → `target` (activated as regular file copies) |
 | `managed` | array of tables | **supported** (V2 Phase 3) | Copy source → target (`source`, `target`) |
 | `templates` | array of tables | **supported** (V2 Phase 5) | Render text/template source → target (`source`, `target`) |
 | `unlink` | array of strings | **supported** (V2 Phase 3) | Target paths to remove when safe (`~` ok) |

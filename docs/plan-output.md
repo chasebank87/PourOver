@@ -41,8 +41,9 @@ install formula fzf
 remove cask slack
 cask renamed: windsurf →devin-desktop (update packages.lua)
 defaults write com.apple.dock autohide = true
-link create ~/.config/nvim <- config/nvim
-link replace ~/.zshrc <- config/zshrc (backup)
+create file ~/.config/nvim <- config/nvim
+update file ~/.zshrc <- config/home/zshrc
+replace file ~/.zshrc <- config/zshrc (backup)
 managed copy ~/.config/foo <- config/foo
 template write ~/.config/foo <- config/foo.tmpl
 unlink ~/.old-dotfile
@@ -51,7 +52,7 @@ prune file ~/.config/old
 
 `cask_rename` is advisory only (apply does not mutate); replace the old token in config with the new name.
 
-`link_replace` appears when `policy.file_replace` is `backup` (or `force`) and the target is an unexpected type (e.g. a directory); apply moves the target under `state/backups/files/` then writes a **regular file** from the generation blob. Legacy PourOver symlinks are planned as `link_update` and replaced with regular files on apply.
+`link_replace` appears when `policy.file_replace` is `backup` (or `force`) and the target is an unexpected type (e.g. a directory); apply moves the target under `state/backups/files/` then writes a **regular file** from the generation blob. Text output is `replace file … (backup)`. Content drift and legacy PourOver symlinks are planned as `link_update` (`update file` in text) and written as regular files on apply. Missing targets are `link_create` (`create file`).
 
 `managed_copy` and `file_unlink` appear in the plan when discovered; apply copies atomically and unlinks with directory safeguards. Managed copies against unexpected target types (e.g. directories) require `file_replace = "backup"` and are labeled `(backup)` in text output.
 

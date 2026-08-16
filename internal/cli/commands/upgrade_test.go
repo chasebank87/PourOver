@@ -63,10 +63,7 @@ func TestUpgradeDryRun_MergesPlans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ap, err := buildPlan(context.Background(), configPath, runner)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ap, _ := isolatedPlan(t, configPath, runner)
 	combined := plan.MergePlans(up, ap)
 	types := plan.ActionTypes(combined)
 	if len(types) < 2 || types[0] != plan.ActionFormulaUpgrade || types[1] != plan.ActionFormulaInstall {

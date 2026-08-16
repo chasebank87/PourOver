@@ -148,20 +148,20 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 
 	if session != nil {
 		session.Finish(ui.Summary{
-			Taps:     result.Taps,
-			Formulae: result.Formulae,
-			Casks:    result.Casks,
-			Mas:      result.Mas,
-			Removed:  result.Removed,
-			Defaults: result.Defaults,
-			Linked:   result.Linked,
+			Taps:      result.Taps,
+			Formulae:  result.Formulae,
+			Casks:     result.Casks,
+			Mas:       result.Mas,
+			Removed:   result.Removed,
+			Defaults:  result.Defaults,
+			Linked:    result.Linked,
 			Managed:   result.Managed,
 			Templates: result.Templates,
 			Unlinked:  result.Unlinked,
-			Pruned:   result.Pruned,
-			Renames:  result.Renames,
-			Skipped:  result.Skipped,
-			Failures: result.Failures,
+			Pruned:    result.Pruned,
+			Renames:   result.Renames,
+			Skipped:   result.Skipped,
+			Failures:  result.Failures,
 		})
 		printCaskRenameAdvice(out, renames)
 		printUnsupportedActions(out, skipped)
@@ -185,7 +185,7 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 			fmt.Fprintf(out, "Updated %d macOS default(s).\n", result.Defaults)
 		}
 		if result.Linked > 0 {
-			fmt.Fprintf(out, "Updated %d file link(s).\n", result.Linked)
+			fmt.Fprintf(out, "Updated %d file(s).\n", result.Linked)
 		}
 		if result.Managed > 0 {
 			fmt.Fprintf(out, "Copied %d managed file(s).\n", result.Managed)
@@ -226,17 +226,31 @@ func printCaskRenameAdvice(out io.Writer, renames []plan.Action) {
 	if len(renames) == 0 {
 		return
 	}
+	fancy := ui.Enabled(out, false)
 	for _, a := range renames {
 		line := strings.TrimSuffix(plan.RenderText(plan.Plan{Actions: []plan.Action{a}}), "\n")
-		fmt.Fprintf(out, "  %s\n", line)
+		line = "  " + line
+		if fancy {
+			line = ui.Warning().Render(line)
+		}
+		fmt.Fprintln(out, line)
 	}
-	fmt.Fprintf(out, "☕ Update packages.lua to use the new cask names (%d).\n", len(renames))
+	note := fmt.Sprintf("☕ Update packages.lua to use the new cask names (%d).", len(renames))
+	if fancy {
+		note = ui.Warning().Render(note)
+	}
+	fmt.Fprintln(out, note)
 }
 
 func printUnsupportedActions(out io.Writer, skipped []plan.Action) {
+	fancy := ui.Enabled(out, false)
 	for _, a := range skipped {
 		line := strings.TrimSuffix(plan.RenderText(plan.Plan{Actions: []plan.Action{a}}), "\n")
-		fmt.Fprintf(out, "  %s\n", line)
+		line = "  " + line
+		if fancy {
+			line = ui.Warning().Render(line)
+		}
+		fmt.Fprintln(out, line)
 	}
 }
 

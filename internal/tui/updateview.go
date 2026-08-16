@@ -98,7 +98,7 @@ func (m SelfUpdateModel) View() string {
 		b.WriteString(styleMuted.Render("checking for updates…"))
 		b.WriteString("\n")
 	case m.err != "":
-		b.WriteString(styleMuted.Render("error: " + m.err))
+		b.WriteString(styleFail.Render("error: " + m.err))
 		b.WriteString("\n")
 	case m.done:
 		b.WriteString(styleSummary.Render(formatSelfUpdateResult(m.result)))

@@ -176,7 +176,7 @@ func (m HistoryModel) View() string {
 		b.WriteString(styleMuted.Render("loading history…"))
 		b.WriteString("\n")
 	case m.err != "":
-		b.WriteString(styleMuted.Render("error: " + m.err))
+		b.WriteString(styleFail.Render("error: " + m.err))
 		b.WriteString("\n")
 	case len(m.entries) == 0:
 		b.WriteString(styleMuted.Render("no history"))
@@ -212,7 +212,12 @@ func (m HistoryModel) renderDetail() string {
 	if !e.Success {
 		status = "FAIL"
 	}
-	b.WriteString(styleSummary.Render(fmt.Sprintf("[%s] %s", status, e.Timestamp)))
+	statusLine := fmt.Sprintf("[%s] %s", status, e.Timestamp)
+	if e.Success {
+		b.WriteString(styleSuccess.Render(statusLine))
+	} else {
+		b.WriteString(styleFail.Render(statusLine))
+	}
 	b.WriteString("\n")
 	b.WriteString(fmt.Sprintf("actions: %d\n", e.ActionCount))
 	if e.ManifestHash != "" {
@@ -220,7 +225,7 @@ func (m HistoryModel) renderDetail() string {
 		b.WriteString("\n")
 	}
 	if e.Error != "" {
-		b.WriteString(styleAccent.Render("error: " + e.Error))
+		b.WriteString(styleFail.Render("error: " + e.Error))
 		b.WriteString("\n")
 	}
 	if len(e.Actions) > 0 {

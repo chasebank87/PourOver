@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/chasebank87/PourOver/internal/config"
+	"github.com/chasebank87/PourOver/internal/paths"
 	tmpl "github.com/chasebank87/PourOver/internal/template"
 )
 
@@ -213,6 +214,9 @@ func collectLink(link config.FileLink, configDir string, blobs map[string][]byte
 		return nil, err
 	}
 	if !info.IsDir() {
+		if paths.SkipFileName(filepath.Base(sourcePath)) {
+			return nil, nil
+		}
 		e, err := addBlobFile(sourcePath, targetRoot, FileKindLink, link.Source, blobs)
 		if err != nil {
 			return nil, err
@@ -226,6 +230,12 @@ func collectLink(link config.FileLink, configDir string, blobs map[string][]byte
 			return walkErr
 		}
 		if d.IsDir() {
+			if path != sourcePath && paths.SkipWalkDir(d.Name()) {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if paths.SkipFileName(d.Name()) {
 			return nil
 		}
 		if !d.Type().IsRegular() {

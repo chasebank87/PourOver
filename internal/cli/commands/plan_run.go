@@ -7,6 +7,7 @@ import (
 	"github.com/chasebank87/PourOver/internal/discovery"
 	"github.com/chasebank87/PourOver/internal/paths"
 	"github.com/chasebank87/PourOver/internal/plan"
+	"github.com/chasebank87/PourOver/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -64,6 +65,10 @@ func printPlan(p plan.Plan, asJSON bool) error {
 			return err
 		}
 		fmt.Print(string(data))
+		return nil
+	}
+	if ui.Enabled(os.Stdout, false) {
+		ui.WritePlan(os.Stdout, p)
 		return nil
 	}
 	fmt.Print(plan.RenderText(p))

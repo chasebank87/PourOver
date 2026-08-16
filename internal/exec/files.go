@@ -14,35 +14,7 @@ import (
 	tmpl "github.com/chasebank87/PourOver/internal/template"
 )
 
-// CreateLink creates a symlink at targetPath pointing to sourcePath.
-// Parent directories of targetPath are created when missing.
-func CreateLink(targetPath, sourcePath string) error {
-	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
-		return fmt.Errorf("create link %s: parent dir: %w", targetPath, err)
-	}
-	if err := os.Symlink(sourcePath, targetPath); err != nil {
-		return fmt.Errorf("create link %s -> %s: %w", targetPath, sourcePath, err)
-	}
-	return nil
-}
-
-// UpdateLink replaces an existing symlink at targetPath to point to sourcePath.
-// Refuses to replace a non-symlink target.
-func UpdateLink(targetPath, sourcePath string) error {
-	info, err := os.Lstat(targetPath)
-	if err != nil {
-		return fmt.Errorf("update link %s: %w", targetPath, err)
-	}
-	if info.Mode()&os.ModeSymlink == 0 {
-		return fmt.Errorf("update link %s: target exists and is not a symlink", targetPath)
-	}
-	if err := os.Remove(targetPath); err != nil {
-		return fmt.Errorf("update link %s: remove old: %w", targetPath, err)
-	}
-	return CreateLink(targetPath, sourcePath)
-}
-
-// FileApplyOptions configures file link/copy apply with optional backup-on-replace.
+// FileApplyOptions configures file copy apply with optional backup-on-replace.
 type FileApplyOptions struct {
 	ConfigDir    string
 	StateDir     string

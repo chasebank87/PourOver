@@ -8,6 +8,7 @@ import (
 	"github.com/chasebank87/PourOver/internal/config"
 	"github.com/chasebank87/PourOver/internal/engine"
 	"github.com/chasebank87/PourOver/internal/paths"
+	"github.com/chasebank87/PourOver/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -74,12 +75,21 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	}
 
 	out := cmd.OutOrStdout()
+	fancy := ui.Enabled(out, false)
 	for _, c := range report.Checks {
 		status := "ok"
 		if !c.OK {
 			status = "FAIL"
 		}
-		fmt.Fprintf(out, "[%s] %s: %s\n", status, c.Name, c.Detail)
+		line := fmt.Sprintf("[%s] %s: %s", status, c.Name, c.Detail)
+		if fancy {
+			if c.OK {
+				line = ui.Success().Render(line)
+			} else {
+				line = ui.Fail().Render(line)
+			}
+		}
+		fmt.Fprintln(out, line)
 	}
 	if verbose {
 		fmt.Fprintf(cmd.ErrOrStderr(), "config=%s state=%s\n", configPath, stateDir)
@@ -87,7 +97,11 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	if !report.OK() {
 		return fmt.Errorf("doctor found problems")
 	}
-	fmt.Fprintln(out, "All checks passed.")
+	done := "All checks passed."
+	if fancy {
+		done = ui.Success().Render(done)
+	}
+	fmt.Fprintln(out, done)
 	return nil
 }
 
