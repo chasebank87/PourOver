@@ -99,7 +99,7 @@ Re-import without `--force` only adds newly discovered items. Core taps (`homebr
 
 ## Config sketch
 
-Taps may be strings or `{ name, trusted = false }` (default `trusted = true`). Mac App Store apps are a name → numeric ID map. Omit `mas` to leave App Store unmanaged; `mas = {}` manages and desires zero apps. Declaring `mas` implies the `mas` Homebrew formula. You must be signed into the App Store.
+Taps may be strings or `{ name, trusted = false }` (default `trusted = true`). Mac App Store apps are a name → numeric ID map. Omit `mas` to leave App Store unmanaged; `mas = {}` manages and desires zero apps. Declaring `mas` implies the `mas` Homebrew formula. Apply runs `mas install`, then `mas get` on failure (first-time apps). Sign in to the App Store in the GUI.
 
 ```lua
 -- packages.lua

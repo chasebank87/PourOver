@@ -62,7 +62,7 @@ Name → numeric App Store ID map (nix-darwin `homebrew.masApps` style).
 - **Omit** `mas` — App Store apps are unmanaged (no install/remove/upgrade actions).
 - **`mas = {}`** — manage MAS and desire **zero** apps (undeclared installed apps follow `policy.uninstall_mode`).
 - Declaring `mas` (even empty) implies the Homebrew formula `mas`.
-- Install/upgrade needs you signed into the App Store.
+- Install/upgrade needs you signed into the App Store in the GUI. Apply runs `mas install`, then `mas get` on failure (first-time apps).
 
 IDs must be positive integers. Duplicate names or IDs fail validation. Declaring `mas` does not treat those apps as casks.
 
