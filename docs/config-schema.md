@@ -1,4 +1,4 @@
-# PourOver config schema (v1)
+# PourOver config schema
 
 Config lives in `~/.pourover/` by default (`pourover.lua` + optional Lua modules). Go loads the Lua table and normalizes it into a `Manifest` (see `internal/config/types.go`).
 
@@ -6,7 +6,7 @@ Config lives in `~/.pourover/` by default (`pourover.lua` + optional Lua modules
 
 | Key | Required | Type | Description |
 |-----|----------|------|-------------|
-| `packages` | no | table | Homebrew taps, formulae, and casks |
+| `packages` | no | table | Homebrew taps, formulae, casks, and Mac App Store apps |
 | `files` | no | table | Dotfiles and other paths to reconcile |
 | `policy` | no | table | Safety and behavior options |
 | `backup` | no | table | Snapshot / iCloud settings |
@@ -14,7 +14,7 @@ Config lives in `~/.pourover/` by default (`pourover.lua` + optional Lua modules
 
 Empty or omitted sections are treated as empty lists / defaults.
 
-Unknown top-level or nested keys in Lua are ignored for v1 (not an error). Semantic validation runs after load via `Validate`.
+Unknown top-level or nested keys in Lua are ignored (not an error). Semantic validation runs after load via `Validate`.
 
 ## `packages`
 
@@ -23,6 +23,7 @@ Unknown top-level or nested keys in Lua are ignored for v1 (not an error). Seman
 | `taps` | array of strings or tables | Homebrew taps to ensure are present (`owner/repo`); see below |
 | `formulae` | array of strings | Homebrew formulae to install |
 | `casks` | array of strings | Homebrew casks to install |
+| `mas` | table of name → integer | Mac App Store apps (`packages.mas`); omit to leave App Store unmanaged |
 
 ### `packages.taps`
 
@@ -46,19 +47,35 @@ packages = {
   },
   formulae = { "git" },
   casks = { "raycast" },
+  mas = {
+    Xcode = 497799835,
+  },
 }
 ```
 
-`pourover import --packages` merges `brew tap` / `brew list` into `packages.lua` (add-only by default; `--force` replaces). Import emits plain tap **strings** (implicit `trusted = true`). Core taps (`homebrew/core`, `homebrew/cask`) are omitted from import output.
+`pourover import --packages` merges `brew tap` / `brew list` into `packages.lua` (add-only by default; `--force` replaces). Import emits plain tap **strings** (implicit `trusted = true`). Core taps (`homebrew/core`, `homebrew/cask`) are omitted from import output. When `mas` is available, import also writes `packages.mas` from `mas list`.
+
+### `packages.mas`
+
+Name → numeric App Store ID map (nix-darwin `homebrew.masApps` style).
+
+- **Omit** `mas` — App Store apps are unmanaged (no install/remove/upgrade actions).
+- **`mas = {}`** — manage MAS and desire **zero** apps (undeclared installed apps follow `policy.uninstall_mode`).
+- Declaring `mas` (even empty) implies the Homebrew formula `mas`.
+- Install/upgrade needs you signed into the App Store.
+
+IDs must be positive integers. Duplicate names or IDs fail validation. Declaring `mas` does not treat those apps as casks.
 
 ## `files`
 
 | Key | Type | Status | Description |
 |-----|------|--------|-------------|
 | `links` | array of tables | **supported** | Declared files: `source` → `target` (activated as regular file copies) |
-| `managed` | array of tables | **supported** (V2 Phase 3) | Copy source → target (`source`, `target`) |
-| `templates` | array of tables | **supported** (V2 Phase 5) | Render text/template source → target (`source`, `target`) |
-| `unlink` | array of strings | **supported** (V2 Phase 3) | Target paths to remove when safe (`~` ok) |
+| `managed` | array of tables | **supported** | Copy source → target (`source`, `target`) |
+| `templates` | array of tables | **supported** | Render text/template source → target (`source`, `target`) |
+| `unlink` | array of strings | **supported** | Target paths to remove when safe (`~` ok) |
+
+Import, generation, and activation **skip** Finder junk and bytecode: `.DS_Store`, AppleDouble `._*`, `__pycache__`, `.pyc` / `.pyo`, and `.git` (also `Thumbs.db`, `desktop.ini`, `.svn`). Those names are never copied into a generation or planned as file actions.
 
 ### `files.links`
 
@@ -80,7 +97,7 @@ Each entry:
 
 `pourover import --files` copies existing home/`~/.config` paths into the config tree and writes `files.links` (use `--force` if links are already declared). After apply, live paths are regular files activated from the generation, not symlinks.
 
-### `files.managed` (V2 Phase 3)
+### `files.managed`
 
 Each entry:
 
@@ -91,7 +108,7 @@ Each entry:
 
 Copies `source` to `target` for apps that reject symlinks. Empty `source`/`target` (after trim) fail validation. Plan emits `managed_copy` when the target is missing or content differs; apply writes atomically. Regular files are overwritten in place. Unexpected target types (e.g. directories) fail unless `policy.file_replace = "backup"`, which moves the target aside then writes.
 
-### `files.templates` (V2 Phase 5)
+### `files.templates`
 
 Each entry:
 
@@ -100,7 +117,7 @@ Each entry:
 | `source` | yes | string | Path to a Go `text/template` file (relative to the config directory, or absolute) |
 | `target` | yes | string | Destination path on disk (`~` expanded) |
 
-Renders `source` with a fixed sandboxed context (no arbitrary code execution), then writes the result to `target` like managed copies. Empty `source`/`target` (after trim) fail validation. Plan/apply for templates is supported in V2 Phase 5 (render + unified diff in plan; atomic write on apply).
+Renders `source` with a fixed sandboxed context (no arbitrary code execution) **at generation build time**, then writes the result to `target` like managed copies. Empty `source`/`target` (after trim) fail validation. Plan emits `template_write` when the target is missing or content differs; JSON `value` is the generation **content hash**, not a unified diff. Apply writes the blob atomically.
 
 Template context fields include:
 
@@ -110,7 +127,7 @@ Template context fields include:
 | `{{.User}}` | `chase` | Current username |
 | `{{.Home}}` | `/Users/chase` | Home directory |
 
-`.Env` exists on the context struct for a future allowlist but is empty in V2 — do not rely on `{{index .Env "…"}}` for secrets or arbitrary environment variables. Rendering uses Go `text/template` with `missingkey=error` and no custom FuncMap (no shell-out helpers).
+`.Env` exists on the context struct for a future allowlist but is empty — do not rely on `{{index .Env "…"}}` for secrets or arbitrary environment variables. Rendering uses Go `text/template` with `missingkey=error` and no custom FuncMap (no shell-out helpers).
 
 Example source (`config/gitconfig.tmpl`):
 
@@ -128,7 +145,7 @@ files = {
 }
 ```
 
-### `files.unlink` (V2 Phase 3)
+### `files.unlink`
 
 Array of target path strings to remove when safe (`~` expanded). Each entry must be non-empty after trim. Plan emits `file_unlink` for existing symlinks or regular files (directories are refused). Apply removes them with the same safeguards.
 
@@ -157,9 +174,9 @@ files = {
 | `file_replace` | no | string | `"error"` | `error`, `backup` (`force` is an alias for `backup`) |
 | `files_mode` | no | string | `"safe"` | `safe`, `strict`, `non_destructive` |
 
-- **safe** — prompt before uninstalling undeclared Homebrew packages/taps (only formulae installed on request; dependency-only packages are ignored; formulae that are runtime deps of *declared* formulae are never removed, even if also installed on request; `homebrew/core` / `homebrew/cask` never untapped). A package listed under `formulae` or `casks` counts as declared for either type.
-- **strict** — uninstall undeclared packages/taps without prompting
-- **non_destructive** — never uninstall undeclared packages/taps
+- **safe** — prompt before uninstalling undeclared Homebrew packages/taps (only formulae installed on request; dependency-only packages are ignored; formulae that are runtime deps of *declared* formulae are never removed, even if also installed on request; `homebrew/core` / `homebrew/cask` never untapped) and undeclared App Store apps when `packages.mas` is managed. A package listed under `formulae` or `casks` counts as declared for either type.
+- **strict** — uninstall undeclared packages/taps (and managed MAS apps) without prompting
+- **non_destructive** — never uninstall undeclared packages/taps (including MAS when managed)
 
 ### `policy.files_mode`
 

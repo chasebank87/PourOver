@@ -1,60 +1,25 @@
 # PourOver
 
-Declarative Homebrew, Mac App Store, and dotfile management for macOS.
+Declarative Homebrew, Mac App Store, defaults, and dotfile management for macOS.
 
-PourOver loads `~/.pourover/pourover.lua`, builds an **activation generation** (frozen packages + file contents), plans the diff against your machine, and applies Homebrew packages (including taps with optional `trusted` flags), Mac App Store apps (`packages.mas` via the `mas` CLI), macOS `defaults`, optional Touch ID / Watch sudo PAM (`macos.security.pam.sudo_local`), and declared files as **regular file copies** (not live symlinks).
-
-**macOS only, forever.** Linux and other platforms are out of scope.
-
-## Interactive TUI
-
-On an interactive terminal (stdin and stdout are TTYs), running `pourover` with **no arguments** opens the Bubble Tea TUI. You can also launch it explicitly:
-
-```bash
-pourover          # interactive, no args → TUI
-pourover tui      # always open the TUI
-pourover plan     # subcommands stay CLI
-```
-
-Auto-launch does **not** run when:
-
-- a subcommand or flags are passed (CLI path)
-- stdin/stdout are not a TTY (pipes, scripts)
-- `CI=true` (CI / non-interactive automation)
-
-The TUI is **complete control** for Phase 2: Plan, Apply, Upgrade, Doctor (with opt-in fixes), History, Backup/Restore, Import, Config (iCloud + git), and Self-update. **Phase 3–5 file surface** landed: `files.managed`, `files.unlink`, `files.templates` (sandboxed render + atomic write), `policy.file_replace` (backup-on-replace), and Phase 4 ownership/prune (`lock.json` `owned_files`, `policy.files_mode`). **V2 implementation is complete**; remaining backlog items (web dashboard, multi-host, etc.) stay deferred.
+**macOS only.** Linux and other platforms are out of scope.
 
 ## Install
-
-One-liner (downloads the latest GitHub Release binary; installs Homebrew first if missing):
 
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/chasebank87/PourOver/main/scripts/install.sh)"
 ```
 
-From source:
+That downloads the latest GitHub Release, bootstraps [Homebrew](https://brew.sh) if it is missing, and installs `pourover` plus a `pour` alias (same CLI). A published `v*` release must exist.
+
+If the install directory is not on `PATH` (often `~/.local/bin`), add it:
 
 ```bash
-git clone https://github.com/chasebank87/PourOver.git
-cd PourOver
-make build    # or: go build -o pourover ./cmd/pourover
-make install  # copies to ~/.local/bin by default (PREFIX=/usr/local make install)
-make test
+export PATH="$HOME/.local/bin:$PATH"
+eval "$(brew shellenv)"   # if brew was just installed
 ```
 
-Requires macOS (darwin only; no Linux/Windows target). The installer bootstraps Homebrew when it is not already present and installs a `pour` symlink alias beside `pourover`. Building from source also needs Go. CI runs `make vet`, `make test`, and `make build` on push/PR; tagged `v*` releases publish darwin archives via GoReleaser.
-
-## Releasing
-
-Publish a GitHub Release (darwin archives for install / `self-update`) via either:
-
-1. **Tag push**
-   ```bash
-   git tag v0.1.0
-   git push origin v0.1.0
-   ```
-2. **Actions UI** — Actions → **release** → Run workflow → enter `0.1.0` or `v0.1.0`.  
-   This tags current `main` and runs GoReleaser in the same workflow (tag pushes from `GITHUB_TOKEN` do not start a second run).
+Then: `pour init` (or `pourover init`).
 
 ## Quick start
 
@@ -63,7 +28,6 @@ New machine:
 ```bash
 pourover init
 pourover doctor
-pourover build      # optional: freeze config into a generation only
 pourover plan
 pourover apply --dry-run
 pourover apply
@@ -79,12 +43,83 @@ pourover plan
 pourover apply
 ```
 
-**Activation model:** `pourover apply` builds a generation under Application Support, then activates it. Editing sources under `~/.pourover` is **not** live — declared `files.links` are copied to targets as regular files (legacy symlinks are replaced on apply). This is evaluate-then-activate (nix-darwin inspired), not a full Nix store.
-`init` scaffolds `~/.pourover/` (`pourover.lua`, `packages.lua`, example `config/`). Use `--force` to overwrite.
+`init` scaffolds `~/.pourover/` (`pourover.lua`, `packages.lua`, example `config/`). Use `--force` to overwrite. `apply --dry-run` matches `plan`. Use `apply --yes` to skip confirmation prompts (CI).
 
-`apply --dry-run` matches `plan`. Use `apply --yes` to skip uninstall confirmation prompts (CI).
+## What apply does
 
-macOS preferences (nix-darwin-style `defaults`):
+`pourover apply` evaluates Lua, writes an **activation generation** under Application Support (frozen packages + file blobs), then activates it onto the live system. Editing sources under `~/.pourover` is **not** live — run `apply` (or `build`) to refresh.
+
+Declared `files.links` are copied to targets as **regular files** (legacy PourOver symlinks are replaced). JSON action types stay `link_create` / `link_update` / `link_replace`; plan text says `create file` / `update file` / `replace file`. Finder junk (`.DS_Store`, AppleDouble `._*`), `__pycache__` / `.pyc`, and `.git` directories are skipped during import and activation.
+
+In `policy.files_mode = "safe"` (default), apply lists owned-but-undeclared files one per line and asks `Proceed? [y/N]` before prune. `--yes` skips that prompt.
+
+This is evaluate-then-activate (nix-darwin inspired), not a Nix store. Homebrew remains the package engine.
+
+## TUI
+
+On an interactive terminal (stdin and stdout are TTYs), `pourover` with **no arguments** opens the TUI. `pourover tui` always opens it. Subcommands stay CLI.
+
+Auto-launch does **not** run when a subcommand or flags are passed, when stdin/stdout are not a TTY, or when `CI=true`.
+
+Home screens: Plan, Apply, Upgrade, Doctor (opt-in fixes), History, Backup/Restore, Import, Config (iCloud + git), Self-update. **History is TUI-only** (no `pourover history` command). The home `drift:` line counts pending plan actions; Plan shows the list.
+
+## Commands
+
+| Command | Purpose |
+|---------|---------|
+| `tui` | Open the interactive TUI (also auto-launches on interactive no-args) |
+| `init` | Scaffold config |
+| `import` | Import installed brew packages, App Store apps, and common files (`import macos` for defaults → `macos.lua`) |
+| `config` | iCloud mirror and git config sync (`config icloud`, `config git`, `push` / `pull`) |
+| `build` | Freeze config into an activation generation (no live writes) |
+| `plan` | Show pending actions (`--json` for machine-readable) |
+| `apply` | Reconcile the system (`--dry-run`, `--yes`, `--quiet`) |
+| `upgrade` | Self-update pourover, upgrade **outdated** declared brew/mas packages, then reapply (`--dry-run`, `--yes`, `--skip-self-update`, `--quiet`) |
+| `self-update` | Replace the pourover binary from the latest GitHub Release |
+| `doctor` | Check PATH, brew, config, state dir, iCloud, git sync |
+| `backup` | Force local snapshot (+ iCloud mirror when enabled) |
+| `restore` | Restore `lock.json` / `last-plan.json` (`--snapshot`, `--icloud`) |
+
+Global flags: `--config`, `--verbose` / `-v`, `--json`.
+
+`plan` / `apply` / `upgrade` show a PourOver header on a TTY (`NO_COLOR` / pipes / `--json` stay plain). Apply and upgrade use a progress bar; Homebrew logs scroll underneath. `--quiet` / `-q` is summary-only.
+
+### Import flags
+
+| Flag | Default | Meaning |
+|------|---------|---------|
+| `--packages` | on | Merge installed brew taps/formulae/casks and App Store apps (`mas list`) into `packages.lua` |
+| `--files` | on | Merge common home/`~/.config` paths into `files.links` |
+| `--dry-run` | off | Preview only |
+| `--force` | off | Replace packages/links with the discovered set (default is add-only merge) |
+
+Re-import without `--force` only adds newly discovered items. Core taps (`homebrew/core`, `homebrew/cask`) are not written. App Store import writes `packages.mas` when `mas` is available.
+
+`pourover import macos` is a separate subcommand (not `--macos`). It snapshots readable curated catalog keys into `macos.lua` and wires `require("macos")`. Same `--dry-run` / `--force` semantics.
+
+## Config sketch
+
+Taps may be strings or `{ name, trusted = false }` (default `trusted = true`). Mac App Store apps are a name → numeric ID map. Omit `mas` to leave App Store unmanaged; `mas = {}` manages and desires zero apps. Declaring `mas` implies the `mas` Homebrew formula. You must be signed into the App Store.
+
+```lua
+-- packages.lua
+return {
+  formulae = { "git" },
+  casks = { "raycast" },
+  mas = {
+    Xcode = 497799835,
+    ["1Password for Safari"] = 1569813296,
+  },
+}
+```
+
+macOS preferences (nix-darwin-style `defaults`) are **not** in the default init config. Snapshot them:
+
+```bash
+pourover import macos            # merge into macos.lua (add-only)
+pourover import macos --force    # replace curated sections
+pourover import macos --dry-run
+```
 
 ```lua
 macos = {
@@ -96,19 +131,7 @@ macos = {
 }
 ```
 
-Keys are **not** in the default init config. Snapshot the curated catalog from the live Mac:
-
-```bash
-pourover import macos            # merge into macos.lua (add-only)
-pourover import macos --force    # replace curated sections with the snapshot
-pourover import macos --dry-run  # preview without writing
-```
-
-`import macos` writes `macos.lua` and wires `require("macos")` into `pourover.lua`. System-scope keys (`loginwindow`, `smb`, `SoftwareUpdate`) write under `/Library/Preferences` via `sudo defaults` on apply (same auth path as PAM `/etc` writes). Expand coverage by editing `internal/config/macos_catalog.yaml`. Search:
-
-- [docs/macos-defaults.md](docs/macos-defaults.md) — every supported `system.defaults` key and Lua syntax
-- [docs/nix-darwin-options.md](docs/nix-darwin-options.md) — full [MyNixOS nix-darwin](https://mynixos.com/nix-darwin/options) option tree and PourOver status
-- [docs/config-schema.md](docs/config-schema.md) — packages (tap `trusted`), files, policy, backup, and `macos.security.pam.sudo_local`
+System-scope keys (`loginwindow`, `smb`, `SoftwareUpdate`) write under `/Library/Preferences` via `sudo defaults`. Expand coverage in `internal/config/macos_catalog.yaml`.
 
 Optional sudo Touch ID / Apple Watch (writes `/etc/pam.d`; needs admin on apply):
 
@@ -127,96 +150,39 @@ macos = {
 }
 ```
 
-Taps may be plain strings or `{ name, trusted = false }` to skip `brew trust` (default `trusted = true`).
-
-Mac App Store apps use a name → numeric ID map (nix-darwin `homebrew.masApps` style). Omit `mas` to leave App Store unmanaged; `mas = {}` manages and desires zero apps. Install/upgrade needs you signed into the App Store. Declaring `mas` implies the `mas` Homebrew formula. Undeclared MAS apps follow `policy.uninstall_mode` when managed.
-
-```lua
--- packages.lua
-return {
-  formulae = { "git" },
-  casks = { "raycast" },
-  mas = {
-    Xcode = 497799835,
-    ["1Password for Safari"] = 1569813296,
-  },
-}
-```
-
-Keep packages (and PourOver itself) up to date — brew and mas for outdated declared packages only:
+Keep packages (and PourOver itself) up to date — brew and mas for **outdated declared** packages only:
 
 ```bash
-pourover self-update       # update the pourover binary from GitHub Releases
-pourover upgrade           # self-update, brew/mas upgrade outdated declared packages, then reapply
-pourover upgrade --dry-run # preview package/apply actions (skips self-update)
+pourover self-update
+pourover upgrade
+pourover upgrade --dry-run          # skips self-update
 pourover upgrade --skip-self-update
 ```
 
-`upgrade` upgrades packages Homebrew or `mas` reports as outdated (declared formulae/casks and `packages.mas` apps). `apply` only installs
-missing packages (never upgrades; brew install is run with `HOMEBREW_NO_INSTALL_UPGRADE`).
-If config still uses a retired cask name (e.g. `windsurf` → `devin-desktop`), plan/apply
-shows `cask renamed: …` and asks you to update `packages.lua` — it will not keep
-re-installing the old token. Auto-updating casks are skipped when the app on disk is
-already current even if Caskroom metadata is stale — use `brew upgrade --cask --greedy` for those.
-`pour` is an install-time symlink to `pourover` (same CLI).
-
-## Commands
-
-| Command | Purpose |
-|---------|---------|
-| `tui` | Open the interactive TUI (also auto-launches on interactive no-args) |
-| `init` | Scaffold config |
-| `import` | Import installed brew packages, App Store apps, and common files into config (`import macos` for defaults → `macos.lua`) |
-| `config` | Manage iCloud mirror and git config sync (`config icloud`, `config git`, `push`/`pull`) |
-| `plan` | Show pending actions (`--json` for machine-readable) |
-| `apply` | Reconcile system (`--dry-run`, `--yes`, `--quiet`) |
-| `upgrade` | Self-update pourover, upgrade **outdated** declared brew/mas packages, then reapply (`--dry-run`, `--yes`, `--skip-self-update`, `--quiet`) |
-| `self-update` | Replace the pourover binary from the latest GitHub Release |
-| `doctor` | Check PATH, brew, config, state dir, iCloud, git sync |
-| `backup` | Force local snapshot (+ iCloud mirror when enabled) |
-| `restore` | Restore `lock.json` / `last-plan.json` (`--snapshot`, `--icloud`) |
-
-Global flags: `--config`, `--verbose` / `-v`, `--json`.
-
-`apply` / `upgrade` show a colored header and progress bar on interactive terminals (Homebrew logs still scroll underneath, restyled with `☕`). Use `--quiet` / `-q` for summary-only; `NO_COLOR` disables color.
-
-### Import flags
-
-| Flag | Default | Meaning |
-|------|---------|---------|
-| `--packages` | on | Merge installed brew taps/formulae/casks and App Store apps (`mas list`) into `packages.lua` |
-| `--files` | on | Merge common home/`~/.config` paths into `files.links` |
-| `--dry-run` | off | Preview only |
-| `--force` | off | Replace packages/links with the discovered set (default is add-only merge) |
-
-Re-import without `--force` only adds newly discovered packages, taps, App Store apps, and file targets; existing declarations are kept. Core taps (`homebrew/core`, `homebrew/cask`) are not written to config. App Store import writes `packages.mas` when `mas` is available.
-
-`pourover import macos` is a separate subcommand (not `--macos`). It snapshots readable curated catalog keys into `macos.lua`. Same `--dry-run` / `--force` semantics: preview only, or replace curated `macos.defaults` sections instead of add-only merge.
+`apply` only installs missing packages (`HOMEBREW_NO_INSTALL_UPGRADE`). Retired cask tokens show `cask renamed: …` — update `packages.lua`; apply will not keep re-installing the old name. Auto-updating casks that are already current on disk are skipped; use `brew upgrade --cask --greedy` for those.
 
 ## Policies
 
-`policy.uninstall_mode` in Lua:
+`policy.uninstall_mode`:
 
-- **safe** (default) — prompt once before uninstalling undeclared packages/taps that were installed on request (dependency-only formulae are ignored; core taps never untapped), and undeclared App Store apps when `packages.mas` is managed
+- **safe** (default) — prompt once before uninstalling undeclared on-request packages/taps (dependency-only formulae ignored; core taps never untapped), and undeclared App Store apps when `packages.mas` is managed
 - **strict** — uninstall without prompting
-- **non_destructive** — never uninstall undeclared packages (including MAS apps when managed)
+- **non_destructive** — never uninstall undeclared packages (including MAS when managed)
 
 `policy.file_replace`:
 
 - **error** (default) — plan fails when a declared file target is an unexpected type (e.g. a directory)
-- **backup** — move the existing target aside under `<stateDir>/backups/files/<timestamp>/<escaped-path>`, then write a regular file (`force` is an accepted alias)
+- **backup** — move the target aside under `<stateDir>/backups/files/<timestamp>/…`, then write (`force` is an alias)
 
-`files.links` declare managed paths whose contents are frozen into the activation generation and written as **regular files** on apply (not symlinks). Editing `~/.pourover` sources is not live until the next `build`/`apply`.
+`policy.files_mode` (PourOver-owned undeclared targets from `lock.json` `owned_files`):
 
-`policy.files_mode` (PourOver-owned undeclared file targets from `lock.json` `owned_files`):
-
-- **safe** (default) — plan emits `file_prune`; apply prompts once before removing
+- **safe** (default) — plan emits `file_prune`; apply prompts once (multiline list)
 - **strict** — prune without prompting
 - **non_destructive** — never plan or apply prune
 
 Use `files.unlink` for explicit removals. Old locks with empty `owned_files` never invent prune candidates.
 
-Packages declared under `formulae` or `casks` count as declared for either type (so a cask listed under `formulae` is not treated as undeclared). Prefer putting GUI apps in `casks`. App Store apps are separate (`packages.mas` by ID); they are not treated as casks.
+Packages listed under `formulae` or `casks` count as declared for either type. Prefer GUI apps in `casks`. App Store apps are `packages.mas` by ID, not casks.
 
 ## Paths
 
@@ -226,37 +192,33 @@ Packages declared under `formulae` or `casks` count as declared for either type 
 | State | `~/Library/Application Support/PourOver/state/` |
 | iCloud mirror | `~/Library/Mobile Documents/com~apple~CloudDocs/PourOver/` |
 
-State artifacts: `lock.json` (includes `owned_files` and `generation_id`), `current` (active generation id), `generations/<id>/` (manifest + content-addressed file blobs), `last-plan.json`, `history/`, `snapshots/`, `backups/files/` (file replace backups).
+State artifacts: `lock.json` (`owned_files`, `generation_id`), `current`, `generations/<id>/` (manifest + blobs), `last-plan.json`, `history/`, `snapshots/`, `backups/files/`.
 
-This is an **activation generation / file store**, not a Nix `/nix/store` or flake lock — Homebrew remains the package engine.
-
-Enable iCloud state mirroring:
+iCloud state mirroring:
 
 ```bash
 pourover config icloud enable          # optional: --path /custom/dir
-# or edit Lua: backup = { icloud = { enabled = true } }
+# or: backup = { icloud = { enabled = true } }
 ```
 
-When enabled, successful `apply` and `backup` write a local snapshot and mirror it if iCloud Drive is available.
+Successful `apply` and `backup` write a local snapshot and mirror it when iCloud Drive is available.
 
 ### GitHub config backup
 
-Keep `~/.pourover` itself in a git repo for emergency restore on a new machine:
+Keep `~/.pourover` itself in a git repo:
 
 ```bash
-# existing machine — init repo, set remote, push
 pourover config git setup git@github.com:USER/pourover-config.git
 
-# new machine / emergency
+# new machine
 pourover config git restore git@github.com:USER/pourover-config.git
 pourover apply
 
-# manual sync anytime
 pourover config push
 pourover config pull
 ```
 
-With `backup.git.enabled` and `auto_push = true`, successful `apply` / `import` commit and push when the config tree is dirty (failures warn only; they never fail apply).
+With `backup.git.enabled` and `auto_push = true`, successful `apply` / `import` commit and push when the config tree is dirty (warnings only; they never fail apply).
 
 ## Exit codes
 
@@ -270,5 +232,24 @@ With `backup.git.enabled` and `auto_push = true`, successful `apply` / `import` 
 
 - [Config schema](docs/config-schema.md)
 - [Plan output format](docs/plan-output.md)
-- [v2 backlog](docs/v2-backlog.md) — deferred features so v1 stays focused
-- [v1 micro-steps](docs/plans/2026-05-18-pourover-v1-micro-steps.md)
+- [macOS defaults catalog](docs/macos-defaults.md)
+- [nix-darwin options map](docs/nix-darwin-options.md)
+
+## Contributing
+
+From source (needs Go):
+
+```bash
+git clone https://github.com/chasebank87/PourOver.git
+cd PourOver
+make build    # or: go build -o pourover ./cmd/pourover
+make install  # ~/.local/bin by default (PREFIX=/usr/local make install)
+make test
+```
+
+CI runs `make vet`, `make test`, and `make build` on push/PR. Tagged `v*` releases publish darwin archives via GoReleaser (`self-update` and the install script use those).
+
+Publish a release:
+
+1. **Tag push** — `git tag v0.3.3 && git push origin v0.3.3`
+2. **Actions UI** — Actions → **release** → Run workflow → enter `0.3.3` or `v0.3.3` (tags current `main` and runs GoReleaser; token tag pushes do not start a second run)

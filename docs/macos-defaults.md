@@ -3,6 +3,16 @@
 PourOver applies nix-darwin-style user preferences with `defaults write`.
 Unset keys are **unmanaged** — only keys you declare in `macos.defaults` are reconciled.
 
+Snapshot readable curated keys from the live Mac:
+
+```bash
+pourover import macos            # merge into macos.lua (add-only)
+pourover import macos --force    # replace curated sections with the snapshot
+pourover import macos --dry-run  # preview without writing
+```
+
+`import macos` writes `macos.lua` and wires `require("macos")` into `pourover.lua`. Expanding coverage means editing `internal/config/macos_catalog.yaml`, not scraping arbitrary domains. PAM is not imported.
+
 Full nix-darwin option tree (Homebrew, launchd, services, …): [nix-darwin-options.md](nix-darwin-options.md).
 Upstream index: [MyNixOS nix-darwin options](https://mynixos.com/nix-darwin/options/system.defaults).
 
@@ -60,6 +70,8 @@ Types: **bool**, **int**, **float**, **string**, **array** (Dock `persistent-app
 **Not applied:** wallpaper, Finder sidebar Favorites.
 
 ## Discover more keys
+
+Prefer `pourover import macos` for keys already in the catalog. To hunt extra keys (then add them to `macos.defaults.custom` or the catalog):
 
 ```bash
 defaults find autohide

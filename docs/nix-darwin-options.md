@@ -19,7 +19,7 @@ Status:
 | [`documentation`](https://mynixos.com/nix-darwin/options/documentation) | Install man/info/doc from nix packages | index-only | Nix-only |
 | [`environment`](https://mynixos.com/nix-darwin/options/environment) | `/etc`, PATH, launch agents, system packages | mapped in part | `files.links` for user files; nix store PATH is Nix-only |
 | [`fonts`](https://mynixos.com/nix-darwin/options/fonts) | Fonts into `/Library/Fonts/Nix Fonts` | index-only | Install font casks via `packages.casks` |
-| [`homebrew`](https://mynixos.com/nix-darwin/options/homebrew) | Formulae, casks, taps, mas, brew bundle | mapped | `packages.formulae`, `packages.casks`, `packages.taps` (string or `{ name, trusted? }`; mas/cargo/go/vscode not yet) |
+| [`homebrew`](https://mynixos.com/nix-darwin/options/homebrew) | Formulae, casks, taps, mas, brew bundle | mapped | `packages.formulae`, `packages.casks`, `packages.taps` (string or `{ name, trusted? }`), `packages.mas`; cargo/go/vscode not yet |
 | [`launchd`](https://mynixos.com/nix-darwin/options/launchd) | Agents and daemons | index-only | — |
 | [`networking`](https://mynixos.com/nix-darwin/options/networking) | Hostname, DNS, computer name | index-only | Often `scutil` / System Settings, not `defaults` |
 | [`nix`](https://mynixos.com/nix-darwin/options/nix) | Nix daemon and nix.conf | index-only | PourOver is not Nix |
@@ -39,7 +39,7 @@ Status:
 | `homebrew.brews` | `packages.formulae` |
 | `homebrew.casks` | `packages.casks` |
 | `homebrew.taps` | `packages.taps` — string or `{ name, trusted? }` (`trusted` defaults `true`; `false` skips `brew trust`) |
-| `homebrew.masApps` | not implemented |
+| `homebrew.masApps` | `packages.mas` (name → numeric ID; omit = unmanaged; `{}` = manage zero apps) |
 | `homebrew.enable` / brew bundle flags | installer bootstraps Homebrew; `pourover apply` runs `brew` |
 
 ## `system.defaults` (supported)
