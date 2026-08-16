@@ -12,13 +12,15 @@ import (
 
 // InstallMas runs `mas install <id>`, falling back to `mas get <id>` on failure.
 func InstallMas(ctx context.Context, runner discovery.MasRunner, id string) error {
-	if _, err := runner.Run(ctx, "install", id); err == nil {
+	_, installErr := runner.Run(ctx, "install", id)
+	if installErr == nil {
 		return nil
-	} else if _, getErr := runner.Run(ctx, "get", id); getErr == nil {
-		return nil
-	} else {
-		return fmt.Errorf("mas install %s: %w", id, err)
 	}
+	_, getErr := runner.Run(ctx, "get", id)
+	if getErr == nil {
+		return nil
+	}
+	return fmt.Errorf("mas get %s: %w (after mas install failed: %v); sign in to the App Store (Media & Purchases) and retry. First-time apps must be gotten onto this Apple Account. Open the page with: mas open %s", id, getErr, installErr, id)
 }
 
 // RemoveMas runs `mas uninstall <id>`.

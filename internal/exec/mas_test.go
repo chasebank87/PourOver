@@ -69,6 +69,24 @@ func TestInstallMas_FallsBackToGet(t *testing.T) {
 	}
 }
 
+func TestInstallMas_BothFail_SignInGuidance(t *testing.T) {
+	runner := &recordingMasRunner{
+		failIDs: map[string]bool{"1518423503": true},
+		failGet: map[string]bool{"1518423503": true},
+	}
+	err := InstallMas(context.Background(), runner, "1518423503")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "App Store") || !strings.Contains(msg, "sign") {
+		t.Fatalf("error = %q, want App Store sign-in guidance", msg)
+	}
+	if !strings.Contains(msg, "1518423503") {
+		t.Fatalf("error = %q, want app id", msg)
+	}
+}
+
 func TestRemoveMas_RunsMasUninstall(t *testing.T) {
 	runner := &recordingMasRunner{}
 	if err := RemoveMas(context.Background(), runner, "310633997"); err != nil {
