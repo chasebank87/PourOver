@@ -13,7 +13,10 @@ func TestStyleBrewLine_RestylesMarkers(t *testing.T) {
 	}{
 		{"==> Installing Cask arc", "☕ Installing Cask arc"},
 		{"==> Moving App 'Arc.app' to '/Applications/Arc.app'", "☕ Moving App 'Arc.app' to '/Applications/Arc.app'"},
-		{"🍺  arc was successfully installed!", "☕  arc was successfully installed!"},
+		{"🍺  arc was successfully installed!", "☕ arc was successfully installed!"},
+		{"✔︎ Cask antinote (1.1.7)", "☕ Cask antinote (1.1.7)"},
+		{"✔︎ Bottle zoxide (0.10.0)", "☕ Bottle zoxide (0.10.0)"},
+		{"          🍺  /opt/homebrew/Cellar/zig/0.16.0_1: 19 files, 1MB", "☕ /opt/homebrew/Cellar/zig/0.16.0_1: 19 files, 1MB"},
 		{"==> Pouring fzf--0.1.0.arm64_sonoma.bottle.tar.gz", "☕ Pouring fzf--0.1.0.arm64_sonoma.bottle.tar.gz"},
 		{"Already downloaded: /tmp/foo", ""},
 		{"==> Running `brew cleanup fzf`...", ""},
@@ -38,7 +41,7 @@ func TestBrewStyleWriter_StreamsLines(t *testing.T) {
 	got := out.String()
 	wantLines := []string{
 		"☕ Installing Cask arc",
-		"☕  arc was successfully installed!",
+		"☕ arc was successfully installed!",
 	}
 	for _, want := range wantLines {
 		if !strings.Contains(got, want) {
@@ -64,6 +67,31 @@ func TestBrewStyleWriter_FlushPartial(t *testing.T) {
 	}
 	if got := strings.TrimSpace(out.String()); got != "☕ Downloading https://example.com/pkg" {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestSummarizeBrewStderr_DropsPaddedCheckmarks(t *testing.T) {
+	raw := "==> Fetching downloads for: anaconda, antinote\n" +
+		"✔︎ Cask antinote (1.1.7)" + strings.Repeat(" ", 80) + "\n" +
+		"Error: installer failed\n"
+	got := summarizeBrewStderr(raw)
+	if strings.Contains(got, "✔") || strings.Contains(got, "antinote (1.1.7)") {
+		t.Fatalf("checkmark dump leaked: %q", got)
+	}
+	if !strings.Contains(got, "Error: installer failed") {
+		t.Fatalf("missing error: %q", got)
+	}
+}
+
+func TestLooksLikeSilentBrewWork(t *testing.T) {
+	if !looksLikeSilentBrewWork("==> Running installer script 'Anaconda3.sh'") {
+		t.Fatal("installer script should pause idle")
+	}
+	if !looksLikeSilentBrewWork("Running installer for dotnet-sdk with `sudo` (which may request your password)...") {
+		t.Fatal("sudo installer should pause idle")
+	}
+	if looksLikeSilentBrewWork("==> Installing Cask ghostty") {
+		t.Fatal("plain install line is not silent work")
 	}
 }
 

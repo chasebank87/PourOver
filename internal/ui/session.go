@@ -310,6 +310,10 @@ func looksLikeAuthPrompt(s string) bool {
 		return true
 	case strings.Contains(lower, "passphrase"):
 		return true
+	case strings.Contains(lower, "which may request your password"):
+		return true
+	case strings.Contains(lower, "running installer"):
+		return true
 	default:
 		return false
 	}

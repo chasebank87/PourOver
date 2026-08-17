@@ -12,7 +12,7 @@ import (
 
 // DefaultBrewHeartbeatInterval is how often to emit a "still working" line when
 // a streamed brew mutation has produced no output.
-const DefaultBrewHeartbeatInterval = 15 * time.Second
+const DefaultBrewHeartbeatInterval = 60 * time.Second
 
 // activityWriter records the last time real brew output was written.
 // Heartbeat lines must not call touchOutput (idle timeout uses lastOutput only).
@@ -20,6 +20,7 @@ type activityWriter struct {
 	out             io.Writer
 	lastOutputUnix  atomic.Int64 // unix nano; 0 means never
 	heartbeatPaused atomic.Bool
+	idlePaused      atomic.Bool
 }
 
 func newActivityWriter(out io.Writer) *activityWriter {
@@ -29,17 +30,28 @@ func newActivityWriter(out io.Writer) *activityWriter {
 }
 
 func (w *activityWriter) Write(p []byte) (int, error) {
-	if looksLikeAuthPrompt(string(p)) {
-		w.heartbeatPaused.Store(true)
-	} else if len(bytes.TrimSpace(p)) > 0 {
-		// Resume after password once brew prints more output.
-		w.heartbeatPaused.Store(false)
-	}
-	w.touchOutput()
+	w.noteBrewBytes(p)
 	if w.out == nil {
 		return len(p), nil
 	}
 	return w.out.Write(p)
+}
+
+func (w *activityWriter) noteBrewBytes(p []byte) {
+	text := string(p)
+	if looksLikeSilentBrewWork(text) {
+		// Sudo/installer/pour often go silent for a long time; do not idle-kill.
+		w.idlePaused.Store(true)
+	}
+	if looksLikeAuthPrompt(text) {
+		w.heartbeatPaused.Store(true)
+	} else if len(bytes.TrimSpace(p)) > 0 {
+		w.heartbeatPaused.Store(false)
+		if !looksLikeSilentBrewWork(text) {
+			w.idlePaused.Store(false)
+		}
+	}
+	w.touchOutput()
 }
 
 func (w *activityWriter) Flush() error {
@@ -108,7 +120,7 @@ func startBrewHeartbeat(out io.Writer, activity *activityWriter, args []string, 
 // startBrewIdleCancel cancels the brew mutation context when there is no
 // brew output for idle duration. Idle <= 0 disables. Stop is safe to call
 // multiple times.
-func startBrewIdleCancel(cancel context.CancelFunc, activity *activityWriter, idle time.Duration) (stop func()) {
+func startBrewIdleCancel(cancel context.CancelFunc, activity *activityWriter, idle time.Duration, fired *atomic.Bool) (stop func()) {
 	if idle <= 0 || cancel == nil || activity == nil {
 		return func() {}
 	}
@@ -122,8 +134,14 @@ func startBrewIdleCancel(cancel context.CancelFunc, activity *activityWriter, id
 			case <-done:
 				return
 			case <-t.C:
+				if activity.idlePaused.Load() || activity.heartbeatPaused.Load() {
+					continue
+				}
 				if time.Since(activity.lastOutput()) < idle {
 					continue
+				}
+				if fired != nil {
+					fired.Store(true)
 				}
 				cancel()
 				return

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/chasebank87/PourOver/internal/discovery"
 	"github.com/chasebank87/PourOver/internal/plan"
@@ -61,7 +60,7 @@ func InstallCasks(ctx context.Context, runner discovery.Runner, names []string) 
 	}
 	args := append([]string{"install", "--cask"}, names...)
 	if _, err := runner.Run(ctx, args...); err != nil {
-		return fmt.Errorf("brew install --cask %s: %w", strings.Join(names, " "), err)
+		return err
 	}
 	return nil
 }

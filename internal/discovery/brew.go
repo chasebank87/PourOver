@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -15,9 +16,9 @@ import (
 const DefaultBrewTimeout = 30 * time.Second
 
 // DefaultBrewIdleTimeout kills a silent brew mutation after this long with no
-// stdout/stderr (heartbeat lines do not count). Large cask restores stay alive
-// while Homebrew is still printing progress.
-const DefaultBrewIdleTimeout = 15 * time.Minute
+// stdout/stderr (heartbeat lines do not count). Paused during sudo/installer
+// work, where Homebrew often prints nothing for a long time.
+const DefaultBrewIdleTimeout = 2 * time.Hour
 
 // DefaultBrewAbsoluteTimeout is a safety cap for one brew mutation so a wedged
 // process cannot run forever.
@@ -130,6 +131,7 @@ func (r *ExecRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
 	}
 
 	var activity *activityWriter
+	var idleFired atomic.Bool
 	if mutation {
 		// Always track brew output for idle kill; stream to UI when configured.
 		hbOut := r.Stderr
@@ -157,7 +159,7 @@ func (r *ExecRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
 			defer stopHB()
 		}
 		if idleTimeout > 0 {
-			stopIdle := startBrewIdleCancel(idleCancel, activity, idleTimeout)
+			stopIdle := startBrewIdleCancel(idleCancel, activity, idleTimeout, &idleFired)
 			defer stopIdle()
 		}
 	}
@@ -174,9 +176,11 @@ func (r *ExecRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
 	}
 	out := stdoutBuf.Bytes()
 	if err != nil {
-		stderr := strings.TrimSpace(stderrBuf.String())
-		if stderr != "" {
-			return out, fmt.Errorf("brew %s: %w: %s", strings.Join(args, " "), err, stderr)
+		if idleFired.Load() {
+			return out, fmt.Errorf("brew %s: no output for %s (killed): %w", strings.Join(args, " "), idleTimeout, err)
+		}
+		if summary := summarizeBrewStderr(stderrBuf.String()); summary != "" {
+			return out, fmt.Errorf("brew %s: %w: %s", strings.Join(args, " "), err, summary)
 		}
 		return out, fmt.Errorf("brew %s: %w", strings.Join(args, " "), err)
 	}
@@ -189,7 +193,7 @@ type activityTouch struct {
 }
 
 func (t activityTouch) Write(p []byte) (int, error) {
-	t.a.touchOutput()
+	t.a.noteBrewBytes(p)
 	return len(p), nil
 }
 

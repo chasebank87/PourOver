@@ -109,20 +109,76 @@ func StyleBrewLine(line string) string {
 		return trimmed
 	}
 
-	out := trimmed
-	// Brew/curl progress sometimes emits TABs that shove text into odd columns
-	// once we turn CR updates into normal lines.
+	out := stripANSI(trimmed)
 	out = strings.ReplaceAll(out, "\t", " ")
+	out = strings.Join(strings.Fields(out), " ")
 	out = strings.ReplaceAll(out, "🍺", "☕")
 	switch {
 	case strings.HasPrefix(out, "==> "):
 		out = "☕ " + strings.TrimSpace(strings.TrimPrefix(out, "==> "))
 	case strings.HasPrefix(out, "==>"):
 		out = "☕ " + strings.TrimSpace(strings.TrimPrefix(out, "==>"))
+	case hasCheckPrefix(out):
+		out = "☕ " + trimCheckPrefix(out)
 	}
 	// Collapse leftover double coffee if brew used both markers oddly.
-	out = strings.ReplaceAll(out, "☕  ☕", "☕")
+	out = strings.ReplaceAll(out, "☕ ☕", "☕")
+	if strings.HasPrefix(out, "☕  ") {
+		out = "☕ " + strings.TrimSpace(strings.TrimPrefix(out, "☕"))
+	}
 	return out
+}
+
+func hasCheckPrefix(s string) bool {
+	return strings.HasPrefix(s, "✔︎") || strings.HasPrefix(s, "✔") || strings.HasPrefix(s, "✓")
+}
+
+func trimCheckPrefix(s string) string {
+	for _, p := range []string{"✔︎", "✔", "✓"} {
+		if strings.HasPrefix(s, p) {
+			return strings.TrimSpace(strings.TrimPrefix(s, p))
+		}
+	}
+	return s
+}
+
+// stripANSI removes CSI/OSC sequences so CR-padded brew progress does not
+// leak spaces or leftover styling into restyled lines.
+func stripANSI(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(s); i++ {
+		if s[i] != 0x1b {
+			b.WriteByte(s[i])
+			continue
+		}
+		if i+1 >= len(s) {
+			break
+		}
+		switch s[i+1] {
+		case '[': // CSI
+			i += 2
+			for i < len(s) {
+				c := s[i]
+				if c >= '@' && c <= '~' {
+					break
+				}
+				i++
+			}
+		case ']': // OSC
+			i += 2
+			for i < len(s) && s[i] != 0x07 {
+				if s[i] == 0x1b && i+1 < len(s) && s[i+1] == '\\' {
+					i++
+					break
+				}
+				i++
+			}
+		default:
+			i++
+		}
+	}
+	return b.String()
 }
 
 func shouldOmitBrewLine(line string) bool {
@@ -145,7 +201,7 @@ func shouldOmitBrewLine(line string) bool {
 }
 
 func looksLikeAuthPrompt(s string) bool {
-	lower := strings.ToLower(strings.TrimSpace(s))
+	lower := strings.ToLower(strings.TrimSpace(stripANSI(s)))
 	switch {
 	case strings.HasSuffix(lower, "password:"):
 		return true
@@ -156,4 +212,78 @@ func looksLikeAuthPrompt(s string) bool {
 	default:
 		return false
 	}
+}
+
+// looksLikeBrewNeedsAuth is brew announcing a sudo/installer step. Unlike
+// Password:, these lines are complete and should stay newline-terminated.
+func looksLikeBrewNeedsAuth(s string) bool {
+	if looksLikeAuthPrompt(s) {
+		return true
+	}
+	lower := strings.ToLower(strings.TrimSpace(stripANSI(s)))
+	switch {
+	case strings.Contains(lower, "which may request your password"):
+		return true
+	case strings.Contains(lower, "running installer"):
+		return true
+	default:
+		return false
+	}
+}
+
+// looksLikeSilentBrewWork is brew output that is often followed by minutes of
+// no further stdout (sudo pkg, installer scripts, large bottle extract).
+func looksLikeSilentBrewWork(s string) bool {
+	if looksLikeBrewNeedsAuth(s) {
+		return true
+	}
+	lower := strings.ToLower(strings.TrimSpace(stripANSI(s)))
+	switch {
+	case strings.Contains(lower, "pouring "):
+		return true
+	case strings.Contains(lower, "with `sudo`"):
+		return true
+	case strings.Contains(lower, "with sudo"):
+		return true
+	default:
+		return false
+	}
+}
+
+// summarizeBrewStderr turns captured brew stderr into a short failure suffix.
+// Homebrew pads checkmark/progress lines to the terminal width; dumping that
+// raw into "☕ failed:" wraps and looks like a crash dump.
+func summarizeBrewStderr(s string) string {
+	s = stripANSI(s)
+	var keep []string
+	for _, line := range strings.Split(s, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || shouldOmitBrewLine(line) {
+			continue
+		}
+		if hasCheckPrefix(line) {
+			continue
+		}
+		lower := strings.ToLower(line)
+		if strings.HasPrefix(lower, "==> fetching") || strings.HasPrefix(lower, "fetching downloads") {
+			continue
+		}
+		if strings.HasPrefix(lower, "==> downloading homebrew api") {
+			continue
+		}
+		if styled := StyleBrewLine(line); styled != "" {
+			keep = append(keep, styled)
+		}
+	}
+	if len(keep) == 0 {
+		return ""
+	}
+	if len(keep) > 3 {
+		keep = keep[len(keep)-3:]
+	}
+	out := strings.Join(keep, " · ")
+	if len(out) > 240 {
+		return out[:237] + "..."
+	}
+	return out
 }

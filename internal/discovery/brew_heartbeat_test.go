@@ -65,6 +65,20 @@ func TestStartBrewHeartbeat_SkipsWhenActive(t *testing.T) {
 	}
 }
 
+func TestActivityWriter_PausesIdleOnInstaller(t *testing.T) {
+	var buf bytes.Buffer
+	w := newActivityWriter(&buf)
+	if w.idlePaused.Load() {
+		t.Fatal("idle should start unpaused")
+	}
+	if _, err := w.Write([]byte("==> Running installer script 'Anaconda3.sh'\n")); err != nil {
+		t.Fatal(err)
+	}
+	if !w.idlePaused.Load() {
+		t.Fatal("installer line should pause idle kill")
+	}
+}
+
 func TestJoinBrewArgs(t *testing.T) {
 	got := joinBrewArgs([]string{"install", "--cask", "anaconda", "extra", "more"})
 	if got != "install --cask anaconda extra …" {
