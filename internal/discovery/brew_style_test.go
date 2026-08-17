@@ -95,17 +95,35 @@ func TestLooksLikeSilentBrewWork(t *testing.T) {
 	}
 }
 
-func TestBrewStyleWriter_FlushesPasswordPromptImmediately(t *testing.T) {
+func TestBrewStyleWriter_DoesNotForwardPasswordPrompt(t *testing.T) {
 	var out bytes.Buffer
 	w := NewBrewStyleWriter(&out)
 	if _, err := w.Write([]byte("Password:")); err != nil {
 		t.Fatal(err)
 	}
 	got := out.String()
-	if !strings.Contains(got, "Password:") {
-		t.Fatalf("prompt not flushed: %q", got)
+	if strings.Contains(got, "Password:") {
+		t.Fatalf("must not reprint Password: as a typable line: %q", got)
 	}
-	if strings.HasSuffix(got, "\n") {
-		t.Fatalf("password prompt should not end with newline (cursor stays for typing): %q", got)
+	if !strings.Contains(got, "authentication required") {
+		t.Fatalf("want auth hint, got %q", got)
+	}
+}
+
+func TestBrewStyleWriter_CRPaddingDoesNotIndentNextLine(t *testing.T) {
+	var out bytes.Buffer
+	w := NewBrewStyleWriter(&out)
+	input := "✔︎ Cask foo (1.0)" + strings.Repeat(" ", 60) + "\r" +
+		strings.Repeat(" ", 60) + "\r" +
+		"==> Running installer for foo with `sudo` (which may request your password)...\n"
+	if _, err := w.Write([]byte(input)); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	if strings.Contains(got, "          ☕ Running") {
+		t.Fatalf("installer line indented by CR padding: %q", got)
+	}
+	if !strings.Contains(got, "☕ Running installer for foo") {
+		t.Fatalf("missing installer line: %q", got)
 	}
 }

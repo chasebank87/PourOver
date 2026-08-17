@@ -4,12 +4,20 @@ import (
 	"bytes"
 	"io"
 	"strings"
+	"sync"
+
+	"github.com/chasebank87/PourOver/internal/tty"
 )
 
 // BrewStyleWriter rewrites streamed Homebrew CLI output into PourOver's style.
-// It is safe for concurrent use only from a single writer (brew stdout or stderr).
+// It is safe for concurrent use from brew stdout and stderr.
 type BrewStyleWriter struct {
 	Out io.Writer
+	// OnPassword, when set, is called instead of forwarding Password: so the
+	// real sudo prompt on /dev/tty can take the cursor.
+	OnPassword func()
+
+	mu  sync.Mutex
 	buf []byte
 }
 
@@ -19,12 +27,16 @@ func NewBrewStyleWriter(out io.Writer) *BrewStyleWriter {
 }
 
 // Write buffers input and emits restyled complete lines.
-// Auth prompts (Password:) are flushed immediately without waiting for a newline
-// so they are not stuck in the buffer or glued to a progress bar.
+// Auth prompts (Password:) are handled immediately without waiting for a newline
+// so they are not stuck in the buffer or glued to a progress bar. The prompt
+// itself is not forwarded: sudo owns /dev/tty (echo off). Re-printing
+// "Password:" on the captured pipe leaves a typable line with echo on.
 func (w *BrewStyleWriter) Write(p []byte) (int, error) {
 	if w.Out == nil {
 		return len(p), nil
 	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	w.buf = append(w.buf, p...)
 	for {
 		if err := w.flushAuthPrompt(); err != nil {
@@ -34,16 +46,19 @@ func (w *BrewStyleWriter) Write(p []byte) (int, error) {
 		n := bytes.IndexByte(w.buf, '\n')
 		r := bytes.IndexByte(w.buf, '\r')
 		var i int
+		splitCR := false
 		switch {
 		case n < 0 && r < 0:
 			return len(p), nil
 		case n < 0:
 			i = r
+			splitCR = true
 		case r < 0:
 			i = n
 		default:
 			if r < n {
 				i = r
+				splitCR = true
 			} else {
 				i = n
 			}
@@ -51,13 +66,21 @@ func (w *BrewStyleWriter) Write(p []byte) (int, error) {
 		line := string(w.buf[:i])
 		w.buf = w.buf[i+1:]
 		if looksLikeAuthPrompt(line) {
-			if _, err := io.WriteString(w.Out, "\n"+strings.TrimRight(line, "\r")); err != nil {
+			if err := w.handlePassword(); err != nil {
 				return len(p), err
 			}
 			continue
 		}
 		if styled := StyleBrewLine(line); styled != "" {
 			if _, err := io.WriteString(w.Out, styled+"\n"); err != nil {
+				return len(p), err
+			}
+			continue
+		}
+		// Homebrew CR-clears with spaces; omitting those bytes can leave the
+		// cursor mid-line so the next restyled line looks indented.
+		if splitCR && len(strings.TrimSpace(stripANSI(line))) == 0 && len(line) > 0 {
+			if _, err := io.WriteString(w.Out, "\r\033[2K"); err != nil {
 				return len(p), err
 			}
 		}
@@ -68,17 +91,34 @@ func (w *BrewStyleWriter) flushAuthPrompt() error {
 	if !looksLikeAuthPrompt(string(w.buf)) {
 		return nil
 	}
-	line := strings.TrimRight(string(w.buf), "\r\n")
 	w.buf = nil
-	// No trailing newline: leave the cursor after "Password:" for typing.
-	_, err := io.WriteString(w.Out, "\n"+line)
-	return err
+	return w.handlePassword()
+}
+
+func (w *BrewStyleWriter) handlePassword() error {
+	if w.OnPassword != nil {
+		w.OnPassword()
+		return nil
+	}
+	if a, ok := w.Out.(interface{ PrepareAuth() }); ok {
+		a.PrepareAuth()
+		return nil
+	}
+	if _, err := io.WriteString(w.Out, "☕ authentication required — enter your password if prompted\n"); err != nil {
+		return err
+	}
+	tty.SyncPromptLine()
+	return nil
 }
 
 // Flush emits any trailing partial line.
 func (w *BrewStyleWriter) Flush() error {
-	if w.Out == nil || len(w.buf) == 0 {
-		w.buf = nil
+	if w.Out == nil {
+		return nil
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if len(w.buf) == 0 {
 		return nil
 	}
 	if looksLikeAuthPrompt(string(w.buf)) {

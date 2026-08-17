@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/chasebank87/PourOver/internal/tty"
 )
 
 // DefaultBrewTimeout is the maximum time allowed for a single brew discovery invocation.
@@ -128,6 +130,9 @@ func (r *ExecRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
 		} else {
 			cmd.Stdin = os.Stdin
 		}
+		restoreTTY := attachBrewMutationTTY(cmd, cmd.Stdin)
+		defer tty.EchoOn()
+		defer restoreTTY()
 	}
 
 	var activity *activityWriter

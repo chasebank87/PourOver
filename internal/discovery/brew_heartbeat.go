@@ -8,6 +8,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/chasebank87/PourOver/internal/tty"
 )
 
 // DefaultBrewHeartbeatInterval is how often to emit a "still working" line when
@@ -45,8 +47,10 @@ func (w *activityWriter) noteBrewBytes(p []byte) {
 	}
 	if looksLikeAuthPrompt(text) {
 		w.heartbeatPaused.Store(true)
+		tty.EchoOff()
 	} else if len(bytes.TrimSpace(p)) > 0 {
 		w.heartbeatPaused.Store(false)
+		tty.EchoOn()
 		if !looksLikeSilentBrewWork(text) {
 			w.idlePaused.Store(false)
 		}

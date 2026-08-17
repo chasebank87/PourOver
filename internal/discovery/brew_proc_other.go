@@ -2,6 +2,13 @@
 
 package discovery
 
-import "os/exec"
+import (
+	"io"
+	"os/exec"
+)
 
 func configureBrewMutationProcess(cmd *exec.Cmd) {}
+
+func attachBrewMutationTTY(cmd *exec.Cmd, stdin io.Reader) func() {
+	return func() {}
+}

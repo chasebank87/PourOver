@@ -88,6 +88,25 @@ func TestSession_WritePassthrough(t *testing.T) {
 	}
 }
 
+func TestSession_WriteInstallerLineIsNotAuthHint(t *testing.T) {
+	ForcePlain()
+	var buf bytes.Buffer
+	s := NewSession(&buf, "apply")
+	s.Start(1)
+	before := buf.Len()
+	line := "☕ Running installer for gamemaker with `sudo` (which may request your password)...\n"
+	if _, err := s.Write([]byte(line)); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()[before:]
+	if strings.Contains(got, "authentication required") {
+		t.Fatalf("installer line must not print auth hint (hint waits for Password:): %q", got)
+	}
+	if !strings.Contains(got, "Running installer for gamemaker") {
+		t.Fatalf("missing installer line: %q", got)
+	}
+}
+
 func TestSession_WriteAuthPromptHint(t *testing.T) {
 	ForcePlain()
 	var buf bytes.Buffer
@@ -102,8 +121,8 @@ func TestSession_WriteAuthPromptHint(t *testing.T) {
 	if !strings.Contains(got, "authentication required") {
 		t.Fatalf("missing auth hint: %q", got)
 	}
-	if !strings.Contains(got, "Password:") {
-		t.Fatalf("missing prompt: %q", got)
+	if strings.Contains(got, "Password:") {
+		t.Fatalf("must not reprint Password: as a typable line: %q", got)
 	}
 }
 

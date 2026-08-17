@@ -111,3 +111,33 @@ func TestExecRunner_DiscoveryDoesNotRequireStdin(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestExecRunner_DoesNotForwardPasswordPrompt(t *testing.T) {
+	dir := t.TempDir()
+	script := filepath.Join(dir, "fake-brew")
+	content := "#!/bin/sh\nprintf '%s' 'Password:'\necho\necho done\n"
+	if err := os.WriteFile(script, []byte(content), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var raw bytes.Buffer
+	styled := NewBrewStyleWriter(&raw)
+	r := &ExecRunner{
+		Path:              script,
+		MutationTimeout:   5 * time.Second,
+		IdleTimeout:       -1,
+		HeartbeatInterval: -1,
+		Stdin:             strings.NewReader(""),
+		Stdout:            styled,
+		Stderr:            styled,
+	}
+	if _, err := r.Run(context.Background(), "install", "--cask", "foo"); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	got := raw.String()
+	if strings.Contains(got, "Password:") {
+		t.Fatalf("must not reprint Password: as a typable line: %q", got)
+	}
+	if !strings.Contains(got, "authentication required") {
+		t.Fatalf("want auth hint, got %q", got)
+	}
+}

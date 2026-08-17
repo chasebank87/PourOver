@@ -48,7 +48,7 @@ type Session struct {
 	started    bool
 	failed     int
 	barWidth   int
-	cols       int // 0 = detect; tests may set explicitly
+	cols       int  // 0 = detect; tests may set explicitly
 	liveStatus bool // true when the cursor sits on the CR status line
 }
 
@@ -109,7 +109,8 @@ func (s *Session) Fail(err error) {
 }
 
 // Write implements io.Writer for brew restyled output.
-// Parks the live progress line first so logs and Password: prompts stay clean.
+// Parks the live progress line first so logs stay clean. Password: bytes are
+// swallowed after the auth hint — sudo prompts on /dev/tty with echo off.
 func (s *Session) Write(p []byte) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -117,8 +118,9 @@ func (s *Session) Write(p []byte) (int, error) {
 		return 0, nil
 	}
 	s.parkStatusLocked()
-	if looksLikeAuthPrompt(string(p)) {
-		fmt.Fprint(s.out, styleAccentPrompt.Render("☕ authentication required — enter your password if prompted\n"))
+	if looksLikePasswordPrompt(string(p)) {
+		s.prepareAuthLocked()
+		return len(p), nil
 	}
 	return s.out.Write(p)
 }
@@ -137,6 +139,10 @@ func (s *Session) PreparePrompt() {
 func (s *Session) PrepareAuth() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.prepareAuthLocked()
+}
+
+func (s *Session) prepareAuthLocked() {
 	s.parkForPromptLocked()
 	fmt.Fprint(s.out, styleAccentPrompt.Render("☕ authentication required — enter your password if prompted"))
 	fmt.Fprint(s.out, "\n")
@@ -301,7 +307,7 @@ func (s *Session) ProgressAdapter() func(string) {
 	}
 }
 
-func looksLikeAuthPrompt(s string) bool {
+func looksLikePasswordPrompt(s string) bool {
 	lower := strings.ToLower(s)
 	switch {
 	case strings.Contains(lower, "password:"):
@@ -309,10 +315,6 @@ func looksLikeAuthPrompt(s string) bool {
 	case strings.Contains(lower, "password for"):
 		return true
 	case strings.Contains(lower, "passphrase"):
-		return true
-	case strings.Contains(lower, "which may request your password"):
-		return true
-	case strings.Contains(lower, "running installer"):
 		return true
 	default:
 		return false
