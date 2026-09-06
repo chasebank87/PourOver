@@ -40,6 +40,7 @@ type Action struct {
 	Value   string     `json:"value,omitempty"`
 	Kind    string     `json:"kind,omitempty"`
 	Trusted bool       `json:"trusted,omitempty"` // tap_add: whether to brew trust after tap
+	URL     string     `json:"url,omitempty"`     // tap_add: optional clone URL for brew tap name url
 }
 
 // Plan is an ordered list of actions to reconcile state.

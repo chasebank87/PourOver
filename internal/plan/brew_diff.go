@@ -34,6 +34,7 @@ func BuildBrewPlan(desired config.Packages, current discovery.BrewState) Plan {
 			Type:    ActionTapAdd,
 			Name:    brewToken(tap.Name),
 			Trusted: tap.Trusted,
+			URL:     strings.TrimSpace(tap.URL),
 		})
 	}
 	var needTrust []string

@@ -36,6 +36,9 @@ func RenderJSON(p Plan) ([]byte, error) {
 func formatActionLine(a Action) string {
 	switch a.Type {
 	case ActionTapAdd:
+		if a.URL != "" {
+			return fmt.Sprintf("tap %s %s", a.Name, a.URL)
+		}
 		return fmt.Sprintf("tap %s", a.Name)
 	case ActionTapTrust:
 		return fmt.Sprintf("trust tap %s", a.Name)

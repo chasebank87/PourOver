@@ -760,7 +760,15 @@ func decodeTapSpec(L *lua.LState, tbl *lua.LTable, field string, index int) (Tap
 		}
 		trusted = lua.LVAsBool(trustedLV)
 	}
-	return TapSpec{Name: name, Trusted: trusted}, nil
+	url := ""
+	urlLV := L.GetField(tbl, "url")
+	if urlLV != lua.LNil {
+		if urlLV.Type() != lua.LTString {
+			return TapSpec{}, fmt.Errorf("%s.url: expected string, got %s", prefix, urlLV.Type())
+		}
+		url = strings.TrimSpace(urlLV.String())
+	}
+	return TapSpec{Name: name, Trusted: trusted, URL: url}, nil
 }
 
 func fieldTable(L *lua.LState, tbl *lua.LTable, key string) (*lua.LTable, bool, error) {

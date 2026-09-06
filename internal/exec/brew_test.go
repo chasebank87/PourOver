@@ -16,8 +16,12 @@ type installRecordingRunner struct {
 }
 
 func (r *installRecordingRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
-	if len(args) == 2 && args[0] == "tap" {
-		r.installs = append(r.installs, "tap:"+args[1])
+	if len(args) >= 2 && args[0] == "tap" {
+		if len(args) == 3 {
+			r.installs = append(r.installs, "tap:"+args[1]+"@"+args[2])
+		} else {
+			r.installs = append(r.installs, "tap:"+args[1])
+		}
 		return nil, nil
 	}
 	if len(args) == 3 && args[0] == "trust" && args[1] == "--tap" {
@@ -59,7 +63,7 @@ func TestInstallFormula_RunsBrewInstall(t *testing.T) {
 
 func TestAddTap_TrustsAfterTap(t *testing.T) {
 	runner := &installRecordingRunner{}
-	if err := AddTap(context.Background(), runner, "nikitabobko/tap", true); err != nil {
+	if err := AddTap(context.Background(), runner, "nikitabobko/tap", "", true); err != nil {
 		t.Fatalf("AddTap: %v", err)
 	}
 	if got := strings.Join(runner.installs, ","); got != "tap:nikitabobko/tap,trust:nikitabobko/tap" {
@@ -67,9 +71,19 @@ func TestAddTap_TrustsAfterTap(t *testing.T) {
 	}
 }
 
+func TestAddTap_WithURL(t *testing.T) {
+	runner := &installRecordingRunner{}
+	if err := AddTap(context.Background(), runner, "jundot/omlx", "https://github.com/jundot/omlx", true); err != nil {
+		t.Fatalf("AddTap: %v", err)
+	}
+	if got := strings.Join(runner.installs, ","); got != "tap:jundot/omlx@https://github.com/jundot/omlx,trust:jundot/omlx" {
+		t.Fatalf("calls = %q, want tap with url then trust", got)
+	}
+}
+
 func TestAddTap_SkipsTrustWhenUntrusted(t *testing.T) {
 	runner := &installRecordingRunner{}
-	if err := AddTap(context.Background(), runner, "nikitabobko/tap", false); err != nil {
+	if err := AddTap(context.Background(), runner, "nikitabobko/tap", "", false); err != nil {
 		t.Fatalf("AddTap: %v", err)
 	}
 	if got := strings.Join(runner.installs, ","); got != "tap:nikitabobko/tap" {
@@ -79,7 +93,7 @@ func TestAddTap_SkipsTrustWhenUntrusted(t *testing.T) {
 
 func TestAddTap_SkipsTrustForOfficial(t *testing.T) {
 	runner := &installRecordingRunner{}
-	if err := AddTap(context.Background(), runner, "homebrew/cask-fonts", true); err != nil {
+	if err := AddTap(context.Background(), runner, "homebrew/cask-fonts", "", true); err != nil {
 		t.Fatalf("AddTap: %v", err)
 	}
 	if got := strings.Join(runner.installs, ","); got != "tap:homebrew/cask-fonts" {

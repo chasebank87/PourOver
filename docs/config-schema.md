@@ -44,6 +44,8 @@ packages = {
     "homebrew/cask-fonts",
     { name = "oven-sh/bun", trusted = true },
     { name = "heroku/brew", trusted = false },
+    -- Custom clone URL when the repo is not github.com/<user>/homebrew-<tap>:
+    { name = "jundot/omlx", url = "https://github.com/jundot/omlx", trusted = true },
   },
   formulae = { "git" },
   casks = { "raycast" },
@@ -53,7 +55,15 @@ packages = {
 }
 ```
 
-`pourover import --packages` merges `brew tap` / `brew list` into `packages.lua` (add-only by default; `--force` replaces). Import emits plain tap **strings** (implicit `trusted = true`). Core taps (`homebrew/core`, `homebrew/cask`) are omitted from import output. When `mas` is available, import also writes `packages.mas` from `mas list`.
+Tap table fields:
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `name` | string | required | Tap token (`user/repo`) |
+| `trusted` | bool | `true` | When true, apply runs `brew trust --tap` (Homebrew 6+) |
+| `url` | string | omit | Optional clone URL for `brew tap <name> <url>` |
+
+`pourover import --packages` merges `brew tap` / `brew list` into `packages.lua` (add-only by default; `--force` replaces). Import emits plain tap **strings** (implicit `trusted = true`). Core taps (`homebrew/core`, `homebrew/cask`) are omitted from import output. When `mas` is available, import also writes `packages.mas` from `mas list`. Custom `url` values are not yet rewritten by import — keep them in the table form by hand.
 
 ### `packages.mas`
 

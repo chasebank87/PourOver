@@ -77,6 +77,45 @@ return {
 	}
 }
 
+func TestDecodePackages_TapTableWithURL(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "pourover.lua")
+	src := `
+return {
+  packages = {
+    taps = {
+      { name = "jundot/omlx", url = "https://github.com/jundot/omlx", trusted = true },
+    },
+    formulae = {},
+    casks = {},
+  },
+  files = { links = {} },
+  policy = { uninstall_mode = "safe" },
+}
+`
+	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	manifest, err := LoadManifest(path)
+	if err != nil {
+		t.Fatalf("LoadManifest: %v", err)
+	}
+	if len(manifest.Packages.Taps) != 1 {
+		t.Fatalf("taps = %#v, want 1", manifest.Packages.Taps)
+	}
+	tap := manifest.Packages.Taps[0]
+	if tap.Name != "jundot/omlx" {
+		t.Errorf("Name = %q", tap.Name)
+	}
+	if tap.URL != "https://github.com/jundot/omlx" {
+		t.Errorf("URL = %q", tap.URL)
+	}
+	if !tap.Trusted {
+		t.Errorf("Trusted = false, want true")
+	}
+}
+
 func TestDecodePackages_TapTableMissingName(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "pourover.lua")

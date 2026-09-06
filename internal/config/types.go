@@ -73,10 +73,12 @@ type SettingValue struct {
 	Array  []string    `json:"array,omitempty"`
 }
 
-// TapSpec is a Homebrew tap with an optional trust flag (default trusted).
+// TapSpec is a Homebrew tap with an optional trust flag (default trusted)
+// and optional clone URL for `brew tap <name> <url>` (non-homebrew- prefix remotes).
 type TapSpec struct {
 	Name    string `json:"name"`
-	Trusted bool   `json:"trusted"` // default true when decoded from Lua string/table
+	Trusted bool   `json:"trusted"`          // default true when decoded from Lua string/table
+	URL     string `json:"url,omitempty"`    // optional; when set, apply runs brew tap name url
 }
 
 // MasApp is a Mac App Store app declared by display name and numeric ID.

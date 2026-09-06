@@ -9,10 +9,19 @@ import (
 	"github.com/chasebank87/PourOver/internal/plan"
 )
 
-// AddTap runs `brew tap <name>` then, when trusted is true, `brew trust --tap <name>`
+// AddTap runs `brew tap <name> [url]` then, when trusted is true, `brew trust --tap <name>`
 // for non-official taps (Homebrew 6+ requires explicit trust before loading third-party tap code).
-func AddTap(ctx context.Context, runner discovery.Runner, name string, trusted bool) error {
-	if _, err := runner.Run(ctx, "tap", name); err != nil {
+// url is optional; when set it selects a custom clone remote (needed when the repo is not
+// named homebrew-<tap>).
+func AddTap(ctx context.Context, runner discovery.Runner, name, url string, trusted bool) error {
+	args := []string{"tap", name}
+	if url != "" {
+		args = append(args, url)
+	}
+	if _, err := runner.Run(ctx, args...); err != nil {
+		if url != "" {
+			return fmt.Errorf("brew tap %s %s: %w", name, url, err)
+		}
 		return fmt.Errorf("brew tap %s: %w", name, err)
 	}
 	if trusted && discovery.NeedsExplicitTrust(name) {
@@ -77,7 +86,7 @@ func ApplyTapAdds(ctx context.Context, runner discovery.Runner, p plan.Plan, pro
 		switch a.Type {
 		case plan.ActionTapAdd:
 			report(progress, a)
-			if err := AddTap(ctx, runner, a.Name, a.Trusted); err != nil {
+			if err := AddTap(ctx, runner, a.Name, a.URL, a.Trusted); err != nil {
 				reportFailure(progress, err)
 				errs = append(errs, err)
 				continue
