@@ -49,7 +49,10 @@ func BuildBrewPlan(desired config.Packages, current discovery.BrewState) Plan {
 		if _, tapped := currentTaps[token]; !tapped {
 			continue // tap_add will trust after tapping
 		}
-		if _, ok := trustedTaps[token]; ok {
+		// Homebrew 6 stores custom-remote taps as their clone URL in
+		// `brew trust --json` (e.g. https://github.com/org/repo), not the
+		// user/tap token. Match either form so we do not re-trust every apply.
+		if tapAlreadyTrusted(tap, trustedTaps) {
 			continue
 		}
 		needTrust = append(needTrust, token)
@@ -132,6 +135,28 @@ func packageKeySet(items []string) map[string]struct{} {
 
 func brewToken(name string) string {
 	return strings.ToLower(strings.TrimSpace(name))
+}
+
+// tapAlreadyTrusted reports whether brew trust already covers this tap by
+// name and/or custom remote URL.
+func tapAlreadyTrusted(tap config.TapSpec, trusted map[string]struct{}) bool {
+	if _, ok := trusted[brewToken(tap.Name)]; ok {
+		return true
+	}
+	if url := brewToken(tap.URL); url != "" {
+		if _, ok := trusted[url]; ok {
+			return true
+		}
+		// brew may store the URL with or without a trailing .git
+		if strings.HasSuffix(url, ".git") {
+			if _, ok := trusted[strings.TrimSuffix(url, ".git")]; ok {
+				return true
+			}
+		} else if _, ok := trusted[url+".git"]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 // ActionTypes returns the action type sequence for tests and assertions.

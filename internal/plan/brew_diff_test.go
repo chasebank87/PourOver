@@ -95,6 +95,41 @@ func TestBuildBrewPlan_SkipTrustWhenAlreadyTrusted(t *testing.T) {
 	}
 }
 
+func TestBuildBrewPlan_SkipTrustWhenTrustedByCustomRemoteURL(t *testing.T) {
+	// Custom remotes are recorded as the clone URL in brew trust --json.
+	plan := BuildBrewPlan(
+		config.Packages{Taps: []config.TapSpec{{
+			Name:    "chasebank87/sauron",
+			URL:     "https://github.com/chasebank87/sauron",
+			Trusted: true,
+		}}},
+		discovery.BrewState{
+			Taps:        []string{"chasebank87/sauron"},
+			TrustedTaps: []string{"https://github.com/chasebank87/sauron"},
+		},
+	)
+	if names := ActionNames(plan, ActionTapTrust); len(names) != 0 {
+		t.Fatalf("tap trusts = %v, want none when trusted by URL", names)
+	}
+}
+
+func TestBuildBrewPlan_SkipTrustWhenTrustedByCustomRemoteURLWithGitSuffix(t *testing.T) {
+	plan := BuildBrewPlan(
+		config.Packages{Taps: []config.TapSpec{{
+			Name:    "chasebank87/sauron",
+			URL:     "https://github.com/chasebank87/sauron",
+			Trusted: true,
+		}}},
+		discovery.BrewState{
+			Taps:        []string{"chasebank87/sauron"},
+			TrustedTaps: []string{"https://github.com/chasebank87/sauron.git"},
+		},
+	)
+	if names := ActionNames(plan, ActionTapTrust); len(names) != 0 {
+		t.Fatalf("tap trusts = %v, want none when trusted by URL.git", names)
+	}
+}
+
 func TestBuildBrewPlan_NeverUntapCore(t *testing.T) {
 	plan := BuildBrewPlan(
 		config.Packages{},
