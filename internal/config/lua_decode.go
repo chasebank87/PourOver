@@ -375,13 +375,94 @@ func decodePackages(L *lua.LState, root *lua.LTable, key string) (Packages, erro
 	if err != nil {
 		return Packages{}, fmt.Errorf("packages.%w", err)
 	}
+	autoUpdate, err := fieldAutoUpdate(L, tbl, "auto_update")
+	if err != nil {
+		return Packages{}, fmt.Errorf("packages.%w", err)
+	}
 	return Packages{
 		Taps:          taps,
 		Formulae:      formulae,
 		Casks:         casks,
 		Mas:           mas,
 		MasConfigured: masConfigured,
+		AutoUpdate:    autoUpdate,
 	}, nil
+}
+
+// fieldAutoUpdate decodes packages.auto_update as a boolean or table.
+// Omitted key → Configured=false; present (including {} or true) → Configured=true.
+func fieldAutoUpdate(L *lua.LState, tbl *lua.LTable, key string) (AutoUpdate, error) {
+	lv := L.GetField(tbl, key)
+	if lv == lua.LNil {
+		return AutoUpdate{}, nil
+	}
+	switch lv.Type() {
+	case lua.LTBool:
+		return AutoUpdate{Configured: true, Enable: lua.LVAsBool(lv)}, nil
+	case lua.LTTable:
+		return decodeAutoUpdateTable(L, lv.(*lua.LTable), "packages."+key)
+	default:
+		return AutoUpdate{}, fmt.Errorf("%s: expected boolean or table, got %s", key, lv.Type())
+	}
+}
+
+func decodeAutoUpdateTable(L *lua.LState, tbl *lua.LTable, prefix string) (AutoUpdate, error) {
+	out := AutoUpdate{Configured: true}
+	enable, err := optionalBoolDefault(L, tbl, "enable", prefix, true)
+	if err != nil {
+		return AutoUpdate{}, err
+	}
+	out.Enable = enable
+
+	interval, err := optionalAutoUpdateInterval(L, tbl, "interval", prefix)
+	if err != nil {
+		return AutoUpdate{}, err
+	}
+	out.Interval = interval
+
+	upgrade, err := optionalBool(L, tbl, "upgrade", prefix)
+	if err != nil {
+		return AutoUpdate{}, err
+	}
+	out.Upgrade = upgrade
+
+	greedy, err := optionalBool(L, tbl, "greedy", prefix)
+	if err != nil {
+		return AutoUpdate{}, err
+	}
+	out.Greedy = greedy
+
+	cleanup, err := optionalBool(L, tbl, "cleanup", prefix)
+	if err != nil {
+		return AutoUpdate{}, err
+	}
+	out.Cleanup = cleanup
+
+	immediate, err := optionalBool(L, tbl, "immediate", prefix)
+	if err != nil {
+		return AutoUpdate{}, err
+	}
+	out.Immediate = immediate
+	return out, nil
+}
+
+func optionalAutoUpdateInterval(L *lua.LState, tbl *lua.LTable, key, prefix string) (string, error) {
+	lv := L.GetField(tbl, key)
+	if lv == lua.LNil {
+		return "", nil
+	}
+	switch lv.Type() {
+	case lua.LTString:
+		return strings.TrimSpace(lv.String()), nil
+	case lua.LTNumber:
+		n := float64(lv.(lua.LNumber))
+		if n != float64(int64(n)) || n <= 0 {
+			return "", fmt.Errorf("%s.%s: expected positive integer seconds, got %v", prefix, key, n)
+		}
+		return fmt.Sprintf("%d", int64(n)), nil
+	default:
+		return "", fmt.Errorf("%s.%s: expected string or number, got %s", prefix, key, lv.Type())
+	}
 }
 
 // fieldMasApps decodes packages.mas as a string-key → number-id map.

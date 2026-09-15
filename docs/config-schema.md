@@ -24,6 +24,7 @@ Unknown top-level or nested keys in Lua are ignored (not an error). Semantic val
 | `formulae` | array of strings | Homebrew formulae to install |
 | `casks` | array of strings | Homebrew casks to install |
 | `mas` | table of name → integer | Mac App Store apps (`packages.mas`); omit to leave App Store unmanaged |
+| `auto_update` | boolean or table | Homebrew background autoupdate (`brew autoupdate`); omit to leave unmanaged |
 
 ### `packages.taps`
 
@@ -76,6 +77,44 @@ Name → numeric App Store ID map (nix-darwin `homebrew.masApps` style).
 - Planning uses `mas list` with `MAS_NO_AUTO_INDEX=1`. After wipe/restore, if Spotlight has not indexed an app yet but `/Applications/{Name}.app` (or `~/Applications`) exists for a **declared** ID, PourOver treats it as installed and skips `mas_install` (does not invent undeclared apps for remove).
 
 IDs must be positive integers. Duplicate names or IDs fail validation. Declaring `mas` does not treat those apps as casks.
+
+### `packages.auto_update`
+
+Manages Homebrew's background updater (`brew autoupdate`, a launchd agent). **Omit the key to leave an existing agent unmanaged.** Declaring it implies the `domt4/autoupdate` tap (skipped if `homebrew/autoupdate` is already tapped).
+
+The value may be a **boolean** or a **table**. A present table defaults `enable = true`.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `enable` | bool | `true` when the table is present | `false` runs `brew autoupdate delete` |
+| `interval` | string or integer | `24h` | Seconds, a duration (`30m`, `12h`, `1d`, `1w`), or a daily clock time (`00:00`) |
+| `upgrade` | bool | `false` | Also run `brew upgrade` (`--upgrade`) |
+| `greedy` | bool | `false` | Include auto-updating casks (`--greedy`; requires `upgrade = true`) |
+| `cleanup` | bool | `false` | Run `brew cleanup` after a successful run |
+| `immediate` | bool | `false` | Run now and on login (`--immediate`) |
+
+```lua
+-- pourover.lua (hybrid layout)
+local packages = require("packages")
+packages.auto_update = true -- start with Homebrew defaults (update every 24h)
+
+-- or a table:
+packages.auto_update = {
+  enable = true,
+  interval = "12h", -- or 86400, or "00:00" for daily at midnight
+  upgrade = true,
+  cleanup = true,
+}
+
+return {
+  packages = packages,
+  -- ...
+}
+```
+
+`auto_update = false` (or `{ enable = false }`) keeps the key managed and stops/deletes the agent on apply. Changing interval or flags plans `brew autoupdate delete` then `start` (Homebrew will not replace a running agent's options in place).
+
+You can also put `auto_update` in `packages.lua`. Package import preserves it.
 
 ## `files`
 

@@ -148,3 +148,22 @@ return {
 		t.Fatalf("Mas[1] = %#v", manifest.Packages.Mas[1])
 	}
 }
+
+func TestFormatPackagesLuaFullWithAutoUpdate_PreservesBool(t *testing.T) {
+	got := FormatPackagesLuaFullWithAutoUpdate(nil, []string{"git"}, nil, nil, config.AutoUpdate{Configured: true, Enable: true})
+	if !strings.Contains(got, "auto_update = true,") {
+		t.Fatalf("missing auto_update:\n%s", got)
+	}
+	got = FormatPackagesLuaFullWithAutoUpdate(nil, []string{"git"}, nil, nil, config.AutoUpdate{
+		Configured: true,
+		Enable:     true,
+		Interval:   "12h",
+		Upgrade:    true,
+		Cleanup:    true,
+	})
+	for _, frag := range []string{`interval = "12h"`, "upgrade = true", "cleanup = true"} {
+		if !strings.Contains(got, frag) {
+			t.Fatalf("missing %q in:\n%s", frag, got)
+		}
+	}
+}

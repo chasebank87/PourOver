@@ -74,7 +74,7 @@ Home screens: Plan, Apply, Upgrade, Doctor (opt-in fixes), History, Backup/Resto
 | `build` | Freeze config into an activation generation (no live writes) |
 | `plan` | Show pending actions (`--json` for machine-readable) |
 | `apply` | Reconcile the system (`--dry-run`, `--yes`, `--quiet`) |
-| `upgrade` | Self-update pourover, upgrade **outdated** declared brew/mas packages, then reapply (`--dry-run`, `--yes`, `--skip-self-update`, `--quiet`) |
+| `upgrade` | Self-update pourover, `brew update`, upgrade **outdated** declared brew/mas packages, then reapply (`--dry-run`, `--yes`, `--skip-self-update`, `--quiet`) |
 | `self-update` | Replace the pourover binary from the latest GitHub Release |
 | `doctor` | Check PATH, brew, config, state dir, iCloud, git sync |
 | `backup` | Force local snapshot (+ iCloud mirror when enabled) |
@@ -100,6 +100,19 @@ Re-import without `--force` only adds newly discovered items. Core taps (`homebr
 ## Config sketch
 
 Taps may be strings or `{ name, trusted = false }` (default `trusted = true`). Mac App Store apps are a name → numeric ID map. Omit `mas` to leave App Store unmanaged; `mas = {}` manages and desires zero apps. Declaring `mas` implies the `mas` Homebrew formula. Apply runs `mas install`, then `mas get` on failure (first-time apps). Sign in to the App Store in the GUI. After a wipe, declared apps already on disk are treated as installed even if Spotlight/`mas list` lag. Casks install in chunks of 8 with an idle-output timeout.
+
+Homebrew background updates (`brew autoupdate`) are optional. Omit `packages.auto_update` to leave an existing agent alone. Set it in `pourover.lua` (or `packages.lua`) to start or stop the launchd job.
+
+```lua
+-- pourover.lua
+local packages = require("packages")
+packages.auto_update = {
+  enable = true,
+  interval = "24h",
+  upgrade = true,
+  cleanup = true,
+}
+```
 
 ```lua
 -- packages.lua
@@ -150,12 +163,12 @@ macos = {
 }
 ```
 
-Keep packages (and PourOver itself) up to date — brew and mas for **outdated declared** packages only:
+Keep packages (and PourOver itself) up to date — brew and mas for **outdated declared** packages only. `upgrade` runs `brew update` before discovering outdated packages (including with `--dry-run`):
 
 ```bash
 pourover self-update
 pourover upgrade
-pourover upgrade --dry-run          # skips self-update
+pourover upgrade --dry-run          # skips self-update; still brew update
 pourover upgrade --skip-self-update
 ```
 

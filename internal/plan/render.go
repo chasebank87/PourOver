@@ -92,6 +92,14 @@ func formatActionLine(a Action) string {
 		return fmt.Sprintf("pam disable stub %s", a.Name)
 	case ActionPAMSudoInclude:
 		return fmt.Sprintf("pam include sudo_local in %s", a.Name)
+	case ActionBrewAutoupdateStart:
+		line := "brew autoupdate start " + a.Name
+		if a.Value != "" {
+			line += " " + a.Value
+		}
+		return line
+	case ActionBrewAutoupdateDelete:
+		return "brew autoupdate delete"
 	default:
 		return fmt.Sprintf("unknown %s %s", a.Type, a.Name)
 	}

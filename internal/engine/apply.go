@@ -12,7 +12,7 @@ import (
 	"github.com/chasebank87/PourOver/internal/plan"
 )
 
-// Apply runs the reconcile mutation loop for taps, formulae, PAM, casks, MAS,
+// Apply runs the reconcile mutation loop for taps, brew autoupdate, formulae, PAM, casks, MAS,
 // removes, defaults, declared files, managed copies, templates, unlinks, and
 // owned-file prunes. It does not create UI sessions or print summaries;
 // frontends pass Progress / Confirmer / writers via opts.
@@ -65,6 +65,13 @@ func Apply(ctx context.Context, runner discovery.Runner, p plan.Plan, opts Apply
 	if err != nil {
 		errs = append(errs, err)
 	}
+
+	phase("autoupdate")
+	autoN, err := exec.ApplyAutoUpdate(ctx, mutRunner, p, progress)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
 	phase("formulae")
 	formulae, err := exec.ApplyFormulaInstalls(ctx, mutRunner, p, progress)
 	if err != nil {
@@ -146,6 +153,7 @@ func Apply(ctx context.Context, runner discovery.Runner, p plan.Plan, opts Apply
 	}
 
 	result.Taps = taps
+	result.AutoUpdate = autoN
 	result.Formulae = formulae
 	result.Casks = casks
 	result.Mas = masN

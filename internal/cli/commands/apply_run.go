@@ -151,24 +151,25 @@ func runApplyActions(cmd *cobra.Command, runner discovery.Runner, p plan.Plan, o
 
 	result, err := engine.Apply(cmd.Context(), runner, p, engineOpts)
 
-	n := result.Taps + result.Formulae + result.Casks + result.Mas + result.Removed + result.Defaults +
+	n := result.Taps + result.AutoUpdate + result.Formulae + result.Casks + result.Mas + result.Removed + result.Defaults +
 		result.Linked + result.Managed + result.Templates + result.Unlinked + result.Pruned
 
 	sum := ui.Summary{
-		Taps:      result.Taps,
-		Formulae:  result.Formulae,
-		Casks:     result.Casks,
-		Mas:       result.Mas,
-		Removed:   result.Removed,
-		Defaults:  result.Defaults,
-		Linked:    result.Linked,
-		Managed:   result.Managed,
-		Templates: result.Templates,
-		Unlinked:  result.Unlinked,
-		Pruned:    result.Pruned,
-		Renames:   result.Renames,
-		Skipped:   result.Skipped,
-		Failures:  result.Failures,
+		Taps:       result.Taps,
+		AutoUpdate: result.AutoUpdate,
+		Formulae:   result.Formulae,
+		Casks:      result.Casks,
+		Mas:        result.Mas,
+		Removed:    result.Removed,
+		Defaults:   result.Defaults,
+		Linked:     result.Linked,
+		Managed:    result.Managed,
+		Templates:  result.Templates,
+		Unlinked:   result.Unlinked,
+		Pruned:     result.Pruned,
+		Renames:    result.Renames,
+		Skipped:    result.Skipped,
+		Failures:   result.Failures,
 	}
 
 	if session != nil {

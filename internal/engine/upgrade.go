@@ -27,9 +27,9 @@ type UpgradeResult struct {
 	Failures int
 }
 
-// BuildUpgradePlan loads config, discovers brew + outdated packages (and mas
-// outdated when packages.mas is configured), and returns the upgrade-only plan
-// for declared formulae/casks/apps that are installed and outdated.
+// BuildUpgradePlan loads config, runs `brew update`, discovers brew + outdated
+// packages (and mas outdated when packages.mas is configured), and returns the
+// upgrade-only plan for declared formulae/casks/apps that are installed and outdated.
 // When masRunner is nil and mas is configured, NewExecMasRunner is used.
 // When DiscoverMasOutdated fails because mas is not on PATH, planning continues
 // without mas upgrades (same soft-skip as BuildPlanWith).
@@ -37,6 +37,11 @@ func BuildUpgradePlan(ctx context.Context, configPath string, runner discovery.R
 	manifest, err := config.LoadManifest(configPath)
 	if err != nil {
 		return plan.Plan{}, fmt.Errorf("load config: %w", err)
+	}
+	// Refresh Homebrew's formula/cask index before outdated discovery so
+	// upgrade/dry-run see current versions (same as a manual brew update).
+	if err := exec.UpdateBrew(ctx, runner); err != nil {
+		return plan.Plan{}, err
 	}
 	brewState, err := discovery.DiscoverBrew(ctx, runner)
 	if err != nil {

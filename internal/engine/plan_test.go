@@ -34,6 +34,9 @@ func (s *stubBrewRunner) Run(ctx context.Context, args ...string) ([]byte, error
 	if len(args) == 1 && args[0] == "tap" {
 		return []byte("homebrew/core\nhomebrew/cask\n"), nil
 	}
+	if len(args) == 1 && args[0] == "update" {
+		return []byte(""), nil
+	}
 	if len(args) == 2 && args[0] == "trust" && args[1] == "--json=v1" {
 		return []byte(`{"taps":[],"formulae":[],"casks":[],"commands":[]}`), nil
 	}
@@ -70,7 +73,6 @@ func isBrewListArgs(args []string, kind string) bool {
 	}
 	return len(args) == 3 && args[0] == "list" && args[1] == kind && args[2] == "-1"
 }
-
 
 func disableMasDiskProbe(t *testing.T) {
 	t.Helper()
@@ -405,6 +407,48 @@ func TestBuildPlanWith_MasDiscoverOtherErrorFails(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "discover mas") {
 		t.Fatalf("error = %v, want discover mas prefix", err)
+	}
+}
+
+func TestBuildPlan_AutoUpdateStart(t *testing.T) {
+	prev := discovery.DefaultAutoupdateProbe
+	discovery.DefaultAutoupdateProbe = discovery.StaticAutoupdateProbe{}
+	t.Cleanup(func() { discovery.DefaultAutoupdateProbe = prev })
+
+	root := t.TempDir()
+	configDir := filepath.Join(root, "cfg")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	lua := `return {
+  packages = {
+    formulae = {},
+    casks = {},
+    auto_update = {
+      enable = true,
+      interval = "12h",
+      upgrade = true,
+      cleanup = true,
+    },
+  },
+  files = {},
+}
+`
+	configPath := filepath.Join(configDir, "pourover.lua")
+	if err := os.WriteFile(configPath, []byte(lua), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	p, err := BuildPlanWith(context.Background(), configPath, &stubBrewRunner{}, discovery.NewExecDefaultsRunner(), nil, filepath.Join(root, "state"))
+	if err != nil {
+		t.Fatalf("BuildPlan: %v", err)
+	}
+	if names := plan.ActionNames(p, plan.ActionTapAdd); len(names) != 1 || names[0] != "domt4/autoupdate" {
+		t.Fatalf("tap adds = %v, want [domt4/autoupdate]", names)
+	}
+	starts := plan.ActionNames(p, plan.ActionBrewAutoupdateStart)
+	if len(starts) != 1 || starts[0] != "12h" {
+		t.Fatalf("autoupdate starts = %v", starts)
 	}
 }
 

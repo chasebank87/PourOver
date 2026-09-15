@@ -39,6 +39,8 @@ Top-level object with an `actions` array. Each action:
 | `pam_sudo_local_write` | Write `/etc/pam.d/sudo_local` (`value` = desired body or disabled stub) |
 | `pam_sudo_local_remove` | Legacy: apply writes a disabled stub (does not delete) |
 | `pam_sudo_include` | Ensure `auth include sudo_local` in `/etc/pam.d/sudo` |
+| `brew_autoupdate_start` | `brew autoupdate start`; `name` is the interval, `value` is extra flags |
+| `brew_autoupdate_delete` | `brew autoupdate delete` (stop and remove the launch agent) |
 
 Example:
 
@@ -74,6 +76,8 @@ defaults write com.apple.dock autohide = true
 pam write /etc/pam.d/sudo_local
 pam disable stub /etc/pam.d/sudo_local
 pam include sudo_local in /etc/pam.d/sudo
+brew autoupdate start 12h --upgrade --cleanup
+brew autoupdate delete
 create file ~/.config/nvim <- config/nvim
 update file ~/.zshrc <- config/home/zshrc
 replace file ~/.zshrc <- config/zshrc (backup)
@@ -93,9 +97,9 @@ prune file ~/.config/old
 
 `file_prune` appears for PourOver-owned paths (from `lock.json`) that are no longer declared under links/managed/templates when `policy.files_mode` is `safe` or `strict`. `non_destructive` never plans prune. Apply prompts once in `safe` (multiline `Proceed? [y/N]` list; skipped if declined), removes without prompting in `strict`, and soft-fails per path.
 
-`pourover upgrade --dry-run` merges upgrade actions (outdated declared packages only) ahead of the normal apply plan.
+`pourover upgrade` (and `--dry-run`) runs `brew update` before discovering outdated packages, then merges upgrade actions (outdated declared packages only) ahead of the normal apply plan.
 
-Plan order: upgrade actions (upgrade command only), then brew/mas/pam/defaults, then generation file actions (links/managed/templates), then unlinks, then owned-file prunes.
+Plan order: upgrade actions (upgrade command only), then brew (including autoupdate start/delete after tap adds), mas/pam/defaults, then generation file actions (links/managed/templates), then unlinks, then owned-file prunes.
 
 When there is nothing to do:
 

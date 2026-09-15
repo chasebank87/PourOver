@@ -4,30 +4,32 @@ package plan
 type ActionType string
 
 const (
-	ActionTapAdd             ActionType = "tap_add"
-	ActionTapTrust           ActionType = "tap_trust"
-	ActionTapRemove          ActionType = "tap_remove"
-	ActionFormulaInstall     ActionType = "formula_install"
-	ActionFormulaRemove      ActionType = "formula_remove"
-	ActionFormulaUpgrade     ActionType = "formula_upgrade"
-	ActionCaskInstall        ActionType = "cask_install"
-	ActionCaskRemove         ActionType = "cask_remove"
-	ActionCaskUpgrade        ActionType = "cask_upgrade"
-	ActionCaskRename         ActionType = "cask_rename" // advise: Name is old token, Value is new token
-	ActionMasInstall         ActionType = "mas_install"
-	ActionMasRemove          ActionType = "mas_remove"
-	ActionMasUpgrade         ActionType = "mas_upgrade"
-	ActionLinkCreate         ActionType = "link_create"
-	ActionLinkUpdate         ActionType = "link_update"
-	ActionLinkReplace        ActionType = "link_replace" // backup existing target, then create link
-	ActionManagedCopy        ActionType = "managed_copy"
-	ActionTemplateWrite      ActionType = "template_write"
-	ActionFileUnlink         ActionType = "file_unlink"
-	ActionFilePrune          ActionType = "file_prune" // owned path no longer declared
-	ActionDefaultsWrite      ActionType = "defaults_write"
-	ActionPAMSudoLocalWrite  ActionType = "pam_sudo_local_write"  // Value = desired sudo_local body (or disabled stub)
-	ActionPAMSudoLocalRemove ActionType = "pam_sudo_local_remove" // legacy: apply writes disabled stub (does not delete)
-	ActionPAMSudoInclude     ActionType = "pam_sudo_include"      // ensure auth include sudo_local in sudo
+	ActionTapAdd               ActionType = "tap_add"
+	ActionTapTrust             ActionType = "tap_trust"
+	ActionTapRemove            ActionType = "tap_remove"
+	ActionFormulaInstall       ActionType = "formula_install"
+	ActionFormulaRemove        ActionType = "formula_remove"
+	ActionFormulaUpgrade       ActionType = "formula_upgrade"
+	ActionCaskInstall          ActionType = "cask_install"
+	ActionCaskRemove           ActionType = "cask_remove"
+	ActionCaskUpgrade          ActionType = "cask_upgrade"
+	ActionCaskRename           ActionType = "cask_rename" // advise: Name is old token, Value is new token
+	ActionMasInstall           ActionType = "mas_install"
+	ActionMasRemove            ActionType = "mas_remove"
+	ActionMasUpgrade           ActionType = "mas_upgrade"
+	ActionLinkCreate           ActionType = "link_create"
+	ActionLinkUpdate           ActionType = "link_update"
+	ActionLinkReplace          ActionType = "link_replace" // backup existing target, then create link
+	ActionManagedCopy          ActionType = "managed_copy"
+	ActionTemplateWrite        ActionType = "template_write"
+	ActionFileUnlink           ActionType = "file_unlink"
+	ActionFilePrune            ActionType = "file_prune" // owned path no longer declared
+	ActionDefaultsWrite        ActionType = "defaults_write"
+	ActionPAMSudoLocalWrite    ActionType = "pam_sudo_local_write"   // Value = desired sudo_local body (or disabled stub)
+	ActionPAMSudoLocalRemove   ActionType = "pam_sudo_local_remove"  // legacy: apply writes disabled stub (does not delete)
+	ActionPAMSudoInclude       ActionType = "pam_sudo_include"       // ensure auth include sudo_local in sudo
+	ActionBrewAutoupdateStart  ActionType = "brew_autoupdate_start"  // Name = interval display; Value = extra flags
+	ActionBrewAutoupdateDelete ActionType = "brew_autoupdate_delete" // stop and remove the launch agent
 )
 
 // Action is one change to apply.

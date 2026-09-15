@@ -4,14 +4,14 @@ import "github.com/chasebank87/PourOver/internal/plan"
 
 // ApplyResult summarizes the outcome of a reconcile apply run.
 type ApplyResult struct {
-	Plan                                                                                             plan.Plan
-	Taps, Formulae, Casks, Mas, PAM, Removed, Defaults, Linked, Managed, Templates, Unlinked, Pruned int
-	PrunedPaths                                                                                      []string // absolute paths successfully pruned
-	LinkedPaths                                                                                      []string // absolute paths successfully link-activated
-	ManagedPaths                                                                                     []string // absolute paths successfully managed-copied
-	TemplatePaths                                                                                    []string // absolute paths successfully template-written
-	UnlinkedPaths                                                                                    []string // absolute paths successfully unlinked
-	Renames, Skipped, Failures                                                                       int
+	Plan                                                                                                         plan.Plan
+	Taps, AutoUpdate, Formulae, Casks, Mas, PAM, Removed, Defaults, Linked, Managed, Templates, Unlinked, Pruned int
+	PrunedPaths                                                                                                  []string // absolute paths successfully pruned
+	LinkedPaths                                                                                                  []string // absolute paths successfully link-activated
+	ManagedPaths                                                                                                 []string // absolute paths successfully managed-copied
+	TemplatePaths                                                                                                []string // absolute paths successfully template-written
+	UnlinkedPaths                                                                                                []string // absolute paths successfully unlinked
+	Renames, Skipped, Failures                                                                                   int
 }
 
 // SucceededFileTargets returns absolute paths written by link/managed/template phases.

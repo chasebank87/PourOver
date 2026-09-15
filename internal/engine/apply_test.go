@@ -17,7 +17,7 @@ func TestApply_NoChanges(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
-	if result.Taps != 0 || result.Formulae != 0 || result.Casks != 0 || result.Mas != 0 || result.PAM != 0 ||
+	if result.Taps != 0 || result.AutoUpdate != 0 || result.Formulae != 0 || result.Casks != 0 || result.Mas != 0 || result.PAM != 0 ||
 		result.Removed != 0 || result.Defaults != 0 || result.Linked != 0 ||
 		result.Managed != 0 || result.Templates != 0 || result.Unlinked != 0 || result.Pruned != 0 ||
 		result.Renames != 0 || result.Skipped != 0 || result.Failures != 0 {
@@ -75,6 +75,25 @@ func TestApply_InstallFailureContinues(t *testing.T) {
 	}
 	if len(runner.installs) != 1 || runner.installs[0] != "good" {
 		t.Fatalf("installs = %v, want [good]", runner.installs)
+	}
+}
+
+func TestApply_AutoUpdateStart(t *testing.T) {
+	runner := &recordingApplyRunner{}
+	p := plan.Plan{Actions: []plan.Action{
+		{Type: plan.ActionBrewAutoupdateStart, Name: "12h", Value: "--upgrade"},
+	}}
+	result, err := Apply(context.Background(), runner, p, ApplyOptions{
+		Quiet: true,
+	})
+	if err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	if result.AutoUpdate != 1 {
+		t.Fatalf("AutoUpdate = %d, want 1", result.AutoUpdate)
+	}
+	if len(runner.installs) != 1 || runner.installs[0] != "autoupdate:start:12h:--upgrade" {
+		t.Fatalf("installs = %v", runner.installs)
 	}
 }
 
@@ -164,6 +183,10 @@ type recordingApplyRunner struct {
 }
 
 func (r *recordingApplyRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
+	if len(args) >= 1 && args[0] == "autoupdate" {
+		r.installs = append(r.installs, "autoupdate:"+strings.Join(args[1:], ":"))
+		return nil, nil
+	}
 	if len(args) == 2 && args[0] == "install" {
 		name := args[1]
 		if r.failInstall[name] {

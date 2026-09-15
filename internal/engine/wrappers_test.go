@@ -391,6 +391,56 @@ return {
 	}
 }
 
+func TestBuildUpgradePlan_RunsBrewUpdateFirst(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "cfg")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(configDir, "pourover.lua")
+	if err := os.WriteFile(configPath, []byte(`return {
+  packages = { formulae = { "git" }, casks = {} },
+  files = { links = {} },
+  policy = { uninstall_mode = "safe" },
+}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runner := &recordingBrewUpdateRunner{
+		stubBrewRunner: stubBrewRunner{
+			formulae:         "git\n",
+			outdatedFormulae: "git\n",
+			outdatedSet:      true,
+		},
+	}
+	if _, err := BuildUpgradePlan(context.Background(), configPath, runner, nil); err != nil {
+		t.Fatal(err)
+	}
+	if !runner.updated {
+		t.Fatal("expected brew update before outdated discovery")
+	}
+	if runner.updateIndex != 0 {
+		t.Fatalf("brew update call index = %d, want 0 (first)", runner.updateIndex)
+	}
+}
+
+type recordingBrewUpdateRunner struct {
+	stubBrewRunner
+	calls       int
+	updated     bool
+	updateIndex int
+}
+
+func (r *recordingBrewUpdateRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
+	idx := r.calls
+	r.calls++
+	if len(args) == 1 && args[0] == "update" {
+		r.updated = true
+		r.updateIndex = idx
+		return []byte(""), nil
+	}
+	return r.stubBrewRunner.Run(ctx, args...)
+}
+
 func TestBuildUpgradePlan_MasMissingSoftContinue(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, "cfg")

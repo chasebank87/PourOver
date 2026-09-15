@@ -209,6 +209,14 @@ func isBrewMutation(args []string) bool {
 	switch args[0] {
 	case "install", "uninstall", "remove", "reinstall", "upgrade", "tap", "untap", "trust", "update":
 		return true
+	case "autoupdate":
+		if len(args) >= 2 {
+			switch args[1] {
+			case "start", "stop", "delete":
+				return true
+			}
+		}
+		return false
 	default:
 		return false
 	}

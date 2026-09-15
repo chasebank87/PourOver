@@ -92,6 +92,7 @@ func Doctor(in DoctorInputs) (DoctorReport, error) {
 
 	checks = append(checks, packagesDoctorCheck(in.ConfigPath)...)
 	checks = append(checks, masDoctorChecks(in.Manifest)...)
+	checks = append(checks, autoUpdateDoctorCheck(in.Manifest)...)
 	checks = append(checks, pamWatchIDDoctorCheck(in.Manifest)...)
 
 	if err := os.MkdirAll(in.StateDir, 0o755); err != nil {
@@ -205,6 +206,38 @@ func masDoctorChecks(m config.Manifest) []DoctorCheck {
 		}}
 	}
 	return []DoctorCheck{{Name: "mas", OK: true, Detail: detail}}
+}
+
+func autoUpdateDoctorCheck(m config.Manifest) []DoctorCheck {
+	au := m.Packages.AutoUpdate
+	if !au.Configured {
+		return nil
+	}
+	if !au.Enable {
+		return []DoctorCheck{{Name: "brew-autoupdate", OK: true, Detail: "managed, disabled"}}
+	}
+	st, err := discovery.DefaultAutoupdateProbe.Discover()
+	if err != nil {
+		return []DoctorCheck{{
+			Name:   "brew-autoupdate",
+			OK:     true,
+			Warn:   true,
+			Detail: "status unknown: " + err.Error(),
+		}}
+	}
+	if st.Running {
+		return []DoctorCheck{{
+			Name:   "brew-autoupdate",
+			OK:     true,
+			Detail: "enabled; launch agent running",
+		}}
+	}
+	return []DoctorCheck{{
+		Name:   "brew-autoupdate",
+		OK:     true,
+		Warn:   true,
+		Detail: "enabled in config but not running (will start on apply)",
+	}}
 }
 
 func pamWatchIDDoctorCheck(m config.Manifest) []DoctorCheck {

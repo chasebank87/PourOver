@@ -86,6 +86,7 @@ func Import(ctx context.Context, runner discovery.Runner, opts ImportOptions) (I
 	var existingTaps, existingFormulae, existingCasks []string
 	var existingMas []config.MasApp
 	masConfigured := false
+	var existingAuto config.AutoUpdate
 	if _, err := os.Stat(opts.ConfigPath); err == nil {
 		if m, loadErr := config.LoadManifest(opts.ConfigPath); loadErr == nil {
 			existingLinks = append([]config.FileLink(nil), m.Files.Links...)
@@ -94,6 +95,7 @@ func Import(ctx context.Context, runner discovery.Runner, opts ImportOptions) (I
 			existingCasks = append([]string(nil), m.Packages.Casks...)
 			existingMas = append([]config.MasApp(nil), m.Packages.Mas...)
 			masConfigured = m.Packages.MasConfigured
+			existingAuto = m.Packages.AutoUpdate
 		}
 	}
 
@@ -134,7 +136,7 @@ func Import(ctx context.Context, runner discovery.Runner, opts ImportOptions) (I
 		}
 
 		pkgPath := filepath.Join(opts.ConfigDir, "packages.lua")
-		body := configimport.FormatPackagesLuaFull(taps, formulae, casks, masForFormat)
+		body := configimport.FormatPackagesLuaFullWithAutoUpdate(taps, formulae, casks, masForFormat, existingAuto)
 		if !opts.DryRun {
 			if err := os.WriteFile(pkgPath, []byte(body), 0o644); err != nil {
 				return ImportResult{}, err

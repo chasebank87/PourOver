@@ -51,6 +51,46 @@ func FormatPackagesLuaFull(taps, formulae, casks []string, mas []config.MasApp) 
 	return b.String()
 }
 
+// FormatPackagesLuaFullWithAutoUpdate is FormatPackagesLuaFull plus a preserved
+// packages.auto_update section when that key is managed in the current manifest.
+func FormatPackagesLuaFullWithAutoUpdate(taps, formulae, casks []string, mas []config.MasApp, auto config.AutoUpdate) string {
+	body := FormatPackagesLuaFull(taps, formulae, casks, mas)
+	if !auto.Configured {
+		return body
+	}
+	return strings.TrimSuffix(body, "}\n") + formatAutoUpdateLua(auto) + "}\n"
+}
+
+func formatAutoUpdateLua(auto config.AutoUpdate) string {
+	simple := auto.Interval == "" && !auto.Upgrade && !auto.Greedy && !auto.Cleanup && !auto.Immediate
+	if simple {
+		if auto.Enable {
+			return "  auto_update = true,\n"
+		}
+		return "  auto_update = false,\n"
+	}
+	var b strings.Builder
+	b.WriteString("  auto_update = {\n")
+	fmt.Fprintf(&b, "    enable = %v,\n", auto.Enable)
+	if auto.Interval != "" {
+		fmt.Fprintf(&b, "    interval = %q,\n", auto.Interval)
+	}
+	if auto.Upgrade {
+		b.WriteString("    upgrade = true,\n")
+	}
+	if auto.Greedy {
+		b.WriteString("    greedy = true,\n")
+	}
+	if auto.Cleanup {
+		b.WriteString("    cleanup = true,\n")
+	}
+	if auto.Immediate {
+		b.WriteString("    immediate = true,\n")
+	}
+	b.WriteString("  },\n")
+	return b.String()
+}
+
 func sortedCopy(in []string) []string {
 	out := append([]string(nil), in...)
 	sort.Strings(out)

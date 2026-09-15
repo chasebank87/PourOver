@@ -105,6 +105,18 @@ func BuildPlanResult(ctx context.Context, configPath string, runner discovery.Ru
 	pamCfg := gen.MacOS.Security.PAM.SudoLocal
 	packages := plan.ExpandPAMFormulae(gen.Packages, pamCfg)
 	packages = plan.ExpandMasFormulae(packages)
+
+	var autoPlan plan.Plan
+	autoInstalled := false
+	if packages.AutoUpdate.Configured {
+		autoState, err := discovery.DefaultAutoupdateProbe.Discover()
+		if err != nil {
+			return PlanResult{}, fmt.Errorf("discover autoupdate: %w", err)
+		}
+		autoInstalled = autoState.Installed || autoState.Running
+		autoPlan = plan.BuildAutoUpdatePlan(packages.AutoUpdate, autoState)
+	}
+	packages = plan.ExpandAutoUpdateTap(packages, brewState.Taps, autoInstalled)
 	deps, err := discovery.FormulaDependencyClosure(ctx, runner, packages.Formulae)
 	if err != nil {
 		return PlanResult{}, fmt.Errorf("formula deps: %w", err)
@@ -174,8 +186,8 @@ func BuildPlanResult(ctx context.Context, configPath string, runner discovery.Ru
 	filesMode := policy.ResolveFilesMode(string(gen.Policy.FilesMode))
 	prunePlan := plan.BuildFilePrunePlan(lock.OwnedFiles, generation.DeclaredTargets(gen), filesMode)
 
-	// brew → mas → pam → macos defaults → generation files → unlinks → prune
-	merged := plan.MergePlans(brewPlan, masPlan, pamPlan, defaultsPlan, filePlan, unlinkPlan, prunePlan)
+	// brew (incl. autoupdate) → mas → pam → macos defaults → generation files → unlinks → prune
+	merged := plan.MergePlans(brewPlan, autoPlan, masPlan, pamPlan, defaultsPlan, filePlan, unlinkPlan, prunePlan)
 	return PlanResult{
 		Plan:         merged,
 		Manifest:     manifest,

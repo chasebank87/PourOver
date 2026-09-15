@@ -27,6 +27,7 @@ func Validate(m *Manifest) error {
 		}
 	}
 	errs = append(errs, validateMasApps(m.Packages.Mas)...)
+	errs = append(errs, validateAutoUpdate(m.Packages.AutoUpdate)...)
 
 	for i, link := range m.Files.Links {
 		prefix := fmt.Sprintf("files.links[%d]", i+1)
@@ -157,6 +158,20 @@ func validateMasApps(apps []MasApp) []error {
 				seenNames[app.Name] = app.ID
 			}
 		}
+	}
+	return errs
+}
+
+func validateAutoUpdate(cfg AutoUpdate) []error {
+	if !cfg.Configured {
+		return nil
+	}
+	var errs []error
+	if _, err := ParseAutoUpdateInterval(cfg.Interval); err != nil {
+		errs = append(errs, fmt.Errorf("packages.auto_update.interval: %w", err))
+	}
+	if cfg.Greedy && !cfg.Upgrade {
+		errs = append(errs, fmt.Errorf("packages.auto_update.greedy: requires upgrade = true"))
 	}
 	return errs
 }

@@ -12,21 +12,22 @@ import (
 
 // Summary holds final apply/upgrade counts for Finish.
 type Summary struct {
-	Taps      int
-	Formulae  int
-	Casks     int
-	Mas       int
-	Removed   int
-	Upgraded  int
-	Defaults  int
-	Linked    int
-	Managed   int
-	Templates int
-	Unlinked  int
-	Pruned    int
-	Skipped   int
-	Renames   int
-	Failures  int
+	Taps       int
+	AutoUpdate int
+	Formulae   int
+	Casks      int
+	Mas        int
+	Removed    int
+	Upgraded   int
+	Defaults   int
+	Linked     int
+	Managed    int
+	Templates  int
+	Unlinked   int
+	Pruned     int
+	Skipped    int
+	Renames    int
+	Failures   int
 }
 
 // Session renders a PourOver header, one live progress line, and streams brew

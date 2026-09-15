@@ -51,6 +51,17 @@ func TestRenderText_TemplateWrite(t *testing.T) {
 	}
 }
 
+func TestRenderText_AutoUpdate(t *testing.T) {
+	got := RenderText(Plan{Actions: []Action{
+		{Type: ActionBrewAutoupdateDelete, Name: "com.github.domt4.homebrew-autoupdate"},
+		{Type: ActionBrewAutoupdateStart, Name: "12h", Value: "--upgrade --cleanup"},
+	}})
+	want := "brew autoupdate delete\nbrew autoupdate start 12h --upgrade --cleanup\n"
+	if got != want {
+		t.Fatalf("RenderText() = %q, want %q", got, want)
+	}
+}
+
 func TestRenderJSON_StableShape(t *testing.T) {
 	p := Plan{Actions: []Action{
 		{Type: ActionFormulaInstall, Name: "git"},

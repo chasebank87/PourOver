@@ -8,7 +8,7 @@ import (
 // WriteSummary prints apply/upgrade outcome lines using the same wording as
 // Session.Finish. When fancy is true, lines get the ☕ prefix and semantic colors.
 func WriteSummary(w io.Writer, sum Summary, fancy bool) {
-	if sum.Failures == 0 && sum.Taps == 0 && sum.Formulae == 0 && sum.Casks == 0 && sum.Mas == 0 && sum.Removed == 0 &&
+	if sum.Failures == 0 && sum.Taps == 0 && sum.AutoUpdate == 0 && sum.Formulae == 0 && sum.Casks == 0 && sum.Mas == 0 && sum.Removed == 0 &&
 		sum.Upgraded == 0 && sum.Defaults == 0 && sum.Linked == 0 && sum.Managed == 0 && sum.Templates == 0 &&
 		sum.Unlinked == 0 && sum.Pruned == 0 && sum.Skipped == 0 && sum.Renames == 0 {
 		writeSummaryLine(w, fancy, kindMuted, "No changes.")
@@ -17,6 +17,9 @@ func WriteSummary(w io.Writer, sum Summary, fancy bool) {
 
 	if sum.Taps > 0 {
 		writeSummaryLine(w, fancy, kindOK, fmt.Sprintf("Added %d tap(s).", sum.Taps))
+	}
+	if sum.AutoUpdate > 0 {
+		writeSummaryLine(w, fancy, kindOK, fmt.Sprintf("Updated brew autoupdate (%d action(s)).", sum.AutoUpdate))
 	}
 	if sum.Formulae > 0 {
 		writeSummaryLine(w, fancy, kindOK, fmt.Sprintf("Installed %d formula(s).", sum.Formulae))

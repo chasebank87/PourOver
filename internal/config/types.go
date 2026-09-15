@@ -77,8 +77,8 @@ type SettingValue struct {
 // and optional clone URL for `brew tap <name> <url>` (non-homebrew- prefix remotes).
 type TapSpec struct {
 	Name    string `json:"name"`
-	Trusted bool   `json:"trusted"`          // default true when decoded from Lua string/table
-	URL     string `json:"url,omitempty"`    // optional; when set, apply runs brew tap name url
+	Trusted bool   `json:"trusted"`       // default true when decoded from Lua string/table
+	URL     string `json:"url,omitempty"` // optional; when set, apply runs brew tap name url
 }
 
 // MasApp is a Mac App Store app declared by display name and numeric ID.
@@ -89,11 +89,25 @@ type MasApp struct {
 
 // Packages lists Homebrew taps, formulae, casks, and MAS apps to reconcile.
 type Packages struct {
-	Taps          []TapSpec `json:"taps,omitempty"`
-	Formulae      []string  `json:"formulae,omitempty"`
-	Casks         []string  `json:"casks,omitempty"`
-	Mas           []MasApp  `json:"mas,omitempty"`
-	MasConfigured bool      `json:"-"` // true if mas key present in Lua
+	Taps          []TapSpec  `json:"taps,omitempty"`
+	Formulae      []string   `json:"formulae,omitempty"`
+	Casks         []string   `json:"casks,omitempty"`
+	Mas           []MasApp   `json:"mas,omitempty"`
+	MasConfigured bool       `json:"-"` // true if mas key present in Lua
+	AutoUpdate    AutoUpdate `json:"auto_update,omitempty"`
+}
+
+// AutoUpdate configures Homebrew's background `brew autoupdate` launch agent.
+// Omitted packages.auto_update means unmanaged (PourOver does not start or stop it).
+// When the key is present, Enable defaults to true unless set to false.
+type AutoUpdate struct {
+	Configured bool   `json:"-"`                  // true if auto_update key present in Lua
+	Enable     bool   `json:"enable,omitempty"`   // default true when configured
+	Interval   string `json:"interval,omitempty"` // seconds, duration (12h, 1d), or HH:MM; empty = 24h
+	Upgrade    bool   `json:"upgrade,omitempty"`
+	Greedy     bool   `json:"greedy,omitempty"`
+	Cleanup    bool   `json:"cleanup,omitempty"`
+	Immediate  bool   `json:"immediate,omitempty"`
 }
 
 // TapNames returns the tap repository names in declaration order.

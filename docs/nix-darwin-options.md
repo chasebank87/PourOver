@@ -41,6 +41,7 @@ Status:
 | `homebrew.taps` | `packages.taps` — string or `{ name, trusted? }` (`trusted` defaults `true`; `false` skips `brew trust`) |
 | `homebrew.masApps` | `packages.mas` (name → numeric ID; omit = unmanaged; `{}` = manage zero apps) |
 | `homebrew.enable` / brew bundle flags | installer bootstraps Homebrew; `pourover apply` runs `brew` |
+| `homebrew.onActivation.autoUpdate` / background `brew autoupdate` | `packages.auto_update` (boolean or table) starts Homebrew's launchd updater; omit = unmanaged |
 
 ## `system.defaults` (supported)
 

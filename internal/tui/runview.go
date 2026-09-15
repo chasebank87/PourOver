@@ -405,6 +405,7 @@ func formatApplySummary(r engine.ApplyResult) string {
 		parts = append(parts, fmt.Sprintf("%d %s", n, label))
 	}
 	add(r.Taps, "tap", "taps")
+	add(r.AutoUpdate, "autoupdate action", "autoupdate actions")
 	add(r.Formulae, "formula", "formulae")
 	add(r.Casks, "cask", "casks")
 	add(r.Mas, "mas app", "mas apps")

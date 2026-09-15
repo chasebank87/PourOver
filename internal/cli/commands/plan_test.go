@@ -28,6 +28,9 @@ func (s *stubBrewRunner) Run(ctx context.Context, args ...string) ([]byte, error
 	if len(args) == 1 && args[0] == "tap" {
 		return []byte("homebrew/core\nhomebrew/cask\n"), nil
 	}
+	if len(args) == 1 && args[0] == "update" {
+		return []byte(""), nil
+	}
 	if len(args) == 2 && args[0] == "trust" && args[1] == "--json=v1" {
 		return []byte(`{"taps":[],"formulae":[],"casks":[],"commands":[]}`), nil
 	}

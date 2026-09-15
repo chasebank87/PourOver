@@ -32,6 +32,10 @@ func (r *installRecordingRunner) Run(ctx context.Context, args ...string) ([]byt
 		r.installs = append(r.installs, "update")
 		return nil, nil
 	}
+	if len(args) >= 1 && args[0] == "autoupdate" {
+		r.installs = append(r.installs, "autoupdate:"+strings.Join(args[1:], ":"))
+		return nil, nil
+	}
 	if len(args) == 2 && args[0] == "list" && args[1] == "--formula" {
 		return r.listFormula, nil
 	}
